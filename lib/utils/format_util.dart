@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/film_models.dart';
+import 'server_config_manager.dart';
 
 /// 统一格式化工具类
 class FormatUtil {
@@ -16,24 +17,39 @@ class FormatUtil {
   }
 
   static String poster(MovieBasicInfo film) {
-    if (film.picture.isNotEmpty) return film.picture;
-    if (film.poster.isNotEmpty) return film.poster;
-    if (film.pictureSlide.isNotEmpty) return film.pictureSlide;
-    return '';
+    String raw = '';
+    if (film.picture.isNotEmpty) {
+      raw = film.picture;
+    } else if (film.poster.isNotEmpty) {
+      raw = film.poster;
+    } else if (film.pictureSlide.isNotEmpty) {
+      raw = film.pictureSlide;
+    }
+    return ServerConfigManager.instance.resolveMediaUrl(raw);
   }
 
   static String bannerPoster(BannerItem item) {
-    if (item.poster.isNotEmpty) return item.poster;
-    if (item.picture.isNotEmpty) return item.picture;
-    if (item.pictureSlide.isNotEmpty) return item.pictureSlide;
-    return '';
+    String raw = '';
+    if (item.poster.isNotEmpty) {
+      raw = item.poster;
+    } else if (item.picture.isNotEmpty) {
+      raw = item.picture;
+    } else if (item.pictureSlide.isNotEmpty) {
+      raw = item.pictureSlide;
+    }
+    return ServerConfigManager.instance.resolveMediaUrl(raw);
   }
 
   static String bannerBackdrop(BannerItem item) {
-    if (item.pictureSlide.isNotEmpty) return item.pictureSlide;
-    if (item.picture.isNotEmpty) return item.picture;
-    if (item.poster.isNotEmpty) return item.poster;
-    return '';
+    String raw = '';
+    if (item.pictureSlide.isNotEmpty) {
+      raw = item.pictureSlide;
+    } else if (item.picture.isNotEmpty) {
+      raw = item.picture;
+    } else if (item.poster.isNotEmpty) {
+      raw = item.poster;
+    }
+    return ServerConfigManager.instance.resolveMediaUrl(raw);
   }
 
   static String filmId(MovieBasicInfo film) {
