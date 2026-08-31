@@ -27,7 +27,7 @@ class DailyUpdatePane extends StatefulWidget {
   State<DailyUpdatePane> createState() => _DailyUpdatePaneState();
 }
 
-class _DailyUpdatePaneState extends State<DailyUpdatePane> {
+class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAliveClientMixin {
   List<MovieBasicInfo> _list = [];
   PageInfo _page = PageInfo(pageSize: _pageSize, current: 1, pageCount: 1, total: 0);
   bool _loading = true;
@@ -35,6 +35,9 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> {
   String _errorText = '';
   final ScrollController _scrollController = ScrollController();
   bool _hasLoaded = false;
+
+  @override
+  bool get wantKeepAlive => true;
 
   @override
   void initState() {
@@ -115,6 +118,7 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     if (_loading && _list.isEmpty) {
       return const LoadingView(label: '正在加载今日更新');
     }

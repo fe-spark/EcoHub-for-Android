@@ -25,6 +25,7 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
   List<MovieBasicInfo> _seedList = [];
   PageInfo _seedPage = PageInfo(pageSize: _pageSize, current: 1, pageCount: 1, total: 0);
   TabController? _tabController;
+  int _refreshKey = 0;
 
   @override
   void initState() {
@@ -44,6 +45,19 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
     _loadMeta();
   }
 
+  Future<void> _handleRefresh() async {
+    if (_loading) return;
+    setState(() {
+      _currentIndex = 0;
+      _categories = [];
+      _seedList = [];
+      _refreshKey++;
+    });
+    _tabController?.dispose();
+    _tabController = null;
+    await _loadMeta();
+  }
+
   Future<void> _loadMeta() async {
     setState(() {
       _loading = true;
@@ -61,8 +75,16 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
 
       _tabController?.dispose();
       _tabController = TabController(length: cats.length, vsync: this);
+      _tabController!.animation?.addListener(() {
+        final animIndex = _tabController!.animation!.value.round();
+        if (_currentIndex != animIndex) {
+          setState(() {
+            _currentIndex = animIndex;
+          });
+        }
+      });
       _tabController!.addListener(() {
-        if (!_tabController!.indexIsChanging && _currentIndex != _tabController!.index) {
+        if (_currentIndex != _tabController!.index) {
           setState(() {
             _currentIndex = _tabController!.index;
           });
@@ -95,17 +117,14 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    Widget bodyContent;
     if (_loading && _categories.isEmpty) {
-      return const Scaffold(
-        backgroundColor: AppTheme.bg,
-        body: LoadingView(label: '正在加载今日更新'),
+      bodyContent = const Expanded(
+        child: LoadingView(label: '正在加载今日更新'),
       );
-    }
-
-    if (_errorText.isNotEmpty && _categories.isEmpty) {
-      return Scaffold(
-        backgroundColor: AppTheme.bg,
-        body: EmptyState(
+    } else if (_errorText.isNotEmpty && _categories.isEmpty) {
+      bodyContent = Expanded(
+        child: EmptyState(
           title: '加载失败',
           subtitle: _errorText,
           icon: Icons.error_outline_rounded,
@@ -117,6 +136,67 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
             onPressed: _loadMeta,
             child: const Text('重试'),
           ),
+        ),
+      );
+    } else {
+      bodyContent = Expanded(
+        child: Column(
+          children: [
+            // Categories TabBar
+            if (_categories.length > 1 && _tabController != null)
+              Container(
+                height: 32,
+                margin: const EdgeInsets.only(top: 2, bottom: 6),
+                child: TabBar(
+                  controller: _tabController,
+                  isScrollable: true,
+                  tabAlignment: TabAlignment.start,
+                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
+                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                  indicatorColor: Colors.transparent,
+                  dividerColor: Colors.transparent,
+                  tabs: List.generate(_categories.length, (index) {
+                    final cat = _categories[index];
+                    final active = _currentIndex == index;
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: active ? AppTheme.accent : Colors.transparent,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                      ),
+                      child: Text(
+                        cat.name,
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: active ? FontWeight.w600 : FontWeight.normal,
+                          color: active ? Colors.white : AppTheme.textSecondary,
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+
+            // TabBarView
+            Expanded(
+              child: _tabController != null
+                  ? TabBarView(
+                      key: ValueKey('daily_tabbar_view_$_refreshKey'),
+                      controller: _tabController,
+                      children: List.generate(_categories.length, (index) {
+                        final cat = _categories[index];
+                        return DailyUpdatePane(
+                          key: ValueKey('daily_pane_${cat.pid}_$_refreshKey'),
+                          pid: cat.pid,
+                          active: (index - _currentIndex).abs() <= 1,
+                          seedList: cat.pid == 0 ? _seedList : null,
+                          seedPage: cat.pid == 0 ? _seedPage : null,
+                        );
+                      }),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
         ),
       );
     }
@@ -134,7 +214,7 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
               child: Row(
                 children: [
                   const Icon(Icons.local_fire_department_rounded, color: AppTheme.accent, size: 20),
-                  const SizedBox(width: AppTheme.spaceSm),
+                  const SizedBox(width: 6),
                   const Text(
                     '每日更新',
                     style: TextStyle(
@@ -143,24 +223,27 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
                       color: AppTheme.textPrimary,
                     ),
                   ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                  if (_categories.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Text(
+                      '·',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textMuted.withValues(alpha: 0.6),
+                      ),
                     ),
-                    child: RichText(
+                    const SizedBox(width: 8),
+                    RichText(
                       text: TextSpan(
-                        style: const TextStyle(fontSize: 11, color: AppTheme.textMuted),
+                        style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
                         children: [
                           const TextSpan(text: '近 24 小时 '),
                           TextSpan(
                             text: '${_currentCategory().count}',
                             style: const TextStyle(
                               fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                              fontWeight: FontWeight.w600,
                               color: AppTheme.accent,
                             ),
                           ),
@@ -168,66 +251,37 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
                         ],
                       ),
                     ),
+                  ],
+                  const Spacer(),
+                  SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      icon: _loading
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(AppTheme.accent),
+                              ),
+                            )
+                          : const Icon(
+                              Icons.refresh_rounded,
+                              color: AppTheme.textSecondary,
+                              size: 18,
+                            ),
+                      tooltip: '重新获取',
+                      onPressed: _loading ? null : _handleRefresh,
+                    ),
                   ),
                 ],
               ),
             ),
 
-            // Categories TabBar
-            if (_categories.length > 1 && _tabController != null)
-              Container(
-                height: 36,
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                child: TabBar(
-                  controller: _tabController,
-                  isScrollable: true,
-                  tabAlignment: TabAlignment.start,
-                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-                  indicatorColor: Colors.transparent,
-                  dividerColor: Colors.transparent,
-                  tabs: List.generate(_categories.length, (index) {
-                    final cat = _categories[index];
-                    final active = _currentIndex == index;
-                    return Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: active ? AppTheme.accent : Colors.white.withValues(alpha: 0.06),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                        border: Border.all(
-                          color: active ? AppTheme.accent : Colors.white.withValues(alpha: 0.08),
-                        ),
-                      ),
-                      child: Text(
-                        cat.name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: active ? FontWeight.bold : FontWeight.normal,
-                          color: active ? Colors.white : AppTheme.textSecondary,
-                        ),
-                      ),
-                    );
-                  }),
-                ),
-              ),
-
-            // TabBarView
-            Expanded(
-              child: _tabController != null
-                  ? TabBarView(
-                      controller: _tabController,
-                      children: List.generate(_categories.length, (index) {
-                        final cat = _categories[index];
-                        return DailyUpdatePane(
-                          pid: cat.pid,
-                          active: (index - _currentIndex).abs() <= 1,
-                          seedList: cat.pid == 0 ? _seedList : null,
-                          seedPage: cat.pid == 0 ? _seedPage : null,
-                        );
-                      }),
-                    )
-                  : const SizedBox.shrink(),
-            ),
+            // Main Body Content
+            bodyContent,
           ],
         ),
       ),
