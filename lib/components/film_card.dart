@@ -73,6 +73,7 @@ class FilmCard extends StatelessWidget {
                 if (posterUrl.isNotEmpty)
                   CachedNetworkImage(
                     imageUrl: posterUrl,
+                    httpHeaders: FormatUtil.imageHeaders(posterUrl),
                     fit: BoxFit.cover,
                     placeholder: (context, url) => Container(
                       color: AppTheme.bgCard,

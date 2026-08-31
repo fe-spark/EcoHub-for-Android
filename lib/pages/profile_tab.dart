@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../common/app_theme.dart';
 import '../models/film_models.dart';
 import '../api/film_api.dart';
+import '../utils/format_util.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
 import '../utils/app_version_util.dart';
@@ -285,6 +286,7 @@ class _ProfileTabState extends State<ProfileTab> {
                               borderRadius: BorderRadius.circular(AppTheme.radiusLg),
                               child: CachedNetworkImage(
                                 imageUrl: logoUrl,
+                                httpHeaders: FormatUtil.imageHeaders(logoUrl),
                                 width: 56,
                                 height: 56,
                                 fit: BoxFit.cover,

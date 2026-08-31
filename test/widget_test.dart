@@ -80,6 +80,19 @@ void main() {
       expect(FormatUtil.joinMeta(['2026', '电影', '中国']), '2026 · 电影 · 中国');
       expect(FormatUtil.joinMeta(['2026', '', '中国']), '2026 · 中国');
     });
+
+    test('imageHeaders for bilibili and douban anti-hotlink', () {
+      final biliHeaders = FormatUtil.imageHeaders('https://i0.hdslb.com/bfs/bangumi/image/19a2d01429bcba6b31791277c016e0d1aa465974.png');
+      expect(biliHeaders['Referer'], 'https://www.bilibili.com/');
+      expect(biliHeaders.containsKey('User-Agent'), true);
+
+      final doubanHeaders = FormatUtil.imageHeaders('https://img9.doubanio.com/view/photo/s_ratio_poster/public/p480747492.jpg');
+      expect(doubanHeaders['Referer'], 'https://movie.douban.com/');
+
+      final genericHeaders = FormatUtil.imageHeaders('https://example.com/cover.jpg');
+      expect(genericHeaders.containsKey('Referer'), false);
+      expect(genericHeaders.containsKey('User-Agent'), true);
+    });
   });
 
   group('ServerConfigManager Tests', () {

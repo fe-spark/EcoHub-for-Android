@@ -41,6 +41,45 @@ class FormatUtil {
     return text(film.mid);
   }
 
+  /// 根据图片 URL 动态生成防盗链与兼容性请求头（如 Bilibili、豆瓣等）
+  static Map<String, String> imageHeaders(String url) {
+    final uri = Uri.tryParse(url);
+    if (uri == null) {
+      return const {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      };
+    }
+
+    final host = uri.host.toLowerCase();
+    String? referer;
+
+    if (host.contains('hdslb.com') || host.contains('bilibili.com') || host.contains('bilivideo.com')) {
+      referer = 'https://www.bilibili.com/';
+    } else if (host.contains('doubanio.com') || host.contains('douban.com')) {
+      referer = 'https://movie.douban.com/';
+    } else if (host.contains('sinaimg.cn') || host.contains('weibo.com')) {
+      referer = 'https://weibo.com/';
+    } else if (host.contains('xhscdn.com') || host.contains('xiaohongshu.com')) {
+      referer = 'https://www.xiaohongshu.com/';
+    } else if (host.contains('iqiyipic.com') || host.contains('iqiyi.com')) {
+      referer = 'https://www.iqiyi.com/';
+    } else if (host.contains('qq.com') || host.contains('qpic.cn')) {
+      referer = 'https://v.qq.com/';
+    } else if (host.contains('youku.com') || host.contains('ykimg.com')) {
+      referer = 'https://www.youku.com/';
+    } else if (host.contains('mgtv.com')) {
+      referer = 'https://www.mgtv.com/';
+    }
+
+    final headers = <String, String>{
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    };
+    if (referer != null) {
+      headers['Referer'] = referer;
+    }
+    return headers;
+  }
+
   static String pad2(int value) {
     return value < 10 ? '0$value' : '$value';
   }

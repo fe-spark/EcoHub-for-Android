@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../common/app_theme.dart';
 import '../models/film_models.dart';
 import '../api/film_api.dart';
+import '../utils/format_util.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
 import '../components/page_header.dart';
@@ -121,6 +122,7 @@ class _TipPageState extends State<TipPage> {
                                       borderRadius: BorderRadius.circular(4),
                                       child: CachedNetworkImage(
                                         imageUrl: qrUrl,
+                                        httpHeaders: FormatUtil.imageHeaders(qrUrl),
                                         fit: BoxFit.contain,
                                         placeholder: (context, url) => const Center(
                                           child: CircularProgressIndicator(color: AppTheme.accent),

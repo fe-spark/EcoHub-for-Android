@@ -169,6 +169,7 @@ class _HistoryPageState extends State<HistoryPage> {
                                           child: posterUrl.isNotEmpty
                                               ? CachedNetworkImage(
                                                   imageUrl: posterUrl,
+                                                  httpHeaders: FormatUtil.imageHeaders(posterUrl),
                                                   fit: BoxFit.cover,
                                                   errorWidget: (context, url, error) => _buildPosterPlaceholder(item.name),
                                                 )

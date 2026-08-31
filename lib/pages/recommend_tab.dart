@@ -123,6 +123,7 @@ class _RecommendTabState extends State<RecommendTab> {
         if (backdrop.isNotEmpty)
           CachedNetworkImage(
             imageUrl: backdrop,
+            httpHeaders: FormatUtil.imageHeaders(backdrop),
             fit: BoxFit.cover,
             errorWidget: (context, url, error) => Container(color: AppTheme.bgCard),
           )

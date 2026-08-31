@@ -5,6 +5,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'player_gesture_handler.dart';
 import 'player_skin_view.dart';
 import 'player_speed_sheet.dart';
+import '../../utils/format_util.dart';
 
 /// 跨平台视频播放器容器组件
 class VideoPlayerWidget extends StatefulWidget {
@@ -337,6 +338,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 : (widget.poster.isNotEmpty
                     ? Image.network(
                         widget.poster,
+                        headers: FormatUtil.imageHeaders(widget.poster),
                         fit: BoxFit.cover,
                         errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
                       )
