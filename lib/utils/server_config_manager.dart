@@ -1,8 +1,10 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
 
 const String _keyServerUrl = 'server_base_url';
 const String _keyServerHistory = 'server_url_history';
+const String _keyDeviceId = 'device_unique_id';
 const int _maxServerHistory = 10;
 
 /// 软件源配置管理器
@@ -10,6 +12,7 @@ class ServerConfigManager {
   static final ServerConfigManager _instance = ServerConfigManager._internal();
   SharedPreferences? _pref;
   String _cachedUrl = '';
+  String _cachedDeviceId = '';
 
   factory ServerConfigManager() => _instance;
   static ServerConfigManager get instance => _instance;
@@ -24,6 +27,19 @@ class ServerConfigManager {
   }
 
   SharedPreferences? get preferences => _pref;
+
+  Future<String> getDeviceId() async {
+    if (_cachedDeviceId.isNotEmpty) return _cachedDeviceId;
+    if (_pref == null) await init();
+    var id = _pref?.getString(_keyDeviceId) ?? '';
+    if (id.isEmpty) {
+      final rand = Random().nextInt(1 << 32).toRadixString(36);
+      id = 'and_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}_$rand';
+      await _pref?.setString(_keyDeviceId, id);
+    }
+    _cachedDeviceId = id;
+    return id;
+  }
 
   Future<String> getServerUrl() async {
     if (_cachedUrl.isNotEmpty) return _cachedUrl;

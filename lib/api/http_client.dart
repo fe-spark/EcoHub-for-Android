@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'package:http/http.dart' as http;
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
@@ -75,11 +76,11 @@ class HttpClient {
     return _send(url, timeoutMs);
   }
 
-  void trackView(String action, [String resource = '']) {
-    _sendTrack(action, resource).catchError((_) {});
+  void trackView(String action, [String resource = '', String page = '', String deviceModel = '']) {
+    _sendTrack(action, resource, page, deviceModel).catchError((_) {});
   }
 
-  Future<void> _sendTrack(String action, String resource) async {
+  Future<void> _sendTrack(String action, String resource, String page, String deviceModel) async {
     final manager = ServerConfigManager.instance;
     String url;
     try {
@@ -88,6 +89,20 @@ class HttpClient {
       return;
     }
     final userAgent = await _resolveUserAgent();
+    String version = '';
+    try {
+      version = await AppVersionUtil.getVersionName();
+    } catch (_) {}
+
+    final source = Platform.isAndroid ? 'android' : (Platform.isIOS ? 'ios' : 'app');
+    String deviceId = '';
+    try {
+      deviceId = await manager.getDeviceId();
+    } catch (_) {}
+    final resolvedModel = deviceModel.trim().isNotEmpty
+        ? deviceModel.trim()
+        : '${Platform.operatingSystem} ${Platform.operatingSystemVersion}'.trim();
+
     try {
       await http.post(
         Uri.parse(url),
@@ -95,10 +110,17 @@ class HttpClient {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'User-Agent': userAgent,
+          if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
+          if (deviceId.isNotEmpty) 'Device-Id': deviceId,
         },
         body: jsonEncode({
+          'source': source,
           'action': action,
           'resource': resource,
+          'page': page.isNotEmpty ? page : action,
+          'app_version': version,
+          'device_model': resolvedModel,
+          'device_id': deviceId,
         }),
       ).timeout(const Duration(seconds: 5));
     } catch (_) {}
@@ -122,6 +144,10 @@ class HttpClient {
 
   Future<ApiResponse> _send(String url, int timeoutMs) async {
     final userAgent = await _resolveUserAgent();
+    String deviceId = '';
+    try {
+      deviceId = await ServerConfigManager.instance.getDeviceId();
+    } catch (_) {}
     try {
       final res = await http.get(
         Uri.parse(url),
@@ -129,6 +155,8 @@ class HttpClient {
           'Content-Type': 'application/json',
           'Accept': 'application/json',
           'User-Agent': userAgent,
+          if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
+          if (deviceId.isNotEmpty) 'Device-Id': deviceId,
         },
       ).timeout(Duration(milliseconds: timeoutMs));
 

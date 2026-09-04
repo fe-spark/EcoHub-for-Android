@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
 import '../models/film_models.dart';
 import '../api/film_api.dart';
-import '../api/http_client.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/site_heartbeat.dart';
 import '../utils/source_guard.dart';
@@ -117,7 +116,6 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
     }
 
     await _loadSite(true);
-    HttpClient.instance.trackView('browse');
     SiteHeartbeat.instance.start();
   }
 

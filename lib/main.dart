@@ -11,6 +11,7 @@ import 'pages/history_page.dart';
 import 'pages/tip_page.dart';
 import 'pages/custom_player_page.dart';
 import 'pages/play_page.dart';
+import 'services/route_observer.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
@@ -42,54 +43,59 @@ class EcoHubApp extends StatelessWidget {
       title: 'EcoHub',
       debugShowCheckedModeBanner: false,
       navigatorKey: appNavigatorKey,
+      navigatorObservers: [EcoHubRouteObserver()],
       theme: AppTheme.darkTheme,
       initialRoute: '/',
       onGenerateRoute: (settings) {
         final args = settings.arguments as Map<String, dynamic>? ?? {};
 
+        Widget page;
         switch (settings.name) {
           case '/':
-            return MaterialPageRoute(builder: (_) => const SplashPage());
+            page = const SplashPage();
+            break;
           case '/main':
-            return MaterialPageRoute(builder: (_) => const MainScaffoldPage());
+            page = const MainScaffoldPage();
+            break;
           case '/server_config':
-            return MaterialPageRoute(
-              builder: (_) => ServerConfigPage(
-                mode: args['mode'] ?? '',
-              ),
+            page = ServerConfigPage(
+              mode: args['mode'] ?? '',
             );
+            break;
           case '/filter':
-            return MaterialPageRoute(
-              builder: (_) => FilterPage(
-                pid: args['Pid'] ?? args['pid'] ?? '',
-                category: args['Category'] ?? '',
-                sort: args['Sort'] ?? '',
-              ),
+            page = FilterPage(
+              pid: args['Pid'] ?? args['pid'] ?? '',
+              category: args['Category'] ?? '',
+              sort: args['Sort'] ?? '',
             );
+            break;
           case '/search':
-            return MaterialPageRoute(
-              builder: (_) => SearchPage(
-                initialKeyword: args['keyword'] ?? '',
-              ),
+            page = SearchPage(
+              initialKeyword: args['keyword'] ?? '',
             );
+            break;
           case '/history':
-            return MaterialPageRoute(builder: (_) => const HistoryPage());
+            page = const HistoryPage();
+            break;
           case '/tip':
-            return MaterialPageRoute(builder: (_) => const TipPage());
+            page = const TipPage();
+            break;
           case '/custom_player':
-            return MaterialPageRoute(builder: (_) => const CustomPlayerPage());
+            page = const CustomPlayerPage();
+            break;
           case '/play':
-            return MaterialPageRoute(
-              builder: (_) => PlayPage(
-                id: args['id'] ?? '',
-                sourceId: args['sourceId'] ?? '',
-                episodeIndex: int.tryParse('${args['episodeIndex']}') ?? 0,
-                currentTime: double.tryParse('${args['currentTime']}') ?? 0,
-              ),
+            page = PlayPage(
+              id: args['id'] ?? '',
+              sourceId: args['sourceId'] ?? '',
+              episodeIndex: int.tryParse('${args['episodeIndex']}') ?? 0,
+              currentTime: double.tryParse('${args['currentTime']}') ?? 0,
             );
+            break;
           default:
-            return MaterialPageRoute(builder: (_) => const SplashPage());
+            page = const SplashPage();
         }
+
+        return MaterialPageRoute(settings: settings, builder: (_) => page);
       },
     );
   }
