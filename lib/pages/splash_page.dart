@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
 import '../utils/server_config_manager.dart';
+import '../utils/app_version_util.dart';
 import '../api/film_api.dart';
+import '../components/app_icon.dart';
+import '../components/version_update_dialog.dart';
 
 const int _minSplashTimeMs = 800;
 const int _probeAttempts = 3;
 const int _probeTimeoutMs = 5000;
 
-/// 开屏自检页面
+/// 开屏自检页面，对齐 OHOS `SplashPage`
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
 
@@ -17,6 +20,8 @@ class SplashPage extends StatefulWidget {
 
 class _SplashPageState extends State<SplashPage> {
   String _statusText = '正在接入服务...';
+  bool _showUpdateDialog = false;
+  AppUpdateInfo? _updateInfo;
 
   @override
   void initState() {
@@ -27,8 +32,16 @@ class _SplashPageState extends State<SplashPage> {
   Future<void> _checkAndBootstrap() async {
     final startTime = DateTime.now().millisecondsSinceEpoch;
     await ServerConfigManager.instance.init();
-    final url = await ServerConfigManager.instance.getServerUrl();
 
+    final updateFuture = () async {
+      try {
+        return await AppVersionUtil.checkUpdate(force: false, timeoutMs: 2500);
+      } catch (_) {
+        return null;
+      }
+    }();
+
+    final url = await ServerConfigManager.instance.getServerUrl();
     if (url.trim().isEmpty) {
       await _ensureMinTime(startTime, _minSplashTimeMs);
       if (mounted) {
@@ -59,12 +72,9 @@ class _SplashPageState extends State<SplashPage> {
     }
 
     await _ensureMinTime(startTime, _minSplashTimeMs);
-
     if (!mounted) return;
 
-    if (ok) {
-      Navigator.pushReplacementNamed(context, '/main');
-    } else {
+    if (!ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('软件源连接失败，请检查网络或重新配置')),
       );
@@ -73,7 +83,28 @@ class _SplashPageState extends State<SplashPage> {
         '/server_config',
         arguments: {'mode': 'reconnect'},
       );
+      return;
     }
+
+    final fastUpdate = await Future.any<AppUpdateInfo?>([
+      updateFuture,
+      Future<AppUpdateInfo?>.delayed(const Duration(milliseconds: 50), () => null),
+    ]);
+    if (!mounted) return;
+    if (fastUpdate != null && fastUpdate.hasUpdate) {
+      setState(() {
+        _updateInfo = fastUpdate;
+        _showUpdateDialog = true;
+      });
+      return;
+    }
+
+    _goMain();
+  }
+
+  void _goMain() {
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/main');
   }
 
   Future<void> _ensureMinTime(int startTime, int minTime) async {
@@ -87,64 +118,58 @@ class _SplashPageState extends State<SplashPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.bg,
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 84,
-              height: 84,
-              decoration: BoxDecoration(
-                color: AppTheme.accent,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppTheme.accent.withValues(alpha: 0.3),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child: const Icon(
-                Icons.play_arrow_rounded,
-                size: 52,
-                color: Colors.white,
-              ),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'EcoHub',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 28),
-            Row(
-              mainAxisSize: MainAxisSize.min,
+      body: Stack(
+        children: [
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: AppTheme.accent,
+                const StartIconImage(size: 84, radius: 20),
+                const SizedBox(height: 16),
+                const Text(
+                  'EcoHub',
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Text(
-                  _statusText,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textMuted,
-                  ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      _statusText,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textMuted,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          ),
+          if (_showUpdateDialog && _updateInfo != null)
+            VersionUpdateDialog(
+              updateInfo: _updateInfo!,
+              onClose: () {
+                setState(() {
+                  _showUpdateDialog = false;
+                });
+                _goMain();
+              },
+            ),
+        ],
       ),
     );
   }

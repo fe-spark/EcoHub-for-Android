@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../common/app_theme.dart';
+import 'player_speed.dart';
 
 /// 播放倍速选择底栏弹窗
 class PlayerSpeedSheet extends StatelessWidget {
-  static const List<double> speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
+  static const List<double> speeds = PlayerSpeed.rates;
   final double currentSpeed;
   final ValueChanged<double> onSelectSpeed;
 
@@ -52,7 +53,7 @@ class PlayerSpeedSheet extends StatelessWidget {
               return ListTile(
                 title: Center(
                   child: Text(
-                    '${speed}x',
+                    PlayerSpeed.label(speed),
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: active ? FontWeight.bold : FontWeight.normal,

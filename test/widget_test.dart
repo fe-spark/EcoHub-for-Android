@@ -1,8 +1,31 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ecohub_android/models/api_parser.dart';
 import 'package:ecohub_android/utils/format_util.dart';
 import 'package:ecohub_android/utils/server_config_manager.dart';
 import 'package:ecohub_android/utils/app_version_util.dart';
+import 'package:ecohub_android/utils/clipboard_sniffer.dart';
+import 'package:ecohub_android/utils/nav_util.dart';
+import 'package:ecohub_android/utils/breakpoint.dart';
+import 'package:ecohub_android/common/app_theme.dart';
+import 'package:ecohub_android/components/filter_tag_row.dart';
+import 'package:ecohub_android/components/filter_bar.dart';
+import 'package:ecohub_android/components/dynamic_sliver_appbar.dart';
+import 'package:ecohub_android/components/sticky_appbar.dart';
+
+void _mockClipboard(WidgetTester tester, String text) {
+  tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+    SystemChannels.platform,
+    (call) async {
+      if (call.method == 'Clipboard.getData') {
+        if (text.isEmpty) return null;
+        return <String, dynamic>{'text': text};
+      }
+      return null;
+    },
+  );
+}
 
 void main() {
   group('ApiParser Tests', () {
@@ -61,6 +84,78 @@ void main() {
       expect(home.content.first.nav.name, '电影');
       expect(home.content.first.movies.first.name, 'Movie 1');
     });
+
+    test('parseFilter keeps all tag rows even if sortList only has Sort', () {
+      final result = ApiParser.parseFilter({
+        'title': {'name': '剧集', 'id': 1},
+        'list': [],
+        'page': {'current': 1, 'pageCount': 1, 'total': 10, 'pageSize': 21},
+        'params': {'Sort': 'update_stamp'},
+        'search': {
+          'titles': {'Category': '类型', 'Plot': '剧情', 'Sort': '排序'},
+          'sortList': ['Sort'],
+          'tags': {
+            'Category': [
+              {'Name': '全部', 'Value': ''},
+              {'Name': '韩剧', 'Value': '2'},
+            ],
+            'Plot': [
+              {'name': '全部', 'value': ''},
+              {'name': '爱情', 'value': '爱情'},
+            ],
+            'Sort': [
+              {'Name': '最近更新', 'Value': 'update_stamp'},
+              {'Name': '人气', 'Value': 'hits'},
+            ],
+          },
+        },
+      });
+      expect(result.search.sortList, ['Sort']);
+      expect(result.search.tagKeys.toSet(), {'Category', 'Plot', 'Sort'});
+      expect(result.search.tagNames[result.search.tagKeys.indexOf('Category')], ['全部', '韩剧']);
+      expect(result.search.tagNames[result.search.tagKeys.indexOf('Plot')], ['全部', '爱情']);
+    });
+
+    test('parsePlay falls back from detail root when descriptor empty', () {
+      final info = ApiParser.parsePlay({
+        'detail': {
+          'id': 1,
+          'name': 'Film',
+          'descriptor': {},
+          'subTitle': 'ST',
+          'typeName': '剧情',
+          'actor': 'A',
+          'director': 'D',
+          'blurb': '简介',
+          'year': '2024',
+          'list': [],
+        },
+        'current': {'episode': '1', 'link': 'http://x'},
+        'currentPlayFrom': 's1',
+        'currentEpisode': 0,
+      });
+      expect(info.detail.descriptor.subTitle, 'ST');
+      expect(info.detail.descriptor.cName, '剧情');
+      expect(info.detail.descriptor.actor, 'A');
+      expect(info.detail.descriptor.director, 'D');
+      expect(info.detail.descriptor.blurb, '简介');
+      expect(info.detail.descriptor.content, '简介');
+      expect(info.detail.descriptor.year, '2024');
+    });
+
+    test('parsePlay score from detail.vod_score', () {
+      final info = ApiParser.parsePlay({
+        'detail': {
+          'id': 2,
+          'name': 'Film2',
+          'descriptor': {},
+          'vod_score': '8.5',
+          'list': [],
+        },
+        'current': {},
+      });
+      expect(info.detail.descriptor.dbScore, '8.5');
+    });
   });
 
   group('FormatUtil Tests', () {
@@ -112,6 +207,9 @@ void main() {
       expect(AppVersionUtil.compareVersion('1.0.0', '1.0.0'), 0);
       expect(AppVersionUtil.compareVersion('1.0.0', '1.0.1'), -1);
       expect(AppVersionUtil.isNewerVersion('1.2.0', '1.1.9'), true);
+      expect(AppVersionUtil.compareVersion('1.1.5', '1.1.5-beta'), 1);
+      expect(AppVersionUtil.compareVersion('1.1.5-beta', '1.1.5'), -1);
+      expect(AppVersionUtil.compareVersion('1.1.5-beta.2', '1.1.5-beta.1'), 1);
     });
 
     test('version match filter', () {
@@ -119,6 +217,170 @@ void main() {
       expect(AppVersionUtil.isVersionMatched('1.0.0', 'all'), true);
       expect(AppVersionUtil.isVersionMatched('1.0.0', '1.0.0, 1.0.1'), true);
       expect(AppVersionUtil.isVersionMatched('1.0.2', '1.0.0, 1.0.1'), false);
+      expect(AppVersionUtil.isVersionMatched('1.0.0', 'v1.0.0'), true);
+      expect(AppVersionUtil.isVersionMatched('v1.0.0', '1.0.0'), true);
+    });
+  });
+
+  group('ClipboardSniffer Tests', () {
+    setUp(ClipboardSniffer.reset);
+    tearDown(ClipboardSniffer.reset);
+
+    test('extractVideoUrl empty and non-http', () {
+      expect(ClipboardSniffer.extractVideoUrl(''), '');
+      expect(ClipboardSniffer.extractVideoUrl('   '), '');
+      expect(ClipboardSniffer.extractVideoUrl('没有链接'), '');
+      expect(ClipboardSniffer.extractVideoUrl('ftp://x.com/a.mp4'), '');
+    });
+
+    test('extractVideoUrl from mixed text and trailing punct', () {
+      expect(
+        ClipboardSniffer.extractVideoUrl('看这个 https://cdn.example.com/a.m3u8 真好看'),
+        'https://cdn.example.com/a.m3u8',
+      );
+      expect(
+        ClipboardSniffer.extractVideoUrl('http://host/v.mp4。'),
+        'http://host/v.mp4',
+      );
+      expect(
+        ClipboardSniffer.extractVideoUrl('https://host/v.m3u8)'),
+        'https://host/v.m3u8',
+      );
+      expect(
+        ClipboardSniffer.extractVideoUrl('地址："https://host/v.mp4"'),
+        'https://host/v.mp4',
+      );
+    });
+
+    test('extractVideoUrl stops at CJK and takes first url', () {
+      expect(
+        ClipboardSniffer.extractVideoUrl('https://a.com/x中文.mp4'),
+        'https://a.com/x',
+      );
+      expect(
+        ClipboardSniffer.extractVideoUrl('https://a.com/1.mp4 https://b.com/2.m3u8'),
+        'https://a.com/1.mp4',
+      );
+    });
+
+    testWidgets('sniff reads clipboard once and skips handled raw', (tester) async {
+      const raw = '看这个 https://cdn.example.com/a.m3u8';
+      _mockClipboard(tester, raw);
+
+      final first = await ClipboardSniffer.sniff();
+      expect(first.url, 'https://cdn.example.com/a.m3u8');
+      expect(first.raw, raw);
+
+      ClipboardSniffer.markHandled(first.raw);
+      final second = await ClipboardSniffer.sniff();
+      expect(second.url, '');
+      expect(second.raw, raw);
+
+      ClipboardSniffer.reset();
+      final third = await ClipboardSniffer.sniff();
+      expect(third.url, 'https://cdn.example.com/a.m3u8');
+    });
+
+    testWidgets('sniff empty clipboard', (tester) async {
+      _mockClipboard(tester, '');
+      final res = await ClipboardSniffer.sniff();
+      expect(res.url, '');
+      expect(res.raw, '');
+    });
+  });
+
+  group('NavUtil Tests', () {
+    test('param reads string and fallback', () {
+      expect(NavUtil.param({'url': 'https://a.com/v.mp4'}, 'url'), 'https://a.com/v.mp4');
+      expect(NavUtil.param({'url': 1}, 'url'), '1');
+      expect(NavUtil.param({}, 'url', 'x'), 'x');
+      expect(NavUtil.param(null, 'url', 'x'), 'x');
+    });
+  });
+
+  group('Breakpoint Tests', () {
+    test('cardWidthOf matches OHOS formula', () {
+      expect(Breakpoint.cardWidthOf(360), 104);
+      expect(Breakpoint.cardWidthOf(390), 114);
+      expect(Breakpoint.cardWidthOf(600), 136);
+    });
+  });
+
+  group('FilterTagRow', () {
+    testWidgets('highlights selected chip with accent', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FilterTagRow(
+              filterKey: 'Sort',
+              title: '排序',
+              names: const ['最新', '最热'],
+              values: const ['update_stamp', 'hits'],
+              selected: 'update_stamp',
+              onPick: (k, v) {},
+            ),
+          ),
+        ),
+      );
+      expect(find.text('排序'), findsOneWidget);
+      expect(find.text('最新'), findsOneWidget);
+      final latest = tester.widget<Text>(find.text('最新'));
+      expect(latest.style?.color, AppTheme.textPrimary);
+      final hot = tester.widget<Text>(find.text('最热'));
+      expect(hot.style?.color, AppTheme.textSecondary);
+    });
+
+    testWidgets('sliver filter chrome lays out', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                const DynamicSliverAppBar(
+                  maxHeight: 88,
+                  child: SizedBox(height: 88, child: ColoredBox(color: Colors.black)),
+                ),
+                SliverPersistentHeader(
+                  pinned: true,
+                  delegate: StickyAppbar(child: const SizedBox(height: 48)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(DynamicSliverAppBar), findsOneWidget);
+    });
+
+    testWidgets('FilterBar parent stretches to all rows', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                DynamicSliverAppBar(
+                  maxHeight: 800,
+                  child: FilterBar(
+                    keys: const ['Sort', 'Category', 'Plot'],
+                    titleOf: (k) => k,
+                    namesOf: (k) => const ['全部'],
+                    valuesOf: (k) => const [''],
+                    selectedOf: (k) => '',
+                    onPick: (a, b) {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(FilterTagRow), findsNWidgets(3));
+      expect(
+        tester.getSize(find.byType(FilterBar)).height,
+        44 * 3 + AppTheme.spaceSm * 2,
+      );
     });
   });
 }

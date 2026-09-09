@@ -1,13 +1,17 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'player_gesture_handler.dart';
 import 'player_skin_view.dart';
 import 'player_speed_sheet.dart';
+import 'player_speed.dart';
+import 'player_scale.dart';
+import 'player_stall_watcher.dart';
+import 'player_window.dart';
 import '../../utils/format_util.dart';
 
-/// 跨平台视频播放器容器组件
+/// 跨平台视频播放器，对齐 OHOS `VideoPlayer`
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
   final String title;
@@ -17,12 +21,18 @@ class VideoPlayerWidget extends StatefulWidget {
   final bool isFull;
   final bool hasPrev;
   final bool hasNext;
+  final bool pageActive;
+  final bool edgeHud;
   final int reloadToken;
+  final double topInset;
+  final double leftInset;
+  final double rightInset;
+  final double bottomInset;
   final VoidCallback? onBack;
   final VoidCallback? onEnded;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
-  final ValueChanged<bool>? onFullscreenChange;
+  final void Function(bool full, {bool isPortrait})? onFullscreenChange;
   final void Function(double current, double duration)? onProgress;
 
   const VideoPlayerWidget({
@@ -35,7 +45,13 @@ class VideoPlayerWidget extends StatefulWidget {
     this.isFull = false,
     this.hasPrev = false,
     this.hasNext = false,
+    this.pageActive = true,
+    this.edgeHud = false,
     this.reloadToken = 0,
+    this.topInset = 0,
+    this.leftInset = 0,
+    this.rightInset = 0,
+    this.bottomInset = 0,
     this.onBack,
     this.onEnded,
     this.onPrev,
@@ -59,15 +75,20 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   Duration _currentPosition = Duration.zero;
   Duration _totalDuration = Duration.zero;
   Duration? _dragPreviewPosition;
-  double _currentSpeed = 1.0;
+  double _currentSpeed = PlayerSpeed.defaultRate;
   bool _showHud = true;
-  Timer? _hideHudTimer;
   bool _hasSeekedInitial = false;
   PlayerPanState _panState = const PlayerPanState();
+  PlayerScaleMode _scaleMode = PlayerScale.defaultMode;
+  double _brightness = 0.5;
+  double _volume = 0.8;
+  int _lastPersistMs = 0;
+  final PlayerStallWatcher _watcher = PlayerStallWatcher();
 
   @override
   void initState() {
     super.initState();
+    _loadWindowLevels();
     _initPlayer();
   }
 
@@ -81,15 +102,27 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
 
   @override
   void dispose() {
-    _hideHudTimer?.cancel();
+    _watcher.dispose();
+    PlayerWindow.resetBrightness();
     WakelockPlus.disable();
     _controller?.removeListener(_onControllerUpdate);
     _controller?.dispose();
     super.dispose();
   }
 
+  Future<void> _loadWindowLevels() async {
+    final b = await PlayerWindow.getBrightness();
+    final v = await PlayerWindow.getVolume();
+    if (mounted) {
+      setState(() {
+        _brightness = b;
+        _volume = v;
+      });
+    }
+  }
+
   Future<void> _initPlayer() async {
-    _hideHudTimer?.cancel();
+    _watcher.dispose();
     _controller?.removeListener(_onControllerUpdate);
     await _controller?.dispose();
     _controller = null;
@@ -111,26 +144,29 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       _errorText = '';
       _showHud = true;
     });
+    _watcher.armOpenWatch(() {
+      if (!mounted || !_isOpening) return;
+      setState(() {
+        _isOpening = false;
+        _isBuffering = false;
+        _errorText = '打开超时';
+      });
+    }, isOpening: true);
 
     try {
-      final controller = VideoPlayerController.networkUrl(
-        Uri.parse(widget.videoUrl.trim()),
-      );
+      final controller = VideoPlayerController.networkUrl(Uri.parse(widget.videoUrl.trim()));
       _controller = controller;
-
       await controller.initialize();
+      _watcher.clearOpenWatch();
       controller.addListener(_onControllerUpdate);
-
       if (widget.initialTime > 0 && !_hasSeekedInitial) {
         _hasSeekedInitial = true;
         await controller.seekTo(Duration(seconds: widget.initialTime.toInt()));
       }
-
       await controller.setPlaybackSpeed(_currentSpeed);
       await controller.setVolume(_muted ? 0.0 : 1.0);
       await controller.play();
       WakelockPlus.enable();
-
       if (mounted) {
         setState(() {
           _isOpening = false;
@@ -141,6 +177,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         _armHideHud();
       }
     } catch (e) {
+      _watcher.clearOpenWatch();
       if (mounted) {
         setState(() {
           _isOpening = false;
@@ -154,19 +191,13 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
   void _onControllerUpdate() {
     final c = _controller;
     if (c == null || !mounted) return;
-
     final value = c.value;
     final isPlaying = value.isPlaying;
     final isBuffering = value.isBuffering;
     final pos = value.position;
     final dur = value.duration;
     final completed = dur.inSeconds > 0 && pos >= dur && !isBuffering;
-
-    if (isPlaying != _isPlaying ||
-        isBuffering != _isBuffering ||
-        pos != _currentPosition ||
-        dur != _totalDuration ||
-        completed != _isCompleted) {
+    if (isPlaying != _isPlaying || isBuffering != _isBuffering || pos != _currentPosition || dur != _totalDuration || completed != _isCompleted) {
       setState(() {
         _isPlaying = isPlaying;
         _isBuffering = isBuffering;
@@ -174,40 +205,33 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
         _totalDuration = dur;
         _isCompleted = completed;
       });
-
+      _watcher.clearSeekWatch();
+      final now = DateTime.now().millisecondsSinceEpoch;
       if (widget.onProgress != null && dur.inSeconds > 0 && _dragPreviewPosition == null) {
-        widget.onProgress!(pos.inSeconds.toDouble(), dur.inSeconds.toDouble());
-      }
-
-      if (completed) {
-        if (widget.onEnded != null) {
-          widget.onEnded!();
+        if (completed || now - _lastPersistMs >= PlayerStallWatcher.progressPersistMs) {
+          _lastPersistMs = now;
+          widget.onProgress!(pos.inSeconds.toDouble(), dur.inSeconds.toDouble());
         }
       }
+      if (completed) widget.onEnded?.call();
     }
   }
 
   void _armHideHud() {
-    _hideHudTimer?.cancel();
-    if (!_isPlaying || _isCompleted || _errorText.isNotEmpty) return;
-    _hideHudTimer = Timer(const Duration(seconds: 4), () {
+    _watcher.armHide(() {
       if (mounted && _isPlaying && !_isCompleted && _panState.kind == PlayerTipKind.none) {
-        setState(() {
-          _showHud = false;
-        });
+        setState(() => _showHud = false);
       }
-    });
+    }, canHide: _isPlaying && !_isCompleted && _errorText.isEmpty);
   }
 
   void _toggleHud() {
     if (_panState.kind != PlayerTipKind.none) return;
-    setState(() {
-      _showHud = !_showHud;
-    });
+    setState(() => _showHud = !_showHud);
     if (_showHud) {
       _armHideHud();
     } else {
-      _hideHudTimer?.cancel();
+      _watcher.clearHide();
     }
   }
 
@@ -228,10 +252,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     if (c.value.isPlaying) {
       c.pause();
       WakelockPlus.disable();
-      setState(() {
-        _showHud = true;
-      });
-      _hideHudTimer?.cancel();
+      setState(() => _showHud = true);
+      _watcher.clearHide();
     } else {
       c.play();
       WakelockPlus.enable();
@@ -239,30 +261,20 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     }
   }
 
+  bool _isPortraitVideo() {
+    final c = _controller;
+    if (c == null || !c.value.isInitialized) return false;
+    return c.value.size.height > c.value.size.width;
+  }
+
   void _toggleFullscreen() {
-    final nextFull = !widget.isFull;
-    if (widget.onFullscreenChange != null) {
-      widget.onFullscreenChange!(nextFull);
-    }
+    widget.onFullscreenChange?.call(!widget.isFull, isPortrait: _isPortraitVideo());
   }
 
   void _toggleMute() {
-    setState(() {
-      _muted = !_muted;
-    });
+    setState(() => _muted = !_muted);
     _controller?.setVolume(_muted ? 0.0 : 1.0);
-    _panState = PlayerPanState(
-      kind: PlayerTipKind.volume,
-      text: _muted ? '静音' : '音量 100%',
-    );
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted && _panState.kind == PlayerTipKind.volume) {
-        setState(() {
-          _panState = const PlayerPanState(kind: PlayerTipKind.none);
-        });
-      }
-    });
-    _armHideHud();
+    _showTransient(PlayerPanState(kind: PlayerTipKind.volume, text: _muted ? '静音' : '音量 100%'));
   }
 
   void _seekTo(Duration target) {
@@ -271,13 +283,16 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       _currentPosition = target;
     });
     _controller?.seekTo(target);
+    _watcher.armSeekWatch(() {
+      if (!mounted) return;
+      _showTransient(const PlayerPanState(kind: PlayerTipKind.seekFwd, text: 'Seek超时'));
+    }, isSeeking: true);
     _armHideHud();
   }
 
   void _seekDelta(int seconds) {
-    final cur = _currentPosition.inSeconds;
     final tot = _totalDuration.inSeconds;
-    final targetSec = (cur + seconds).clamp(0, tot > 0 ? tot : 0);
+    final targetSec = (_currentPosition.inSeconds + seconds).clamp(0, tot > 0 ? tot : 0);
     _seekTo(Duration(seconds: targetSec));
   }
 
@@ -285,6 +300,43 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     _currentSpeed = speed;
     _controller?.setPlaybackSpeed(speed);
     _armHideHud();
+  }
+
+  void _cycleScale() {
+    setState(() => _scaleMode = PlayerScale.next(_scaleMode));
+    _showTransient(PlayerPanState(kind: PlayerTipKind.scale, text: '画面：${PlayerScale.label(_scaleMode)}'));
+  }
+
+  void _showTransient(PlayerPanState state) {
+    setState(() => _panState = state);
+    _watcher.clearHide();
+    _watcher.showTip(() {
+      if (mounted && _panState.kind == state.kind) {
+        setState(() => _panState = const PlayerPanState(kind: PlayerTipKind.none));
+        _armHideHud();
+      }
+    });
+  }
+
+  Widget _videoLayer(VideoPlayerController c) {
+    final size = c.value.size;
+    final w = size.width > 0 ? size.width : 16.0;
+    final h = size.height > 0 ? size.height : 9.0;
+    if (_scaleMode == PlayerScaleMode.fit) {
+      return Center(
+        child: AspectRatio(
+          aspectRatio: c.value.aspectRatio > 0 ? c.value.aspectRatio : 16 / 9,
+          child: VideoPlayer(c),
+        ),
+      );
+    }
+    return SizedBox.expand(
+      child: FittedBox(
+        fit: PlayerScale.boxFit(_scaleMode),
+        clipBehavior: Clip.hardEdge,
+        child: SizedBox(width: w, height: h, child: VideoPlayer(c)),
+      ),
+    );
   }
 
   @override
@@ -298,13 +350,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          // 视频画面与底层手势识别
           PlayerGestureHandler(
             currentPosition: _currentPosition,
             totalDuration: _totalDuration,
             isPlaying: _isPlaying,
             isFull: widget.isFull,
             currentSpeed: _currentSpeed,
+            currentBrightness: _brightness,
+            currentVolume: _volume,
             onSingleTap: _toggleHud,
             onDoubleTap: _togglePlay,
             onSeekProgress: (preview) {
@@ -312,29 +365,28 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                 _dragPreviewPosition = preview;
                 _showHud = true;
               });
-              _hideHudTimer?.cancel();
+              _watcher.clearHide();
             },
-            onSeekEnd: (finalPos) {
-              _seekTo(finalPos);
-            },
+            onSeekEnd: _seekTo,
             onSpeedChange: _setSpeed,
+            onBrightnessChange: (v) {
+              _brightness = v;
+              PlayerWindow.setBrightness(v);
+            },
+            onVolumeChange: (v) {
+              _volume = v;
+              if (!_muted) PlayerWindow.setVolume(v);
+            },
             onPanStateChange: (state) {
-              setState(() {
-                _panState = state;
-              });
+              setState(() => _panState = state);
               if (state.kind != PlayerTipKind.none) {
-                _hideHudTimer?.cancel();
+                _watcher.clearHide();
               } else {
                 _armHideHud();
               }
             },
             child: isInitialized
-                ? Center(
-                    child: AspectRatio(
-                      aspectRatio: c.value.aspectRatio > 0 ? c.value.aspectRatio : 16 / 9,
-                      child: VideoPlayer(c),
-                    ),
-                  )
+                ? _videoLayer(c)
                 : (widget.poster.isNotEmpty
                     ? Image.network(
                         widget.poster,
@@ -344,8 +396,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
                       )
                     : const SizedBox.shrink()),
           ),
-
-          // 上层控制皮肤（按钮事件完全独立响应，不会被手势拦截）
           PlayerSkinView(
             isFull: widget.isFull,
             showHud: _showHud,
@@ -361,23 +411,27 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
             currentPosition: displayPos,
             totalDuration: _totalDuration,
             currentSpeed: _currentSpeed,
+            scaleLabel: PlayerScale.label(_scaleMode),
             hasPrev: widget.hasPrev,
             hasNext: widget.hasNext,
             panState: _panState,
             onBack: () {
               if (widget.isFull) {
                 _toggleFullscreen();
-              } else if (widget.onBack != null) {
-                widget.onBack!();
+              } else {
+                widget.onBack?.call();
               }
             },
             onTogglePlay: _togglePlay,
             onToggleFull: _toggleFullscreen,
             onToggleMute: _toggleMute,
-            onSpeed: () {
-              PlayerSpeedSheet.show(context, _currentSpeed, _setSpeed);
-            },
+            onSpeed: () => PlayerSpeedSheet.show(context, _currentSpeed, _setSpeed),
+            onScale: _cycleScale,
             onRetry: _initPlayer,
+            onCopyError: () {
+              Clipboard.setData(ClipboardData(text: _errorText));
+              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已复制错误信息')));
+            },
             onPrev: widget.onPrev,
             onNext: widget.onNext,
             onSeekBack10: () => _seekDelta(-10),
@@ -389,4 +443,3 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
     );
   }
 }
-

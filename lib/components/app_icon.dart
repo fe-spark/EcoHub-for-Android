@@ -23,3 +23,30 @@ class AppIcon extends StatelessWidget {
     );
   }
 }
+
+/// 启动 Logo，对齐 OHOS `$r('app.media.startIcon')`
+class StartIconImage extends StatelessWidget {
+  static const assetPath = 'assets/images/start_icon.png';
+
+  final double size;
+  final double radius;
+
+  const StartIconImage({
+    super.key,
+    this.size = 56,
+    this.radius = AppTheme.radiusLg,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: Image.asset(
+        assetPath,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+      ),
+    );
+  }
+}

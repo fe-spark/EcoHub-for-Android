@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
 
-/// 筛选标签行组件
-class FilterTagRow extends StatelessWidget {
+/// 筛选标签行，对齐 OHOS `FilterTagRow.ets`；横向滚动对齐 EcoTV FilterBar。
+class FilterTagRow extends StatefulWidget {
   final String filterKey;
   final String title;
   final List<String> names;
@@ -20,75 +20,124 @@ class FilterTagRow extends StatelessWidget {
     required this.onPick,
   });
 
+  @override
+  State<FilterTagRow> createState() => _FilterTagRowState();
+}
+
+class _FilterTagRowState extends State<FilterTagRow> {
+  final ScrollController _scroller = ScrollController();
+  List<GlobalKey> _chipKeys = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _syncKeys();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _jumpSelected(false));
+  }
+
+  @override
+  void didUpdateWidget(covariant FilterTagRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.names.length != widget.names.length) {
+      _syncKeys();
+    }
+    if (oldWidget.selected != widget.selected || oldWidget.values != widget.values) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _jumpSelected(true));
+    }
+  }
+
+  @override
+  void dispose() {
+    _scroller.dispose();
+    super.dispose();
+  }
+
+  void _syncKeys() {
+    _chipKeys = List.generate(widget.names.length, (i) => GlobalKey());
+  }
+
   bool _isSelected(String val) {
-    if (filterKey == 'Sort' && (selected.isEmpty || selected == 'update_stamp')) {
+    if (widget.filterKey == 'Sort' && (widget.selected.isEmpty || widget.selected == 'update_stamp')) {
       return val == 'update_stamp';
     }
-    return selected == val;
+    return widget.selected == val;
+  }
+
+  void _jumpSelected(bool smooth) {
+    final idx = widget.values.indexOf(widget.selected);
+    if (idx < 0 || idx >= _chipKeys.length) return;
+    final ctx = _chipKeys[idx].currentContext;
+    if (ctx == null) return;
+    Scrollable.ensureVisible(
+      ctx,
+      alignment: 0,
+      duration: smooth ? const Duration(milliseconds: 220) : Duration.zero,
+      curve: Curves.easeOut,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (names.isEmpty) return const SizedBox.shrink();
+    if (widget.names.isEmpty) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Container(
-            width: 44,
-            padding: const EdgeInsets.only(left: AppTheme.spaceMd),
-            alignment: Alignment.centerLeft,
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppTheme.textMuted,
-                fontWeight: FontWeight.w500,
-              ),
-              maxLines: 1,
-            ),
-          ),
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceSm),
-              child: Row(
-                children: List.generate(names.length, (index) {
-                  final name = names[index];
-                  final val = index < values.length ? values[index] : name;
-                  final active = _isSelected(val);
-
-                  return Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: InkWell(
-                      onTap: () => onPick(filterKey, val),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      child: Container(
-                        height: 28,
-                        padding: const EdgeInsets.symmetric(horizontal: 10),
-                        decoration: BoxDecoration(
-                          color: active ? AppTheme.accent : Colors.transparent,
-                          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          name,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: active ? FontWeight.bold : FontWeight.normal,
-                            color: active ? Colors.white : AppTheme.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
+    return SizedBox(
+      height: 44,
+      child: Padding(
+        padding: const EdgeInsets.only(left: AppTheme.spaceLg),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 40,
+              child: Text(
+                widget.title,
+                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
+            Expanded(
+              child: SingleChildScrollView(
+                controller: _scroller,
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.only(right: AppTheme.spaceLg),
+                child: Row(
+                  children: [
+                    for (var i = 0; i < widget.names.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      _chip(i),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _chip(int index) {
+    final name = widget.names[index];
+    final val = index < widget.values.length ? widget.values[index] : name;
+    final active = _isSelected(val);
+    return GestureDetector(
+      key: _chipKeys[index],
+      onTap: () => widget.onPick(widget.filterKey, val),
+      child: Container(
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? AppTheme.accent : AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        ),
+        child: Text(
+          name,
+          style: TextStyle(
+            fontSize: 13,
+            color: active ? AppTheme.textPrimary : AppTheme.textSecondary,
           ),
-        ],
+        ),
       ),
     );
   }

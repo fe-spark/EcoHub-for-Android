@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../common/app_theme.dart';
 import '../../utils/format_util.dart';
 import 'player_gesture_handler.dart';
+import 'player_error_pad.dart';
 
 /// 播放器覆盖层控制栏组件（全量对齐鸿蒙端 PlayerSkin）
 class PlayerSkinView extends StatelessWidget {
@@ -19,6 +20,7 @@ class PlayerSkinView extends StatelessWidget {
   final Duration currentPosition;
   final Duration totalDuration;
   final double currentSpeed;
+  final String scaleLabel;
   final bool hasPrev;
   final bool hasNext;
   final PlayerPanState panState;
@@ -27,7 +29,9 @@ class PlayerSkinView extends StatelessWidget {
   final VoidCallback onToggleFull;
   final VoidCallback onToggleMute;
   final VoidCallback onSpeed;
+  final VoidCallback? onScale;
   final VoidCallback onRetry;
+  final VoidCallback? onCopyError;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
   final VoidCallback onSeekBack10;
@@ -50,6 +54,7 @@ class PlayerSkinView extends StatelessWidget {
     required this.currentPosition,
     required this.totalDuration,
     this.currentSpeed = 1.0,
+    this.scaleLabel = '适应',
     this.hasPrev = false,
     this.hasNext = false,
     this.panState = const PlayerPanState(),
@@ -58,7 +63,9 @@ class PlayerSkinView extends StatelessWidget {
     required this.onToggleFull,
     required this.onToggleMute,
     required this.onSpeed,
+    this.onScale,
     required this.onRetry,
+    this.onCopyError,
     this.onPrev,
     this.onNext,
     required this.onSeekBack10,
@@ -186,6 +193,20 @@ class PlayerSkinView extends StatelessWidget {
                     child: Text('${currentSpeed}x', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ),
+                if (onScale != null)
+                  InkWell(
+                    onTap: onScale,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                    child: Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                      ),
+                      child: Text(scaleLabel, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                    ),
+                  ),
                 IconButton(
                   icon: Icon(muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 20),
                   onPressed: onToggleMute,
@@ -238,6 +259,17 @@ class PlayerSkinView extends StatelessWidget {
               ),
             ),
           ),
+          if (onScale != null)
+            InkWell(
+              onTap: onScale,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                child: Text(
+                  scaleLabel,
+                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
           IconButton(
             icon: Icon(muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 18),
             onPressed: onToggleMute,
@@ -278,7 +310,9 @@ class PlayerSkinView extends StatelessWidget {
                   else if (panState.kind == PlayerTipKind.volume)
                     Icon(muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 18)
                   else if (panState.kind == PlayerTipKind.speed)
-                    const Icon(Icons.speed_rounded, color: AppTheme.accent, size: 18),
+                    const Icon(Icons.speed_rounded, color: AppTheme.accent, size: 18)
+                  else if (panState.kind == PlayerTipKind.scale)
+                    const Icon(Icons.aspect_ratio_rounded, color: Colors.white, size: 18),
                   const SizedBox(width: 8),
                   Text(
                     panState.text,
@@ -370,46 +404,6 @@ class PlayerSkinView extends StatelessWidget {
     );
   }
 
-  Widget _buildErrorPad(BuildContext context) {
-    return Positioned.fill(
-      child: Container(
-        color: const Color(0xD9000000),
-        alignment: Alignment.center,
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('播放异常', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            Text(
-              errorText.isNotEmpty ? errorText : '视频无法播放，请重试！',
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.accent,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
-                  ),
-                  onPressed: onRetry,
-                  child: const Text('重新播放', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Stack(
@@ -487,7 +481,8 @@ class PlayerSkinView extends StatelessWidget {
           ),
 
         // 错误提示层
-        if (errorText.isNotEmpty) _buildErrorPad(context),
+        if (errorText.isNotEmpty)
+          PlayerErrorPad(errorText: errorText, onRetry: onRetry, onCopyError: onCopyError),
       ],
     );
   }

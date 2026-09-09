@@ -438,6 +438,65 @@ class HistoryItem {
   }
 }
 
+/// 收藏条目，对齐 OHOS `FavoriteItem`
+class FavoriteItem {
+  final String id;
+  final String name;
+  final String picture;
+  final String cName;
+  final String remarks;
+  final String year;
+  final String area;
+  final String subTitle;
+  final String actor;
+  final String director;
+  final int createdAt;
+
+  FavoriteItem({
+    required this.id,
+    required this.name,
+    this.picture = '',
+    this.cName = '',
+    this.remarks = '',
+    this.year = '',
+    this.area = '',
+    this.subTitle = '',
+    this.actor = '',
+    this.director = '',
+    required this.createdAt,
+  });
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'picture': picture,
+    'cName': cName,
+    'remarks': remarks,
+    'year': year,
+    'area': area,
+    'subTitle': subTitle,
+    'actor': actor,
+    'director': director,
+    'createdAt': createdAt,
+  };
+
+  factory FavoriteItem.fromJson(Map<String, dynamic> json) {
+    return FavoriteItem(
+      id: '${json['id'] ?? ''}',
+      name: '${json['name'] ?? ''}',
+      picture: '${json['picture'] ?? ''}',
+      cName: '${json['cName'] ?? ''}',
+      remarks: '${json['remarks'] ?? ''}',
+      year: '${json['year'] ?? ''}',
+      area: '${json['area'] ?? ''}',
+      subTitle: '${json['subTitle'] ?? ''}',
+      actor: '${json['actor'] ?? ''}',
+      director: '${json['director'] ?? ''}',
+      createdAt: (json['createdAt'] as num?)?.toInt() ?? DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+}
+
 /// 搜索返回结果
 class SearchResult {
   final List<MovieBasicInfo> list;

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../utils/format_util.dart';
+import 'player_speed.dart';
 
-enum PlayerTipKind { none, seekFwd, seekBack, brightness, volume, speed }
+enum PlayerTipKind { none, seekFwd, seekBack, brightness, volume, speed, scale }
 
 class PlayerPanState {
   final PlayerTipKind kind;
@@ -15,7 +16,7 @@ class PlayerPanState {
   });
 }
 
-/// 播放器手势控制层（支持横向拖动进度实时联动、纵向亮度/音量、长按2倍速）
+/// 播放器手势控制层（横向进度、全屏左亮度右音量、长按 3.0x）
 class PlayerGestureHandler extends StatefulWidget {
   final Widget child;
   final Duration currentPosition;
@@ -23,11 +24,15 @@ class PlayerGestureHandler extends StatefulWidget {
   final bool isPlaying;
   final bool isFull;
   final double currentSpeed;
+  final double currentBrightness;
+  final double currentVolume;
   final VoidCallback onSingleTap;
   final VoidCallback onDoubleTap;
   final ValueChanged<Duration> onSeekProgress;
   final ValueChanged<Duration> onSeekEnd;
   final ValueChanged<double> onSpeedChange;
+  final ValueChanged<double>? onBrightnessChange;
+  final ValueChanged<double>? onVolumeChange;
   final void Function(PlayerPanState state) onPanStateChange;
 
   const PlayerGestureHandler({
@@ -38,11 +43,15 @@ class PlayerGestureHandler extends StatefulWidget {
     required this.isPlaying,
     required this.isFull,
     this.currentSpeed = 1.0,
+    this.currentBrightness = 0.5,
+    this.currentVolume = 0.8,
     required this.onSingleTap,
     required this.onDoubleTap,
     required this.onSeekProgress,
     required this.onSeekEnd,
     required this.onSpeedChange,
+    this.onBrightnessChange,
+    this.onVolumeChange,
     required this.onPanStateChange,
   });
 
@@ -64,6 +73,8 @@ class _PlayerGestureHandlerState extends State<PlayerGestureHandler> {
     _dragStartOffset = details.localPosition;
     _dragStartPositionSeconds = widget.currentPosition.inSeconds.toDouble();
     _dragTargetPosition = widget.currentPosition;
+    _brightness = widget.currentBrightness;
+    _volume = widget.currentVolume;
     _dragMode = 1;
   }
 
@@ -88,7 +99,7 @@ class _PlayerGestureHandlerState extends State<PlayerGestureHandler> {
     if (_dragMode == 2) {
       final width = constraints.maxWidth > 0 ? constraints.maxWidth : 300.0;
       final totSec = widget.totalDuration.inSeconds.toDouble();
-      final rangeSec = totSec > 600 ? 120.0 : (totSec > 180 ? 60.0 : 30.0);
+      final rangeSec = PlayerSpeed.seekRangeMs(totSec) / 1000.0;
       final deltaSec = (dx / width) * rangeSec;
       final targetSec = (_dragStartPositionSeconds + deltaSec).clamp(0.0, totSec);
       _dragTargetPosition = Duration(seconds: targetSec.round());
@@ -105,23 +116,23 @@ class _PlayerGestureHandlerState extends State<PlayerGestureHandler> {
       ));
     } else if (_dragMode == 3) {
       final height = constraints.maxHeight > 0 ? constraints.maxHeight : 200.0;
-      final delta = -dy / height * 1.5;
-      _brightness = (_brightness + delta * 0.05).clamp(0.0, 1.0);
+      final delta = -dy / height;
+      _brightness = (_brightness + delta).clamp(0.0, 1.0);
       _dragStartOffset = details.localPosition;
-      final text = '${(_brightness * 100).round()}%';
+      widget.onBrightnessChange?.call(_brightness);
       widget.onPanStateChange(PlayerPanState(
         kind: PlayerTipKind.brightness,
-        text: text,
+        text: '${(_brightness * 100).round()}%',
       ));
     } else if (_dragMode == 4) {
       final height = constraints.maxHeight > 0 ? constraints.maxHeight : 200.0;
-      final delta = -dy / height * 1.5;
-      _volume = (_volume + delta * 0.05).clamp(0.0, 1.0);
+      final delta = -dy / height;
+      _volume = (_volume + delta).clamp(0.0, 1.0);
       _dragStartOffset = details.localPosition;
-      final text = '${(_volume * 100).round()}%';
+      widget.onVolumeChange?.call(_volume);
       widget.onPanStateChange(PlayerPanState(
         kind: PlayerTipKind.volume,
-        text: text,
+        text: '${(_volume * 100).round()}%',
       ));
     }
   }
@@ -138,10 +149,10 @@ class _PlayerGestureHandlerState extends State<PlayerGestureHandler> {
     if (!widget.isPlaying) return;
     _isLongPressing = true;
     _preLongPressSpeed = widget.currentSpeed;
-    widget.onSpeedChange(2.0);
-    widget.onPanStateChange(const PlayerPanState(
+    widget.onSpeedChange(PlayerSpeed.fastRate);
+    widget.onPanStateChange(PlayerPanState(
       kind: PlayerTipKind.speed,
-      text: '2.0x 快速播放中',
+      text: '${PlayerSpeed.label(PlayerSpeed.fastRate)} 快速播放中',
     ));
   }
 

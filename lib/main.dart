@@ -8,6 +8,7 @@ import 'pages/server_config_page.dart';
 import 'pages/filter_page.dart';
 import 'pages/search_page.dart';
 import 'pages/history_page.dart';
+import 'pages/favorite_page.dart';
 import 'pages/tip_page.dart';
 import 'pages/custom_player_page.dart';
 import 'pages/play_page.dart';
@@ -77,11 +78,14 @@ class EcoHubApp extends StatelessWidget {
           case '/history':
             page = const HistoryPage();
             break;
+          case '/favorite':
+            page = const FavoritePage();
+            break;
           case '/tip':
             page = const TipPage();
             break;
           case '/custom_player':
-            page = const CustomPlayerPage();
+            page = CustomPlayerPage(url: args['url'] ?? '');
             break;
           case '/play':
             page = PlayPage(

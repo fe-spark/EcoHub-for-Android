@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
 import '../models/film_models.dart';
+import '../utils/breakpoint.dart';
 import 'film_card.dart';
 
 /// 首页分类横向影片展示行
@@ -30,66 +31,95 @@ class FilmRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cardW = Breakpoint.cardWidthOf(MediaQuery.sizeOf(context).width);
+    // 海报 2:3 + 标题上距 6 / 高 18 + 副标上距 2 / 高 15
+    final rowHeight = cardW * 1.5 + 41;
+
     return Container(
-      margin: const EdgeInsets.symmetric(
-        horizontal: AppTheme.spaceLg,
-        vertical: AppTheme.spaceSm,
-      ),
-      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceLg),
-      decoration: BoxDecoration(
-        color: AppTheme.bgElevated,
-        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: AppTheme.spaceSm),
+      padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceMd),
+      decoration: const BoxDecoration(
+        color: AppTheme.bgCard,
+        border: Border(
+          bottom: BorderSide(color: Color(0x0DFFFFFF), width: 0.5),
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
+            padding: const EdgeInsets.fromLTRB(
+              AppTheme.spaceLg,
+              0,
+              AppTheme.spaceLg,
+              AppTheme.spaceMd,
+            ),
             child: Row(
               children: [
                 Expanded(
                   child: GestureDetector(
                     onTap: () => _openMore(context),
-                    child: Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 3.5,
+                          height: 15,
+                          decoration: BoxDecoration(
+                            color: AppTheme.accent,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.textPrimary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
                 GestureDetector(
                   onTap: () => _openMore(context),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        moreText,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.accent,
-                        ),
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: AppTheme.spaceSm),
+                    child: SizedBox(
+                      height: 28,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            moreText,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppTheme.textMuted,
+                            ),
+                          ),
+                          const SizedBox(width: 3),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 14,
+                            color: AppTheme.textMuted,
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.chevron_right_rounded,
-                        size: 16,
-                        color: AppTheme.accent,
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: AppTheme.spaceMd),
           if (films.isEmpty)
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
+              padding: EdgeInsets.only(left: AppTheme.spaceLg),
               child: Text(
                 '暂无影片',
                 style: TextStyle(
@@ -100,16 +130,17 @@ class FilmRow extends StatelessWidget {
             )
           else
             SizedBox(
-              height: 220,
+              height: rowHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
                 itemCount: films.length,
-                separatorBuilder: (context, index) => const SizedBox(width: AppTheme.spaceSm),
+                separatorBuilder: (context, index) =>
+                    const SizedBox(width: AppTheme.spaceSm),
                 itemBuilder: (context, index) {
                   return FilmCard(
                     film: films[index],
-                    cardWidth: 108,
+                    cardWidth: cardW,
                   );
                 },
               ),

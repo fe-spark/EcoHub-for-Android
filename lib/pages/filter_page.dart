@@ -4,15 +4,17 @@ import '../models/film_models.dart';
 import '../api/film_api.dart';
 import '../api/http_client.dart';
 import '../utils/source_guard.dart';
-import '../components/filter_tag_row.dart';
+import '../utils/breakpoint.dart';
 import '../components/film_card.dart';
 import '../components/loading_view.dart';
 import '../components/empty_state.dart';
 import '../components/scroll_fab.dart';
+import '../components/filter_bar.dart';
+import '../components/sticky_appbar.dart';
 
 const int _pageSize = 21;
 
-/// 片库分类筛选页面
+/// 片库分类筛选。布局参考 EcoTV `views/filter`，逻辑对齐 OHOS `FilterPage.ets`。
 class FilterPage extends StatefulWidget {
   final String pid;
   final String category;
@@ -30,6 +32,10 @@ class FilterPage extends StatefulWidget {
 }
 
 class _FilterPageState extends State<FilterPage> {
+  static const _verticalPhysics = AlwaysScrollableScrollPhysics(
+    parent: ClampingScrollPhysics(),
+  );
+
   String _pid = '';
   String _titleName = '片库';
   List<MovieBasicInfo> _films = [];
@@ -39,6 +45,7 @@ class _FilterPageState extends State<FilterPage> {
   bool _loading = true;
   bool _listLoading = false;
   bool _loadingMore = false;
+  bool _fetchLock = false;
   String _errorText = '';
 
   List<String> _sortList = [];
@@ -56,13 +63,9 @@ class _FilterPageState extends State<FilterPage> {
   void initState() {
     super.initState();
     _pid = widget.pid;
-    HttpClient.instance.trackView('classify', _pid);
-    if (widget.category.isNotEmpty) {
-      _selected['Category'] = widget.category;
-    }
-    if (widget.sort.isNotEmpty) {
-      _selected['Sort'] = widget.sort;
-    }
+    HttpClient.instance.trackView('classify', _pid, 'FilterPage');
+    if (widget.category.isNotEmpty) _selected['Category'] = widget.category;
+    if (widget.sort.isNotEmpty) _selected['Sort'] = widget.sort;
     _scrollController.addListener(_onScroll);
     SourceGuard.onReconnect(_onReconnect);
     _loadData(true);
@@ -76,20 +79,18 @@ class _FilterPageState extends State<FilterPage> {
     super.dispose();
   }
 
-  void _onReconnect() {
-    _loadData(true);
-  }
+  void _onReconnect() => _loadData(true);
 
   void _onScroll() {
+    if (!_scrollController.hasClients) return;
     final y = _scrollController.offset;
-    final showFab = y > 400;
+    final viewH = _scrollController.position.viewportDimension;
+    final showFab = viewH > 0 && y > viewH;
     if (showFab != _showTopFab) {
-      setState(() {
-        _showTopFab = showFab;
-      });
+      setState(() => _showTopFab = showFab);
     }
-
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
       if (!_loadingMore && _current < _pageCount) {
         _loadData(false);
       }
@@ -103,60 +104,72 @@ class _FilterPageState extends State<FilterPage> {
       'pageSize': _pageSize,
     };
     _selected.forEach((k, v) {
-      if (v.isNotEmpty) {
-        query[k] = v;
-      }
+      if (v.isNotEmpty) query[k] = v;
     });
     return query;
   }
 
+  String _selectedOf(String key) => _selected[key] ?? '';
+
+  String _selectedFor(String key) {
+    final value = _selectedOf(key);
+    return (key == 'Sort' && value.isEmpty) ? 'update_stamp' : value;
+  }
+
+  bool _isChipOn(String key, String value) => _selectedFor(key) == value;
+
   void _pick(String key, String value) {
-    if (_selected[key] == value) return;
-    setState(() {
-      _selected[key] = value;
-    });
+    if (_isChipOn(key, value) || _fetchLock) return;
+    setState(() => _selected[key] = value);
     _loadData(true);
     _scrollToTop();
   }
 
   void _scrollToTop() {
+    setState(() => _showTopFab = false);
     if (_scrollController.hasClients) {
       _scrollController.animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
     }
   }
 
-  Future<void> _loadData(bool reset) async {
+  void _applyParams(List<String> keys, List<String> values) {
+    for (var i = 0; i < keys.length; i++) {
+      final k = keys[i];
+      final v = i < values.length ? values[i] : '';
+      if (v.isEmpty) continue;
+      _selected[k] = v;
+    }
+  }
+
+  Future<void> _loadData(bool reset, {bool fromPull = false}) async {
     if (_pid.isEmpty) {
       setState(() {
         _errorText = '缺少分类信息';
         _loading = false;
+        _listLoading = false;
       });
       return;
     }
-
     final page = reset ? 1 : _current + 1;
-    if (!reset && (_loadingMore || page > _pageCount)) return;
+    if ((!reset && (_loadingMore || page > _pageCount)) || _fetchLock) return;
 
+    _fetchLock = true;
     if (reset) {
-      if (_sortList.isEmpty) {
-        setState(() {
-          _loading = true;
-        });
+      if (fromPull) {
+        setState(() => _listLoading = false);
+      } else if (_sortList.isEmpty) {
+        setState(() => _loading = true);
       } else {
-        setState(() {
-          _listLoading = true;
-        });
+        setState(() => _listLoading = true);
       }
     } else {
-      setState(() {
-        _loadingMore = true;
-      });
+      setState(() => _loadingMore = true);
     }
 
+    var ok = false;
     try {
       final res = await FilmApi.getFilter(_buildQuery(page));
       if (!mounted) return;
-
       setState(() {
         _titleName = res.titleName.isNotEmpty ? res.titleName : '片库';
         _total = res.page.total;
@@ -169,32 +182,34 @@ class _FilterPageState extends State<FilterPage> {
         _tagKeys = res.search.tagKeys;
         _tagNames = res.search.tagNames;
         _tagValues = res.search.tagValues;
-
-        if (reset) {
-          for (var i = 0; i < res.paramKeys.length; i++) {
-            final k = res.paramKeys[i];
-            final v = i < res.params.length ? res.params[i] : '';
-            if (v.isNotEmpty && !_selected.containsKey(k)) {
-              _selected[k] = v;
-            }
-          }
-        }
-
-        _loading = false;
-        _listLoading = false;
-        _loadingMore = false;
-        _errorText = '';
+        if (reset) _applyParams(res.paramKeys, res.params);
+        _errorText = _titleName.isNotEmpty ? '' : '当前分类已失效';
+        ok = _errorText.isEmpty;
       });
+      if (reset) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) _scrollController.jumpTo(0);
+        });
+      }
     } catch (e) {
       if (!mounted) return;
-      setState(() {
-        _loading = false;
-        _listLoading = false;
-        _loadingMore = false;
-        if (reset) {
-          _errorText = '$e';
-        }
-      });
+      if (reset) {
+        setState(() => _errorText = '$e');
+      }
+    } finally {
+      _fetchLock = false;
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _listLoading = false;
+          _loadingMore = false;
+        });
+      }
+      if (fromPull && ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('已更新')),
+        );
+      }
     }
   }
 
@@ -218,184 +233,232 @@ class _FilterPageState extends State<FilterPage> {
     final values = _valuesOf(key);
     final names = _namesOf(key);
     final index = values.indexOf(value);
-    if (index >= 0 && index < names.length) {
-      return names[index];
-    }
+    if (index >= 0 && index < names.length) return names[index];
     return value;
   }
 
-  List<String> _activeFilterKeys() {
+  List<String> _selectedTagKeys() {
     final keys = <String>[];
     for (final key in _sortList) {
-      final val = _selected[key] ?? '';
-      final label = _labelOf(key, val);
-      if (label.isNotEmpty && label != '全部') {
-        keys.add(key);
-      }
+      final label = _labelOf(key, _selectedFor(key));
+      if (label.isNotEmpty && label != '全部') keys.add(key);
+    }
+    return keys;
+  }
+
+  /// 行顺序：sortList，再补 tags 里有选项但 sortList 没列的键（类型/剧情/地区等）。
+  List<String> _rowKeys() {
+    final available = <String>{};
+    for (final k in _tagKeys) {
+      if (_namesOf(k).isNotEmpty) available.add(k);
+    }
+    for (final k in _sortList) {
+      if (_namesOf(k).isNotEmpty) available.add(k);
+    }
+    final keys = <String>[];
+    void add(String k) {
+      if (available.contains(k) && !keys.contains(k)) keys.add(k);
+    }
+    for (final k in _sortList) {
+      add(k);
+    }
+    for (final k in const ['Category', 'Plot', 'Area', 'Language', 'Year', 'Sort']) {
+      add(k);
+    }
+    for (final k in available) {
+      add(k);
     }
     return keys;
   }
 
   @override
   Widget build(BuildContext context) {
-    final activeKeys = _activeFilterKeys();
-
+    final rowKeys = _rowKeys();
     return Scaffold(
       backgroundColor: AppTheme.bg,
-      appBar: AppBar(
-        backgroundColor: AppTheme.bg,
-        elevation: 0,
-        title: Text(
-          _titleName,
-          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
-        ),
-        actions: [
-          if (_total > 0)
-            Padding(
-              padding: const EdgeInsets.only(right: AppTheme.spaceLg),
-              child: Center(
-                child: Text(
-                  '共 $_total 部',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
-                ),
-              ),
-            ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          if (_loading)
-            const LoadingView(label: '正在加载筛选')
-          else
-            RefreshIndicator(
-              onRefresh: () => _loadData(true),
-              color: AppTheme.accent,
-              backgroundColor: AppTheme.bgCard,
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  // Filter Tags Container
-                  if (_sortList.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: AppTheme.spaceSm),
-                        padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceSm),
-                        color: AppTheme.bgElevated,
-                        child: Column(
-                          children: _sortList.map((key) {
-                            return FilterTagRow(
-                              filterKey: key,
-                              title: _titleOf(key),
-                              names: _namesOf(key),
-                              values: _valuesOf(key),
-                              selected: _selected[key] ?? '',
-                              onPick: _pick,
-                            );
-                          }).toList(),
-                        ),
-                      ),
+      body: SafeArea(
+        child: _loading
+            ? Column(
+                children: [
+                  _navBar(showPills: false),
+                  const Expanded(child: LoadingView(label: '加载中')),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (rowKeys.isNotEmpty)
+                    FilterBar(
+                      keys: rowKeys,
+                      titleOf: _titleOf,
+                      namesOf: _namesOf,
+                      valuesOf: _valuesOf,
+                      selectedOf: _selectedFor,
+                      onPick: _pick,
                     ),
-
-                  // Active Filter Pills
-                  if (activeKeys.isNotEmpty)
-                    SliverToBoxAdapter(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd, vertical: 6),
-                        child: Row(
-                          children: activeKeys.map((key) {
-                            final label = _labelOf(key, _selected[key] ?? '');
-                            return Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: AppTheme.accentSoft,
-                                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                                border: Border.all(color: AppTheme.accent),
-                              ),
-                              child: Text(
-                                label,
-                                style: const TextStyle(fontSize: 11, color: AppTheme.accent, fontWeight: FontWeight.bold),
-                              ),
-                            );
-                          }).toList(),
-                        ),
-                      ),
-                    ),
-
-                  // Film Grid / Loading / Empty
-                  if (_listLoading)
-                    const SliverFillRemaining(
-                      child: LoadingView(label: '列表加载中'),
-                    )
-                  else if (_errorText.isNotEmpty)
-                    SliverFillRemaining(
-                      child: EmptyState(
-                        title: '加载失败',
-                        subtitle: _errorText,
-                        icon: Icons.error_outline_rounded,
-                        action: ElevatedButton(
-                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.bgCard),
-                          onPressed: () => _loadData(true),
-                          child: const Text('重试'),
-                        ),
-                      ),
-                    )
-                  else if (_films.isEmpty)
-                    const SliverFillRemaining(
-                      child: EmptyState(
-                        title: '没有符合条件的影片',
-                        subtitle: '请尝试更换其他筛选条件',
-                        icon: Icons.movie_filter_outlined,
-                      ),
-                    )
-                  else ...[
-                    SliverPadding(
-                      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd, vertical: 8),
-                      sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          childAspectRatio: 0.54,
-                          crossAxisSpacing: AppTheme.spaceSm,
-                          mainAxisSpacing: AppTheme.spaceMd,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            return FilmCard(film: _films[index]);
+                  Expanded(
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        RefreshIndicator(
+                          onRefresh: () async {
+                            if (_fetchLock) return;
+                            await _loadData(true, fromPull: true);
                           },
-                          childCount: _films.length,
-                        ),
-                      ),
-                    ),
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Center(
-                          child: Text(
-                            _loadingMore
-                                ? '加载中...'
-                                : (_current >= _pageCount ? '没有更多了' : '滑动加载更多'),
-                            style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                          color: AppTheme.accent,
+                          backgroundColor: AppTheme.bgCard,
+                          child: CustomScrollView(
+                            controller: _scrollController,
+                            physics: _verticalPhysics,
+                            slivers: [
+                              SliverPersistentHeader(
+                                pinned: true,
+                                delegate: StickyAppbar(child: _navBar(showPills: true)),
+                              ),
+                              ..._bodySlivers(),
+                            ],
                           ),
                         ),
-                      ),
+                        ScrollFab(visible: _showTopFab, onClickFab: _scrollToTop),
+                      ],
                     ),
-                  ],
+                  ),
                 ],
               ),
-            ),
+      ),
+    );
+  }
 
-          // Scroll to top FAB
-          Positioned(
-            right: 16,
-            bottom: 24,
-            child: ScrollFab(
-              visible: _showTopFab,
-              onClickFab: _scrollToTop,
+  List<Widget> _bodySlivers() {
+    if (_listLoading) {
+      return const [
+        SliverFillRemaining(child: LoadingView(label: '列表加载中')),
+      ];
+    }
+    if (_errorText.isNotEmpty) {
+      return [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: EmptyState(
+            title: '加载失败',
+            subtitle: _errorText,
+            icon: Icons.info_outline_rounded,
+          ),
+        ),
+      ];
+    }
+    if (_films.isEmpty) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: EmptyState(title: '没有符合条件的影片'),
+        ),
+      ];
+    }
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(AppTheme.spaceMd, 0, AppTheme.spaceMd, AppTheme.spaceMd),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width),
+            childAspectRatio: 0.54,
+            crossAxisSpacing: AppTheme.spaceSm,
+            mainAxisSpacing: AppTheme.spaceMd,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => FilmCard(film: _films[index]),
+            childCount: _films.length,
+          ),
+        ),
+      ),
+      SliverToBoxAdapter(
+        child: SizedBox(
+          height: 40,
+          child: Center(
+            child: Text(
+              _loadingMore ? '加载中...' : (_current >= _pageCount ? '没有更多了' : ''),
+              style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
             ),
           ),
-        ],
+        ),
+      ),
+    ];
+  }
+
+  Widget _navBar({required bool showPills}) {
+    final keys = showPills ? _selectedTagKeys() : const <String>[];
+    return ColoredBox(
+      color: AppTheme.bg,
+      child: SizedBox(
+        height: 48,
+        child: Padding(
+          padding: const EdgeInsets.only(left: AppTheme.spaceSm, right: AppTheme.spaceLg),
+          child: Row(
+            children: [
+              const _BackBtn(),
+              Expanded(
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.only(left: AppTheme.spaceXs),
+                  itemCount: keys.length,
+                  separatorBuilder: (context, index) => const SizedBox(width: AppTheme.spaceSm),
+                  itemBuilder: (context, index) {
+                    final key = keys[index];
+                    return _FilterPill(label: _labelOf(key, _selectedFor(key)));
+                  },
+                ),
+              ),
+              if (showPills && _total > 0)
+                Padding(
+                  padding: const EdgeInsets.only(left: AppTheme.spaceSm),
+                  child: Text(
+                    '共 $_total 部',
+                    style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _BackBtn extends StatelessWidget {
+  const _BackBtn();
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 32,
+      height: 32,
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.textPrimary),
+        onPressed: () => Navigator.maybePop(context),
+      ),
+    );
+  }
+}
+
+class _FilterPill extends StatelessWidget {
+  final String label;
+  const _FilterPill({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        border: Border.all(color: AppTheme.accent),
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(fontSize: 12, color: AppTheme.accent, height: 1),
       ),
     );
   }

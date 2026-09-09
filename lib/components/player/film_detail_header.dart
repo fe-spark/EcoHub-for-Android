@@ -1,17 +1,25 @@
 import 'package:flutter/material.dart';
 import '../../common/app_theme.dart';
 import '../../models/film_models.dart';
+import '../../utils/favorite_manager.dart';
+import '../film_detail_dialog.dart';
 
-/// 播放页影片详情头部
+/// 播放页影片详情头部，对齐 OHOS `FilmDetailHeader`
 class FilmDetailHeader extends StatefulWidget {
+  final String filmId;
+  final String picture;
   final String name;
+  final String subTitle;
   final String actor;
   final String plot;
   final MovieDescriptor? descriptor;
 
   const FilmDetailHeader({
     super.key,
+    required this.filmId,
+    this.picture = '',
     required this.name,
+    this.subTitle = '',
     this.actor = '',
     this.plot = '',
     this.descriptor,
@@ -22,7 +30,40 @@ class FilmDetailHeader extends StatefulWidget {
 }
 
 class _FilmDetailHeaderState extends State<FilmDetailHeader> {
-  bool _plotOpen = false;
+  bool _isFav = false;
+
+  @override
+  void initState() {
+    super.initState();
+    FavoriteManager.onFavoriteChange(_syncFav);
+    _syncFav();
+  }
+
+  @override
+  void didUpdateWidget(covariant FilmDetailHeader oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.filmId != widget.filmId) {
+      _syncFav();
+    }
+  }
+
+  @override
+  void dispose() {
+    FavoriteManager.offFavoriteChange(_syncFav);
+    super.dispose();
+  }
+
+  Future<void> _syncFav() async {
+    final id = widget.filmId;
+    if (id.isEmpty) {
+      if (mounted) setState(() => _isFav = false);
+      return;
+    }
+    final fav = await FavoriteManager.isFavorite(id);
+    if (mounted && widget.filmId == id) {
+      setState(() => _isFav = fav);
+    }
+  }
 
   String _scoreText() {
     final s = widget.descriptor?.dbScore.trim() ?? '';
@@ -30,49 +71,13 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
     return s;
   }
 
-  String _metaTagsText() {
-    final tags = <String>[];
-    if (widget.descriptor?.year.trim().isNotEmpty ?? false) {
-      tags.add(widget.descriptor!.year.trim());
-    }
-    final cat = (widget.descriptor?.classTag.isNotEmpty ?? false)
-        ? widget.descriptor!.classTag
-        : (widget.descriptor?.cName ?? '');
-    if (cat.trim().isNotEmpty) {
-      tags.add(cat.trim().replaceAll(RegExp(r'\s*[,/，]\s*'), ' / '));
-    }
-    if (widget.descriptor?.area.trim().isNotEmpty ?? false) {
-      tags.add(widget.descriptor!.area.trim());
-    }
-    if (widget.descriptor?.remarks.trim().isNotEmpty ?? false) {
-      tags.add(widget.descriptor!.remarks.trim());
-    } else if (widget.descriptor?.state.trim().isNotEmpty ?? false) {
-      tags.add(widget.descriptor!.state.trim());
-    }
-    return tags.join('  ·  ');
-  }
-
-  String _directorText() {
-    final raw = widget.descriptor?.director.trim() ?? '';
-    if (raw.isEmpty) return '';
-    return raw.replaceAll(RegExp(r'\s*[，,、]\s*'), ' / ');
-  }
-
-  String _actorText() {
-    final raw = (widget.descriptor?.actor.isNotEmpty ?? false)
-        ? widget.descriptor!.actor.trim()
-        : widget.actor.trim();
-    if (raw.isEmpty) return '';
-    return raw.replaceAll(RegExp(r'\s*[，,、]\s*'), ' / ');
-  }
-
-  String _plotText() {
+  String _cleanPlot() {
     final raw = widget.plot.isNotEmpty
         ? widget.plot
-        : (widget.descriptor?.content.isNotEmpty ?? false
+        : (widget.descriptor?.content.isNotEmpty == true
             ? widget.descriptor!.content
             : (widget.descriptor?.blurb ?? ''));
-    final text = raw
+    return raw
         .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n')
         .replaceAll(RegExp(r'<[^>]+>'), '')
@@ -82,166 +87,240 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
         .replaceAll('&gt;', '>')
         .replaceAll(RegExp(r'\n{3,}'), '\n\n')
         .trim();
-    return text.isNotEmpty ? text : '暂无介绍';
+  }
+
+  List<String> _metaTags() {
+    final tags = <String>[];
+    final year = widget.descriptor?.year.trim() ?? '';
+    if (year.isNotEmpty) tags.add(year);
+    final cat = (widget.descriptor?.classTag.isNotEmpty == true)
+        ? widget.descriptor!.classTag
+        : (widget.descriptor?.cName ?? '');
+    if (cat.trim().isNotEmpty) {
+      for (final part in cat.trim().split(RegExp(r'[,/，\s]+'))) {
+        final p = part.trim();
+        if (p.isNotEmpty && !tags.contains(p) && tags.length < 5) tags.add(p);
+      }
+    }
+    final area = widget.descriptor?.area.trim() ?? '';
+    if (area.isNotEmpty && !tags.contains(area)) tags.add(area);
+    final lang = widget.descriptor?.language.trim() ?? '';
+    if (lang.isNotEmpty && !tags.contains(lang)) tags.add(lang);
+    return tags;
+  }
+
+  String _directorText() {
+    final raw = widget.descriptor?.director.trim() ?? '';
+    if (raw.isEmpty) return '';
+    return raw.replaceAll(RegExp(r'\s*[，,、]\s*'), ' / ');
+  }
+
+  String _actorText() {
+    final raw = (widget.descriptor?.actor.isNotEmpty == true)
+        ? widget.descriptor!.actor.trim()
+        : widget.actor.trim();
+    if (raw.isEmpty) return '';
+    return raw.replaceAll(RegExp(r'\s*[，,、]\s*'), ' / ');
+  }
+
+  bool _hasDetailInfo() {
+    return _directorText().isNotEmpty || _actorText().isNotEmpty || _cleanPlot().isNotEmpty;
+  }
+
+  String _snippet() {
+    final actor = _actorText();
+    if (actor.isNotEmpty) return '主演：$actor';
+    final director = _directorText();
+    if (director.isNotEmpty) return '导演：$director';
+    final plot = _cleanPlot();
+    if (plot.isNotEmpty) return '简介：${plot.replaceAll(RegExp(r'\n+'), ' ')}';
+    return '查看简介 / 主演 / 导演';
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (widget.filmId.isEmpty || widget.name.isEmpty) return;
+    final desc = widget.descriptor;
+    final next = await FavoriteManager.toggle(FavoriteItem(
+      id: widget.filmId,
+      name: widget.name,
+      picture: widget.picture,
+      cName: desc?.cName ?? '',
+      remarks: desc?.remarks ?? '',
+      year: desc?.year ?? '',
+      area: desc?.area ?? '',
+      subTitle: widget.subTitle,
+      actor: widget.actor,
+      director: desc?.director ?? '',
+      createdAt: DateTime.now().millisecondsSinceEpoch,
+    ));
+    if (!mounted) return;
+    setState(() => _isFav = next);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(next ? '已加入收藏' : '已取消收藏')),
+    );
+  }
+
+  void _openDialog() {
+    FilmDetailDialog.show(
+      context,
+      name: widget.name,
+      scoreText: _scoreText(),
+      tags: _metaTags(),
+      director: _directorText(),
+      actor: _actorText(),
+      plot: _cleanPlot(),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final score = _scoreText();
-    final meta = _metaTagsText();
-    final director = _directorText();
-    final actor = _actorText();
+    final tags = _metaTags();
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd, vertical: AppTheme.spaceSm),
+      padding: const EdgeInsets.only(bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title + Score
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: Text(
-                  widget.name,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.name,
+                    style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              if (score.isNotEmpty) ...[
-                const SizedBox(width: AppTheme.spaceSm),
+                const SizedBox(width: 10),
+                InkWell(
+                  onTap: _toggleFavorite,
+                  borderRadius: BorderRadius.circular(13),
+                  child: Container(
+                    padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
+                    decoration: BoxDecoration(
+                      color: _isFav ? const Color(0x1FFA8C16) : AppTheme.bgCard,
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(
+                        width: 0.5,
+                        color: _isFav ? const Color(0x4DFA8C16) : AppTheme.border,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isFav ? Icons.star_rounded : Icons.star_outline_rounded,
+                          size: 13,
+                          color: _isFav ? AppTheme.accent : AppTheme.textMuted,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          _isFav ? '已收藏' : '收藏',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: _isFav ? AppTheme.accent : AppTheme.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+            child: Row(
+              children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  margin: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
                   decoration: BoxDecoration(
-                    color: AppTheme.accentSoft,
+                    color: score.isNotEmpty ? AppTheme.accentSoft : AppTheme.bgChip,
                     borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                   ),
+                  child: Text(
+                    score.isNotEmpty ? '★ $score 分' : '★ 暂无评分',
+                    style: TextStyle(
+                      fontSize: score.isNotEmpty ? 12 : 11,
+                      fontWeight: FontWeight.bold,
+                      color: score.isNotEmpty ? AppTheme.accent : AppTheme.textMuted,
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: tags
+                          .map(
+                            (tag) => Container(
+                              margin: const EdgeInsets.only(right: 6),
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppTheme.bgChip,
+                                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                              ),
+                              child: Text(tag, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_hasDetailInfo())
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: InkWell(
+                onTap: _openDialog,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                  decoration: BoxDecoration(
+                    color: AppTheme.bgCard,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                  ),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Text(
-                        '★ ',
-                        style: TextStyle(fontSize: 11, color: AppTheme.accent),
+                      const Icon(Icons.article_outlined, size: 14, color: AppTheme.accent),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          _snippet(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                        ),
                       ),
-                      Text(
-                        score,
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: AppTheme.accent,
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.fromLTRB(6, 3, 4, 3),
+                        decoration: BoxDecoration(
+                          color: AppTheme.accentSoft,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text('详情', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.accent)),
+                            Icon(Icons.chevron_right_rounded, size: 12, color: AppTheme.accent),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ],
-          ),
-
-          // Meta tags
-          if (meta.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              meta,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppTheme.textMuted,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-
-          // Director & Actor
-          if (director.isNotEmpty || actor.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            RichText(
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              text: TextSpan(
-                style: const TextStyle(fontSize: 12),
-                children: [
-                  if (director.isNotEmpty) ...[
-                    const TextSpan(text: '导演: ', style: TextStyle(color: AppTheme.textMuted)),
-                    TextSpan(
-                      text: '$director${actor.isNotEmpty ? "    " : ""}',
-                      style: const TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ],
-                  if (actor.isNotEmpty) ...[
-                    const TextSpan(text: '主演: ', style: TextStyle(color: AppTheme.textMuted)),
-                    TextSpan(
-                      text: actor,
-                      style: const TextStyle(color: AppTheme.textSecondary),
-                    ),
-                  ],
-                ],
               ),
             ),
-          ],
-
-          // Plot
-          const SizedBox(height: 8),
-          Row(
-            crossAxisAlignment: _plotOpen ? CrossAxisAlignment.end : CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: AnimatedCrossFade(
-                  duration: const Duration(milliseconds: 150),
-                  crossFadeState: _plotOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-                  firstChild: Text(
-                    _plotText(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                      height: 1.5,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  secondChild: Text(
-                    _plotText(),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: AppTheme.spaceSm),
-              GestureDetector(
-                onTap: () {
-                  setState(() {
-                    _plotOpen = !_plotOpen;
-                  });
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      _plotOpen ? '收起' : '简介',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.accent,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    Icon(
-                      _plotOpen ? Icons.keyboard_arrow_up_rounded : Icons.keyboard_arrow_down_rounded,
-                      size: 14,
-                      color: AppTheme.accent,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );

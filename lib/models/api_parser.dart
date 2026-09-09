@@ -204,7 +204,7 @@ class ApiParser {
     final sortList = sortRaw.map((e) => '$e').toList();
 
     final tagsObj = mapVal(searchObj, 'tags');
-    final tagKeys = tagsObj.keys.toList();
+    final tagKeys = tagsObj.keys.map((k) => k.toString()).toList();
     final tagNames = <List<String>>[];
     final tagValues = <List<String>>[];
     for (final k in tagKeys) {
@@ -213,8 +213,8 @@ class ApiParser {
       final values = <String>[];
       for (final t in tags) {
         final tmap = asMap(t);
-        names.add(str(tmap, 'Name'));
-        values.add(str(tmap, 'Value'));
+        names.add(str(tmap, 'Name', str(tmap, 'name', str(tmap, 'n'))));
+        values.add(str(tmap, 'Value', str(tmap, 'value', str(tmap, 'v'))));
       }
       tagNames.add(names);
       tagValues.add(values);
@@ -254,28 +254,57 @@ class ApiParser {
     );
   }
 
+  static String _first(Iterable<String> values) {
+    for (final v in values) {
+      if (v.isNotEmpty) return v;
+    }
+    return '';
+  }
+
+  static const _scoreKeys = [
+    'dbScore',
+    'score',
+    'doubanScore',
+    'douban_score',
+    'vod_douban_score',
+    'vod_score',
+  ];
+
   static PlayInfo parsePlay(dynamic raw) {
     final map = asMap(raw);
     final detailObj = mapVal(map, 'detail');
     final descObj = mapVal(detailObj, 'descriptor');
     final descriptor = MovieDescriptor(
-      subTitle: str(descObj, 'subTitle'),
-      cName: str(descObj, 'cName'),
-      enName: str(descObj, 'enName'),
-      classTag: str(descObj, 'classTag'),
-      actor: str(descObj, 'actor'),
-      director: str(descObj, 'director'),
-      writer: str(descObj, 'writer'),
-      blurb: str(descObj, 'blurb'),
-      remarks: str(descObj, 'remarks'),
-      releaseDate: str(descObj, 'releaseDate'),
-      area: str(descObj, 'area'),
-      language: str(descObj, 'language'),
-      year: FormatUtil.year(str(descObj, 'year')),
-      state: str(descObj, 'state'),
-      updateTime: str(descObj, 'updateTime'),
-      dbScore: str(descObj, 'dbScore'),
-      content: str(descObj, 'content'),
+      subTitle: _first([str(descObj, 'subTitle'), str(detailObj, 'subTitle')]),
+      cName: _first([str(descObj, 'cName'), str(detailObj, 'cName'), str(detailObj, 'typeName')]),
+      enName: _first([str(descObj, 'enName'), str(detailObj, 'enName')]),
+      classTag: _first([str(descObj, 'classTag'), str(detailObj, 'classTag')]),
+      actor: _first([str(descObj, 'actor'), str(detailObj, 'actor')]),
+      director: _first([str(descObj, 'director'), str(detailObj, 'director')]),
+      writer: _first([str(descObj, 'writer'), str(detailObj, 'writer')]),
+      blurb: _first([str(descObj, 'blurb'), str(detailObj, 'blurb')]),
+      remarks: _first([
+        str(descObj, 'remarks'),
+        str(detailObj, 'remarks'),
+        str(descObj, 'remark'),
+        str(detailObj, 'remark'),
+      ]),
+      releaseDate: _first([str(descObj, 'releaseDate'), str(detailObj, 'releaseDate')]),
+      area: _first([str(descObj, 'area'), str(detailObj, 'area')]),
+      language: _first([str(descObj, 'language'), str(detailObj, 'language')]),
+      year: FormatUtil.year(_first([str(descObj, 'year'), str(detailObj, 'year')])),
+      state: _first([str(descObj, 'state'), str(detailObj, 'state')]),
+      updateTime: _first([str(descObj, 'updateTime'), str(detailObj, 'updateTime')]),
+      dbScore: _first([
+        ..._scoreKeys.map((k) => str(descObj, k)),
+        ..._scoreKeys.map((k) => str(detailObj, k)),
+      ]),
+      content: _first([
+        str(descObj, 'content'),
+        str(detailObj, 'content'),
+        str(descObj, 'blurb'),
+        str(detailObj, 'blurb'),
+      ]),
     );
 
     final sourceRaw = listVal(detailObj, 'list');

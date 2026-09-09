@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -49,10 +50,10 @@ class AppVersionUtil {
     if (raw.isEmpty || raw == '*' || raw.toLowerCase() == 'all') {
       return true;
     }
-    final current = currentVersion.trim().toLowerCase();
+    final current = normalizeVersion(currentVersion).toLowerCase();
     final targets = raw
         .split(RegExp(r'[,;\s\n]+'))
-        .map((e) => e.trim().toLowerCase())
+        .map((e) => normalizeVersion(e).toLowerCase())
         .where((e) => e.isNotEmpty)
         .toList();
 
@@ -82,6 +83,36 @@ class AppVersionUtil {
       if (num1 > num2) return 1;
       if (num1 < num2) return -1;
     }
+
+    final hasPre1 = s1.contains('-');
+    final hasPre2 = s2.contains('-');
+    if (!hasPre1 && hasPre2) return 1;
+    if (hasPre1 && !hasPre2) return -1;
+    if (hasPre1 && hasPre2) {
+      final pre1 = s1.substring(s1.indexOf('-') + 1).split('+')[0].split('.');
+      final pre2 = s2.substring(s2.indexOf('-') + 1).split('+')[0].split('.');
+      final preLen = pre1.length > pre2.length ? pre1.length : pre2.length;
+      for (var i = 0; i < preLen; i++) {
+        if (i >= pre1.length) return -1;
+        if (i >= pre2.length) return 1;
+        final p1 = pre1[i];
+        final p2 = pre2[i];
+        final n1 = int.tryParse(p1);
+        final n2 = int.tryParse(p2);
+        final isNum1 = n1 != null && '$n1' == p1;
+        final isNum2 = n2 != null && '$n2' == p2;
+        if (isNum1 && isNum2) {
+          if (n1 != n2) return n1 > n2 ? 1 : -1;
+        } else if (isNum1 && !isNum2) {
+          return -1;
+        } else if (!isNum1 && isNum2) {
+          return 1;
+        } else {
+          final cmp = p1.compareTo(p2);
+          if (cmp != 0) return cmp > 0 ? 1 : -1;
+        }
+      }
+    }
     return 0;
   }
 
@@ -91,11 +122,26 @@ class AppVersionUtil {
 
   static AppUpdateInfo? getCachedUpdateInfo() => _cachedUpdateInfo;
 
-  static Future<AppUpdateInfo> checkUpdate({bool force = false}) async {
+  /// 对齐 OHOS AppStorage HAS_APP_UPDATE / SHOW_APP_UPDATE_DIALOG
+  static final ValueNotifier<bool> hasUpdate = ValueNotifier(false);
+  static final ValueNotifier<bool> showUpdateDialog = ValueNotifier(false);
+  static Future<AppUpdateInfo>? _inFlight;
+
+  static void _publish(AppUpdateInfo info) {
+    hasUpdate.value = info.hasUpdate;
+  }
+
+  static Future<AppUpdateInfo> checkUpdate({bool force = false, int timeoutMs = 10000}) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     if (!force && _cachedUpdateInfo != null && (now - _lastCheckTime < _cacheExpireMs)) {
+      _publish(_cachedUpdateInfo!);
       return _cachedUpdateInfo!;
     }
+    if (!force && _inFlight != null) {
+      return _inFlight!;
+    }
+
+    Future<AppUpdateInfo> execute() async {
     final currentVersion = await getVersionName();
     var info = AppUpdateInfo(
       currentVersion: currentVersion,
@@ -114,7 +160,7 @@ class AppVersionUtil {
           'Accept': 'application/vnd.github+json',
           'User-Agent': 'EcoHub-App',
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(Duration(milliseconds: timeoutMs));
 
       if (res.statusCode != 200 || res.body.isEmpty) {
         throw Exception('HTTP ${res.statusCode}');
@@ -161,12 +207,25 @@ class AppVersionUtil {
       }
       _cachedUpdateInfo = info;
       _lastCheckTime = now;
+      _publish(info);
       return info;
     } catch (_) {
       if (_cachedUpdateInfo != null && !force) {
+        _publish(_cachedUpdateInfo!);
         return _cachedUpdateInfo!;
       }
+      _publish(info);
       return info;
     }
+    }
+
+    final req = execute();
+    _inFlight = req;
+    req.whenComplete(() {
+      if (identical(_inFlight, req)) {
+        _inFlight = null;
+      }
+    });
+    return req;
   }
 }

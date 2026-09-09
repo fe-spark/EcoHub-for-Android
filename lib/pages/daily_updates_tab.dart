@@ -124,17 +124,28 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with SingleTickerProv
       );
     } else if (_errorText.isNotEmpty && _categories.isEmpty) {
       bodyContent = Expanded(
-        child: EmptyState(
-          title: '加载失败',
-          subtitle: _errorText,
-          icon: Icons.error_outline_rounded,
-          action: ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.bgCard,
-              foregroundColor: AppTheme.textPrimary,
-            ),
-            onPressed: _loadMeta,
-            child: const Text('重试'),
+        child: RefreshIndicator(
+          onRefresh: _handleRefresh,
+          color: AppTheme.accent,
+          backgroundColor: AppTheme.bgCard,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            children: [
+              const SizedBox(height: 48),
+              EmptyState(
+                title: '加载失败',
+                subtitle: _errorText,
+                icon: Icons.error_outline_rounded,
+                action: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.bgCard,
+                    foregroundColor: AppTheme.textPrimary,
+                  ),
+                  onPressed: _loadMeta,
+                  child: const Text('重试'),
+                ),
+              ),
+            ],
           ),
         ),
       );

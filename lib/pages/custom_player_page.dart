@@ -3,10 +3,14 @@ import 'package:flutter/services.dart';
 import '../common/app_theme.dart';
 import '../components/page_header.dart';
 import '../components/player/video_player_widget.dart';
+import '../utils/breakpoint.dart';
+import '../utils/clipboard_sniffer.dart';
 
-/// 自定义播放页面
+/// 自定义播放页面，对齐 OHOS `CustomPlayerPage`
 class CustomPlayerPage extends StatefulWidget {
-  const CustomPlayerPage({super.key});
+  final String url;
+
+  const CustomPlayerPage({super.key, this.url = ''});
 
   @override
   State<CustomPlayerPage> createState() => _CustomPlayerPageState();
@@ -17,6 +21,12 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
   String _playUrl = '';
   int _reloadToken = 0;
   bool _isFull = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _applyRouteUrl(widget.url);
+  }
 
   @override
   void dispose() {
@@ -30,34 +40,45 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
     super.dispose();
   }
 
-  void _setFullscreen(bool full) {
+  void _applyRouteUrl(String raw) {
+    final url = raw.trim();
+    if (url.isEmpty || url == _playUrl) return;
+    _inputController.text = url;
+    _playUrl = url;
+  }
+
+  bool get _hasPlayUrl => _playUrl.trim().isNotEmpty;
+
+  void _setFullscreen(bool full, {bool isPortrait = false}) {
     if (_isFull == full) return;
     setState(() {
       _isFull = full;
     });
     try {
       if (full) {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.landscapeLeft,
-          DeviceOrientation.landscapeRight,
-        ]);
+        SystemChrome.setPreferredOrientations(
+          isPortrait
+              ? [DeviceOrientation.portraitUp]
+              : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
+        );
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       } else {
-        SystemChrome.setPreferredOrientations([
-          DeviceOrientation.portraitUp,
-        ]);
+        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       }
     } catch (_) {}
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _play() {
     FocusScope.of(context).unfocus();
     final url = _inputController.text.trim();
     if (url.isEmpty || (!url.startsWith('http://') && !url.startsWith('https://'))) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入正确的 mp4 或 m3u8 地址')),
-      );
+      _toast('请输入正确的 mp4 或 m3u8 地址');
       return;
     }
     setState(() {
@@ -66,10 +87,173 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
     });
   }
 
+  Future<void> _onPaste() async {
+    FocusScope.of(context).unfocus();
+    final res = await ClipboardSniffer.sniff();
+    if (!mounted) return;
+    if (res.url.isNotEmpty) {
+      ClipboardSniffer.markHandled(res.raw);
+      _inputController.text = res.url;
+      setState(() {
+        _playUrl = res.url;
+        _reloadToken++;
+      });
+      _toast('已提取剪贴板链接并开始播放');
+    } else if (res.raw.isNotEmpty) {
+      ClipboardSniffer.markHandled(res.raw);
+      _inputController.text = res.raw;
+      _play();
+    } else {
+      _toast('未在剪贴板中检测到有效链接');
+    }
+  }
+
+  Widget _urlBar() {
+    return Padding(
+      padding: const EdgeInsets.all(AppTheme.spaceLg),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 44,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: AppTheme.bgCard,
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.link_rounded, size: 18, color: AppTheme.textMuted),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: TextField(
+                      controller: _inputController,
+                      style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
+                      decoration: const InputDecoration(
+                        hintText: '输入 mp4 或 m3u8 播放地址',
+                        hintStyle: TextStyle(fontSize: 13, color: AppTheme.textMuted),
+                        border: InputBorder.none,
+                        isDense: true,
+                      ),
+                      textInputAction: TextInputAction.go,
+                      onSubmitted: (_) => _play(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Material(
+            color: AppTheme.bgCard,
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            child: InkWell(
+              onTap: _onPaste,
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              child: const SizedBox(
+                height: 44,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14),
+                  child: Center(
+                    child: Text(
+                      '粘贴',
+                      style: TextStyle(fontSize: 14, color: AppTheme.textPrimary),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.accent,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              elevation: 0,
+              minimumSize: const Size(0, 44),
+            ),
+            onPressed: _play,
+            child: const Row(
+              children: [
+                Icon(Icons.play_arrow_rounded, size: 18),
+                SizedBox(width: 2),
+                Text('播放', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _idlePane() {
+    return const Expanded(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(32, 0, 32, 24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 76,
+                  height: 76,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentSoft,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+                Icon(Icons.play_circle_fill_rounded, size: 36, color: AppTheme.accent),
+              ],
+            ),
+            SizedBox(height: 16),
+            Text(
+              '粘贴直链即可播放',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: AppTheme.textPrimary,
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              '仅支持 mp4 / m3u8，不会写入观看历史',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, height: 20 / 13, color: AppTheme.textMuted),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _player({required bool isFull, required bool expand}) {
+    final player = VideoPlayerWidget(
+      key: const ValueKey('custom_video_player'),
+      videoUrl: _playUrl,
+      title: '自定义播放',
+      showBack: isFull,
+      isFull: isFull,
+      reloadToken: _reloadToken,
+      onBack: () => _setFullscreen(false),
+      onFullscreenChange: _setFullscreen,
+    );
+    if (expand) return Expanded(child: player);
+    return AspectRatio(aspectRatio: 16 / 9, child: player);
+  }
+
   @override
   Widget build(BuildContext context) {
     final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
     final isFullMode = _isFull || isLandscape;
+    final wide = Breakpoint.isWideWidth(MediaQuery.sizeOf(context).width);
 
     return PopScope(
       canPop: !isFullMode,
@@ -90,106 +274,23 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
             children: [
               if (!isFullMode) ...[
                 const PageHeader(title: '自定义播放'),
-                Padding(
-                  padding: const EdgeInsets.all(AppTheme.spaceLg),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Container(
-                          height: 44,
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.bgCard,
-                            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.link_rounded, size: 18, color: AppTheme.textMuted),
-                              const SizedBox(width: 6),
-                              Expanded(
-                                child: TextField(
-                                  controller: _inputController,
-                                  style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
-                                  decoration: const InputDecoration(
-                                    hintText: '输入 mp4 或 m3u8 播放地址',
-                                    hintStyle: TextStyle(fontSize: 13, color: AppTheme.textMuted),
-                                    border: InputBorder.none,
-                                    isDense: true,
-                                  ),
-                                  textInputAction: TextInputAction.go,
-                                  onSubmitted: (_) => _play(),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.accent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          elevation: 0,
-                        ),
-                        onPressed: _play,
-                        child: const Row(
-                          children: [
-                            Icon(Icons.play_arrow_rounded, size: 18),
-                            SizedBox(width: 2),
-                            Text('播放', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                _urlBar(),
               ],
-
-              // Video Player
-              if (isFullMode)
-                Expanded(
-                  child: VideoPlayerWidget(
-                    key: const ValueKey('custom_video_player'),
-                    videoUrl: _playUrl,
-                    title: '自定义播放',
-                    showBack: true,
-                    isFull: true,
-                    reloadToken: _reloadToken,
-                    onBack: () => _setFullscreen(false),
-                    onFullscreenChange: _setFullscreen,
-                  ),
-                )
-              else
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: VideoPlayerWidget(
-                    key: const ValueKey('custom_video_player'),
-                    videoUrl: _playUrl,
-                    title: '自定义播放',
-                    showBack: false,
-                    isFull: false,
-                    reloadToken: _reloadToken,
-                    onFullscreenChange: _setFullscreen,
-                  ),
-                ),
-
-              if (!isFullMode) ...[
-                const Padding(
-                  padding: EdgeInsets.all(AppTheme.spaceLg),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      '仅支持直链 mp4 / m3u8，不会写入观看历史。',
-                      style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+              if (_hasPlayUrl) ...[
+                _player(isFull: isFullMode, expand: isFullMode || wide),
+                if (!isFullMode)
+                  const Padding(
+                    padding: EdgeInsets.all(AppTheme.spaceLg),
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        '仅支持直链 mp4 / m3u8，不会写入观看历史。',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                      ),
                     ),
                   ),
-                ),
-                const Spacer(),
-              ],
+              ] else if (!isFullMode)
+                _idlePane(),
             ],
           ),
         ),

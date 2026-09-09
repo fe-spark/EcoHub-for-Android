@@ -8,6 +8,8 @@ const int _epNameWideLen = 6;
 
 /// 播放页选集与详情面板
 class PlayDetailPanel extends StatefulWidget {
+  final String filmId;
+  final String picture;
   final String name;
   final String subTitle;
   final String actor;
@@ -22,6 +24,8 @@ class PlayDetailPanel extends StatefulWidget {
 
   const PlayDetailPanel({
     super.key,
+    required this.filmId,
+    this.picture = '',
     required this.name,
     this.subTitle = '',
     this.actor = '',
@@ -140,7 +144,10 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
         // Film Detail Header
         SliverToBoxAdapter(
           child: FilmDetailHeader(
+            filmId: widget.filmId,
+            picture: widget.picture,
             name: widget.name,
+            subTitle: widget.subTitle,
             actor: widget.actor,
             plot: widget.plot,
             descriptor: widget.descriptor,

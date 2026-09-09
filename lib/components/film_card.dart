@@ -36,16 +36,15 @@ class FilmCard extends StatelessWidget {
 
   Widget _buildPosterTag(String text) {
     return Container(
-      margin: const EdgeInsets.only(right: 4, bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: const Color(0xB8141224),
+        color: const Color(0xC70A0B10),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         text,
         style: const TextStyle(
-          fontSize: 10,
+          fontSize: 9,
           color: Colors.white,
           fontWeight: FontWeight.w500,
         ),
@@ -63,95 +62,87 @@ class FilmCard extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-          child: AspectRatio(
-            aspectRatio: 2 / 3,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (posterUrl.isNotEmpty)
-                  CachedNetworkImage(
-                    imageUrl: posterUrl,
-                    httpHeaders: FormatUtil.imageHeaders(posterUrl),
-                    fit: BoxFit.cover,
-                    placeholder: (context, url) => Container(
-                      color: AppTheme.bgCard,
-                      child: const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: AppTheme.accent,
-                          ),
-                        ),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+            child: AspectRatio(
+              aspectRatio: 2 / 3,
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (posterUrl.isNotEmpty)
+                    CachedNetworkImage(
+                      imageUrl: posterUrl,
+                      httpHeaders: FormatUtil.imageHeaders(posterUrl),
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => const ColoredBox(
+                        color: AppTheme.bgCard,
                       ),
-                    ),
-                    errorWidget: (context, url, error) => _buildPlaceholder(),
-                  )
-                else
-                  _buildPlaceholder(),
-
-                // 底部渐变蒙层
-                Positioned.fill(
-                  child: DecoratedBox(
+                      errorWidget: (context, url, error) => _buildPlaceholder(),
+                    )
+                  else
+                    _buildPlaceholder(),
+                  const DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        stops: const [0.55, 1.0],
+                        stops: [0.65, 1.0],
                         colors: [
-                          Colors.transparent,
-                          Colors.black.withValues(alpha: 0.72),
+                          Color(0x00000000),
+                          Color(0x990A0B10),
                         ],
                       ),
                     ),
                   ),
-                ),
-
-                // 标签层
-                Positioned(
-                  left: 6,
-                  right: 6,
-                  top: 6,
-                  child: Wrap(
-                    spacing: 4,
-                    runSpacing: 4,
-                    children: [
-                      if (film.year.isNotEmpty) _buildPosterTag(film.year),
-                      if (film.cName.isNotEmpty) _buildPosterTag(film.cName),
-                      if (film.remarks.isNotEmpty) _buildPosterTag(film.remarks),
-                    ],
-                  ),
-                ),
-              ],
+                  if (film.remarks.isNotEmpty || film.cName.isNotEmpty)
+                    Positioned(
+                      top: 6,
+                      right: 6,
+                      child: _buildPosterTag(
+                        film.remarks.isNotEmpty ? film.remarks : film.cName,
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
         if (showMeta) ...[
-          const SizedBox(height: AppTheme.spaceSm),
-          Text(
-            film.name,
-            style: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary,
-              height: 1.2,
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 18,
+            child: Text(
+              film.name,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: AppTheme.textPrimary,
+                height: 1.38,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 2),
-          Text(
-            film.subTitle.isNotEmpty ? film.subTitle : ' ',
-            style: const TextStyle(
-              fontSize: 11,
-              color: AppTheme.textMuted,
-              height: 1.2,
+          SizedBox(
+            height: 15,
+            child: Text(
+              film.subTitle.isNotEmpty
+                  ? film.subTitle
+                  : FormatUtil.joinMeta([film.year, film.cName]),
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppTheme.textMuted,
+                height: 1.36,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
         ],
       ],

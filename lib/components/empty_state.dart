@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
 
-/// 统一空状态/错误状态占位组件
+/// 统一空状态/错误状态占位，对齐 OHOS `EmptyState`
 class EmptyState extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -12,7 +12,7 @@ class EmptyState extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle = '',
-    this.icon = Icons.inbox_outlined,
+    this.icon = Icons.movie_outlined,
     this.action,
   });
 
@@ -20,29 +20,17 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 80),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppTheme.bgCard,
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Icon(
-                icon,
-                size: 30,
-                color: AppTheme.textMuted,
-              ),
-            ),
+            Icon(icon, size: 40, color: AppTheme.textMuted),
             const SizedBox(height: AppTheme.spaceLg),
             Text(
               title,
               style: const TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w500,
                 color: AppTheme.textPrimary,
               ),
               textAlign: TextAlign.center,
@@ -54,7 +42,6 @@ class EmptyState extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppTheme.textMuted,
-                  height: 1.4,
                 ),
                 textAlign: TextAlign.center,
               ),

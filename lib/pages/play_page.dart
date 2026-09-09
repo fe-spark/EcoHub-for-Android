@@ -5,6 +5,7 @@ import '../models/film_models.dart';
 import '../api/film_api.dart';
 import '../api/http_client.dart';
 import '../utils/history_manager.dart';
+import '../utils/play_resume.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
 import '../utils/format_util.dart';
@@ -37,7 +38,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   late String _filmId;
   bool _loading = true;
   String _errorText = '';
-
   String _name = '';
   String _picture = '';
   String _subTitle = '';
@@ -52,12 +52,10 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   int _playToken = 0;
   String _playTitle = '';
   double _initialTime = 0;
-
   List<MovieBasicInfo> _related = [];
   bool _relateLoading = false;
   int _activeTab = 0;
   bool _playerFull = false;
-
   String _sourceName = '默认源';
   double _lastCurrentTime = 0;
   double _lastDuration = 0;
@@ -71,8 +69,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     _episodeIndex = widget.episodeIndex;
     _initialTime = widget.currentTime;
     _lastCurrentTime = _initialTime;
-
-    HttpClient.instance.trackView('play', _filmId);
+    HttpClient.instance.trackView('play', _filmId, 'PlayPage');
     SourceGuard.onReconnect(_onReconnect);
 
     _initPlay();
@@ -112,15 +109,12 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   Future<void> _initPlay() async {
     var sid = widget.sourceId;
     if (sid.isEmpty && widget.episodeIndex == 0 && widget.currentTime == 0 && _filmId.isNotEmpty) {
-      final prev = await HistoryManager.find(_filmId);
-      if (prev != null) {
-        sid = prev.sourceId;
-        _episodeIndex = prev.episodeIndex;
-        final isEnded = prev.duration > 0 && prev.currentTime >= prev.duration - 3;
-        _initialTime = isEnded ? 0 : prev.currentTime;
-        _lastCurrentTime = _initialTime;
-        _lastDuration = prev.duration;
-      }
+      final resume = await PlayResume.fromHistory(_filmId);
+      sid = resume.sourceId;
+      _episodeIndex = resume.episodeIndex;
+      _initialTime = resume.currentTime;
+      _lastCurrentTime = resume.currentTime;
+      _lastDuration = resume.duration;
     }
     _loadPlay(sid);
     _loadRelate();
@@ -284,30 +278,37 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     });
   }
 
-  void _openRelated(MovieBasicInfo film) {
+  Future<void> _openRelated(MovieBasicInfo film) async {
     final id = FormatUtil.filmId(film);
     if (id.isEmpty || id == _filmId) return;
 
+    _filmId = id;
+    HttpClient.instance.trackView('play', _filmId, 'PlayPage');
+    final resume = await PlayResume.fromHistory(_filmId);
+    if (!mounted) return;
     setState(() {
-      _filmId = id;
-      _episodeIndex = 0;
-      _initialTime = 0;
-      _lastCurrentTime = 0;
-      _lastDuration = 0;
+      _name = '';
+      _sources = [];
+      _playUrl = '';
+      _loading = true;
+      _episodeIndex = resume.episodeIndex;
+      _initialTime = resume.currentTime;
+      _lastCurrentTime = resume.currentTime;
+      _lastDuration = resume.duration;
       _activeTab = 0;
     });
-    _loadPlay('');
+    _loadPlay(resume.sourceId);
     _loadRelate();
   }
 
-  void _setFullscreen(bool full) {
+  void _setFullscreen(bool full, {bool isPortrait = false}) {
     if (_playerFull == full) return;
-    setState(() {
-      _playerFull = full;
-    });
+    setState(() => _playerFull = full);
     try {
       if (full) {
-        SystemChrome.setPreferredOrientations([DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+        SystemChrome.setPreferredOrientations(isPortrait
+            ? [DeviceOrientation.portraitUp]
+            : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       } else {
         SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
@@ -412,6 +413,8 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
                 Expanded(
                   child: _activeTab == 0
                       ? PlayDetailPanel(
+                          filmId: _filmId,
+                          picture: _picture,
                           name: _name,
                           subTitle: _subTitle,
                           actor: _actor,

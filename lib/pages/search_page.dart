@@ -5,6 +5,7 @@ import '../api/film_api.dart';
 import '../api/http_client.dart';
 import '../utils/search_history_manager.dart';
 import '../utils/source_guard.dart';
+import '../utils/breakpoint.dart';
 import '../components/search_result_item.dart';
 import '../components/loading_view.dart';
 import '../components/empty_state.dart';
@@ -46,6 +47,12 @@ class _SearchPageState extends State<SearchPage> {
     if (widget.initialKeyword.isNotEmpty) {
       _inputController.text = widget.initialKeyword;
       _doSearch(true);
+    } else {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _submitted.isEmpty) {
+          _focusNode.requestFocus();
+        }
+      });
     }
   }
 
@@ -155,7 +162,7 @@ class _SearchPageState extends State<SearchPage> {
     _focusNode.unfocus();
 
     if (reset) {
-      HttpClient.instance.trackView('search', kw);
+      HttpClient.instance.trackView('search', kw, 'SearchPage');
       setState(() {
         _loading = true;
         _list = [];
@@ -432,31 +439,55 @@ class _SearchPageState extends State<SearchPage> {
       );
     }
 
+    final lanes = Breakpoint.listLanesOf(MediaQuery.sizeOf(context).width);
+
     return RefreshIndicator(
       onRefresh: () => _doSearch(true),
       color: AppTheme.accent,
       backgroundColor: AppTheme.bgCard,
-      child: ListView.builder(
+      child: CustomScrollView(
         controller: _scrollController,
-        padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg, vertical: 8),
-        itemCount: _list.length + 1,
-        itemBuilder: (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(AppTheme.spaceLg, 8, AppTheme.spaceLg, 8),
+            sliver: SliverToBoxAdapter(
               child: Text(
                 '共 ${_page.total} 部与「$_submitted」相关',
                 style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
               ),
-            );
-          }
-
-          final film = _list[index - 1];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: SearchResultItem(film: film),
-          );
-        },
+            ),
+          ),
+          if (lanes <= 1)
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
+              sliver: SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: SearchResultItem(film: _list[index]),
+                  ),
+                  childCount: _list.length,
+                ),
+              ),
+            )
+          else
+            SliverPadding(
+              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
+              sliver: SliverGrid(
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: lanes,
+                  mainAxisExtent: 148,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 8,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => SearchResultItem(film: _list[index]),
+                  childCount: _list.length,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

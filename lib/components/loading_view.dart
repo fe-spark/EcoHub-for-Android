@@ -7,34 +7,37 @@ class LoadingView extends StatelessWidget {
 
   const LoadingView({
     super.key,
-    this.label = '加载中',
+    this.label = '加载中...',
   });
 
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(
-            width: 28,
-            height: 28,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              color: AppTheme.accent,
-            ),
-          ),
-          if (label.isNotEmpty) ...[
-            const SizedBox(height: AppTheme.spaceMd),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 13,
-                color: AppTheme.textMuted,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 80),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(
+              width: 36,
+              height: 36,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppTheme.accent,
               ),
             ),
+            if (label.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                ),
+              ),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }

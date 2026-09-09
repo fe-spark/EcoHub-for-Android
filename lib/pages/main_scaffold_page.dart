@@ -7,6 +7,7 @@ import '../utils/site_heartbeat.dart';
 import '../utils/source_guard.dart';
 import '../utils/app_version_util.dart';
 import '../components/notice_dialog.dart';
+import '../components/version_update_dialog.dart';
 import '../components/loading_view.dart';
 import 'recommend_tab.dart';
 import 'daily_updates_tab.dart';
@@ -30,6 +31,7 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
   String _noticeTitle = '站点公告';
   String _noticeContent = '';
   bool _hasAppUpdate = false;
+  bool _showUpdateDialog = false;
   bool _hasDismissedNotice = false;
   final List<bool> _tabReady = [true, false, false];
 
@@ -39,6 +41,9 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
     WidgetsBinding.instance.addObserver(this);
     FilmApi.onConfigChange(_onConfigChange);
     SourceGuard.onReconnect(_onReconnect);
+    AppVersionUtil.hasUpdate.addListener(_onHasUpdate);
+    AppVersionUtil.showUpdateDialog.addListener(_onShowUpdateDialog);
+    _hasAppUpdate = AppVersionUtil.hasUpdate.value;
     _bootstrap();
   }
 
@@ -48,7 +53,23 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
     SiteHeartbeat.instance.stop();
     FilmApi.offConfigChange(_onConfigChange);
     SourceGuard.offReconnect(_onReconnect);
+    AppVersionUtil.hasUpdate.removeListener(_onHasUpdate);
+    AppVersionUtil.showUpdateDialog.removeListener(_onShowUpdateDialog);
     super.dispose();
+  }
+
+  void _onHasUpdate() {
+    if (!mounted) return;
+    setState(() {
+      _hasAppUpdate = AppVersionUtil.hasUpdate.value;
+    });
+  }
+
+  void _onShowUpdateDialog() {
+    if (!mounted) return;
+    setState(() {
+      _showUpdateDialog = AppVersionUtil.showUpdateDialog.value;
+    });
   }
 
   @override
@@ -75,7 +96,7 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
   }
 
   Future<void> _checkNotice(BasicConfig config) async {
-    if (!config.noticeEnabled || !config.noticeShowInApp || config.noticeContent.trim().isEmpty) {
+    if (!config.state || !config.noticeEnabled || !config.noticeShowInApp || config.noticeContent.trim().isEmpty) {
       setState(() {
         _showNotice = false;
       });
@@ -192,6 +213,16 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
                 setState(() {
                   _hasDismissedNotice = true;
                   _showNotice = false;
+                });
+              },
+            ),
+          if (_showUpdateDialog && AppVersionUtil.getCachedUpdateInfo() != null)
+            VersionUpdateDialog(
+              updateInfo: AppVersionUtil.getCachedUpdateInfo()!,
+              onClose: () {
+                AppVersionUtil.showUpdateDialog.value = false;
+                setState(() {
+                  _showUpdateDialog = false;
                 });
               },
             ),

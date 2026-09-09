@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import '../common/app_theme.dart';
+import '../services/route_observer.dart';
 import 'server_config_manager.dart';
 
-/// 软件源断连拦截与重连广播
+/// 软件源断连拦截与重连广播，对齐 OHOS `SourceGuard`
 class SourceGuard {
   static bool _intercepting = false;
   static int _skipCount = 0;
@@ -28,24 +30,79 @@ class SourceGuard {
     _listeners.remove(listener);
   }
 
-  static void intercept([BuildContext? context]) {
+  static void intercept({VoidCallback? onContinue}) {
     if (_skipCount > 0 || _intercepting) {
       return;
     }
     if (ServerConfigManager.instance.getCachedServerUrl().isEmpty) {
       return;
     }
-    _intercepting = true;
-    final nav = context != null ? Navigator.of(context) : navigatorKey?.currentState;
-    if (nav != null) {
-      nav.pushNamed('/server_config', arguments: {'mode': 'reconnect'}).then((_) {
-        _intercepting = false;
-      }).catchError((_) {
-        _intercepting = false;
-      });
-    } else {
-      _intercepting = false;
+    final name = EcoHubRouteObserver.currentName;
+    if (name == EcoHubRouteObserver.serverConfig) {
+      return;
     }
+    if (name == EcoHubRouteObserver.play) {
+      _showPlayConfirm(onContinue);
+      return;
+    }
+    _doNavigate();
+  }
+
+  static void _showPlayConfirm(VoidCallback? onContinue) {
+    final ctx = navigatorKey?.currentContext;
+    if (ctx == null) {
+      _doNavigate();
+      return;
+    }
+    _intercepting = true;
+    showDialog<void>(
+      context: ctx,
+      barrierDismissible: false,
+      builder: (dialogCtx) {
+        return PopScope(
+          canPop: false,
+          child: AlertDialog(
+            backgroundColor: AppTheme.bgElevated,
+            title: const Text('软件源失联', style: TextStyle(color: AppTheme.textPrimary, fontSize: 16)),
+            content: const Text(
+              '检测到当前软件源连接异常，是否前往重新配置？',
+              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogCtx);
+                  _intercepting = false;
+                  onContinue?.call();
+                },
+                child: const Text('继续观看', style: TextStyle(color: AppTheme.textMuted)),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(dialogCtx);
+                  _doNavigate();
+                },
+                child: const Text('更换软件源', style: TextStyle(color: AppTheme.accent, fontWeight: FontWeight.bold)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static void _doNavigate() {
+    final nav = navigatorKey?.currentState;
+    if (nav == null) {
+      _intercepting = false;
+      return;
+    }
+    _intercepting = true;
+    nav.pushNamed('/server_config', arguments: {'mode': 'reconnect'}).then((_) {
+      // 配源页 dispose 会 markClosed；若被意外 pop 也要放开锁
+    }).catchError((_) {
+      _intercepting = false;
+    });
   }
 
   static void markClosed() {
