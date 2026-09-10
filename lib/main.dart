@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'common/app_theme.dart';
+import 'utils/app_orientation.dart';
 import 'utils/source_guard.dart';
 import 'pages/splash_page.dart';
 import 'pages/main_scaffold_page.dart';
@@ -29,6 +30,9 @@ void main() {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+
+  // 对齐 OHOS `AUTO_ROTATION_RESTRICTED`：默认自动旋转（竖屏 + 左右横屏，排除倒置）
+  SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
 
   SourceGuard.navigatorKey = appNavigatorKey;
 

@@ -117,15 +117,17 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
     final subtitle = _reconnect
         ? (landscape ? '软件源连接失败\n请重新接入' : '软件源连接失败，请检查后重新接入')
         : (landscape ? '配置软件源后观影' : '配置软件源后即可观影');
+    final iconSize = landscape ? 72.0 : 88.0;
+    final iconRadius = landscape ? 16.0 : 20.0;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        const StartIconImage(size: 56),
-        SizedBox(height: landscape ? 8 : 10),
+        StartIconImage(size: iconSize, radius: iconRadius),
+        SizedBox(height: landscape ? 8 : 14),
         Text(
           'EcoHub',
           style: TextStyle(
-            fontSize: landscape ? 22 : 24,
+            fontSize: landscape ? 22 : 26,
             fontWeight: FontWeight.bold,
             color: AppTheme.textPrimary,
           ),
@@ -147,6 +149,7 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
     final inputH = landscape ? 42.0 : 48.0;
     final inputFont = landscape ? 13.0 : 14.0;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -264,45 +267,61 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
         body: SafeArea(
           child: Column(
             children: [
-              SizedBox(
-                height: landscape ? 36 : 48,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: canBack
-                      ? IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.textPrimary),
-                          onPressed: () => Navigator.pop(context),
-                        )
-                      : const SizedBox(width: 12),
+              if (canBack)
+                SizedBox(
+                  height: landscape ? 36 : 48,
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: IconButton(
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.textPrimary),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ),
                 ),
-              ),
               Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(landscape ? 16 : 24, landscape ? 4 : 20, landscape ? 16 : 24, 24),
-                  child: landscape
-                      ? Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            SizedBox(width: 160, child: _brand(landscape: true)),
-                            const SizedBox(width: 28),
-                            Expanded(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 440),
-                                child: _form(landscape: true),
-                              ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                        child: Center(
+                          child: Padding(
+                            padding: EdgeInsets.fromLTRB(
+                              landscape ? 16 : 24,
+                              landscape ? 4 : 20,
+                              landscape ? 16 : 24,
+                              24,
                             ),
-                          ],
-                        )
-                      : Column(
-                          children: [
-                            _brand(landscape: false),
-                            const SizedBox(height: 28),
-                            ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 480),
-                              child: _form(landscape: false),
-                            ),
-                          ],
+                            child: landscape
+                                ? Row(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      SizedBox(width: 160, child: _brand(landscape: true)),
+                                      const SizedBox(width: 28),
+                                      Expanded(
+                                        child: ConstrainedBox(
+                                          constraints: const BoxConstraints(maxWidth: 440),
+                                          child: _form(landscape: true),
+                                        ),
+                                      ),
+                                    ],
+                                  )
+                                : Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      _brand(landscape: false),
+                                      const SizedBox(height: 28),
+                                      ConstrainedBox(
+                                        constraints: const BoxConstraints(maxWidth: 480),
+                                        child: _form(landscape: false),
+                                      ),
+                                    ],
+                                  ),
+                          ),
                         ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ],

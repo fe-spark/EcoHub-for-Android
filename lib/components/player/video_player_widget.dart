@@ -398,6 +398,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
           ),
           PlayerSkinView(
             isFull: widget.isFull,
+            edgeHud: widget.edgeHud,
             showHud: _showHud,
             showBack: widget.showBack,
             title: widget.title,
@@ -415,6 +416,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget> {
             hasPrev: widget.hasPrev,
             hasNext: widget.hasNext,
             panState: _panState,
+            topInset: widget.topInset,
+            leftInset: widget.leftInset,
+            rightInset: widget.rightInset,
+            bottomInset: widget.bottomInset,
             onBack: () {
               if (widget.isFull) {
                 _toggleFullscreen();

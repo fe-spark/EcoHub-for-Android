@@ -32,6 +32,7 @@ class AppTheme {
 
   // 尺寸常量
   static const double tabHeight = 56.0;
+  static const double safeEdge = 16.0;
   static const double posterRatio = 1.5;
   static const double contentMaxWidth = 1280.0;
   static const String calligraphyFont = 'CalligraphyFont';

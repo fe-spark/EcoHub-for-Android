@@ -68,8 +68,13 @@ class _FilterTagRowState extends State<FilterTagRow> {
     if (idx < 0 || idx >= _chipKeys.length) return;
     final ctx = _chipKeys[idx].currentContext;
     if (ctx == null) return;
-    Scrollable.ensureVisible(
-      ctx,
+    final renderObject = ctx.findRenderObject();
+    // 只滚动当前行的横向 scroller：Scrollable.ensureVisible 会向上遍历所有可滚动祖先，
+    // 误触发外层 CustomScrollView 纵向滚动（导致筛选头只露出一半）。
+    final scrollable = Scrollable.maybeOf(ctx);
+    if (scrollable == null || renderObject == null) return;
+    scrollable.position.ensureVisible(
+      renderObject,
       alignment: 0,
       duration: smooth ? const Duration(milliseconds: 220) : Duration.zero,
       curve: Curves.easeOut,

@@ -178,10 +178,11 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
     final tags = _metaTags();
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
+      padding: const EdgeInsets.only(bottom: 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 1. 标题与收藏操作按钮行
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
             child: Row(
@@ -190,7 +191,11 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
                 Expanded(
                   child: Text(
                     widget.name,
-                    style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -233,26 +238,62 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
               ],
             ),
           ),
+
+          // 2. 元数据行（左侧固定评分徽章，右侧标签支持横向滚动）
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: Row(
               children: [
-                Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
-                  decoration: BoxDecoration(
-                    color: score.isNotEmpty ? AppTheme.accentSoft : AppTheme.bgChip,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                  ),
-                  child: Text(
-                    score.isNotEmpty ? '★ $score 分' : '★ 暂无评分',
-                    style: TextStyle(
-                      fontSize: score.isNotEmpty ? 12 : 11,
-                      fontWeight: FontWeight.bold,
-                      color: score.isNotEmpty ? AppTheme.accent : AppTheme.textMuted,
+                if (score.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.accentSoft,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('★', style: TextStyle(fontSize: 12, color: AppTheme.accent)),
+                        const SizedBox(width: 3),
+                        Text(
+                          score,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.accent,
+                          ),
+                        ),
+                        const SizedBox(width: 1),
+                        const Text('分', style: TextStyle(fontSize: 10, color: AppTheme.accent)),
+                      ],
+                    ),
+                  )
+                else
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.fromLTRB(7, 3, 7, 3),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgChip,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('★', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
+                        SizedBox(width: 3),
+                        Text(
+                          '暂无评分',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                            color: AppTheme.textMuted,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ),
                 Expanded(
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -266,7 +307,10 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
                                 color: AppTheme.bgChip,
                                 borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                               ),
-                              child: Text(tag, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                              child: Text(
+                                tag,
+                                style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+                              ),
                             ),
                           )
                           .toList(),
@@ -276,6 +320,8 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
               ],
             ),
           ),
+
+          // 3. 详细信息卡片导引条（独立整行大热区，带摘要与高亮详情入口）
           if (_hasDetailInfo())
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
@@ -311,7 +357,14 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text('详情', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.accent)),
+                            Text(
+                              '详情',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.accent,
+                              ),
+                            ),
                             Icon(Icons.chevron_right_rounded, size: 12, color: AppTheme.accent),
                           ],
                         ),

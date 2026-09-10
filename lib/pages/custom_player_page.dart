@@ -4,6 +4,7 @@ import '../common/app_theme.dart';
 import '../components/page_header.dart';
 import '../components/player/video_player_widget.dart';
 import '../utils/breakpoint.dart';
+import '../utils/app_orientation.dart';
 import '../utils/clipboard_sniffer.dart';
 
 /// 自定义播放页面，对齐 OHOS `CustomPlayerPage`
@@ -21,6 +22,7 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
   String _playUrl = '';
   int _reloadToken = 0;
   bool _isFull = false;
+  final GlobalKey _videoKey = GlobalKey();
 
   @override
   void initState() {
@@ -32,9 +34,7 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
   void dispose() {
     _inputController.dispose();
     try {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
+      SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } catch (_) {}
     super.dispose();
@@ -63,7 +63,7 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
         );
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       } else {
-        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       }
     } catch (_) {}
@@ -234,25 +234,30 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
     );
   }
 
-  Widget _player({required bool isFull, required bool expand}) {
+  Widget _player({required bool isFull, required bool wide}) {
+    final padding = MediaQuery.paddingOf(context);
     final player = VideoPlayerWidget(
-      key: const ValueKey('custom_video_player'),
+      key: _videoKey,
       videoUrl: _playUrl,
       title: '自定义播放',
       showBack: isFull,
       isFull: isFull,
+      topInset: isFull ? padding.top : 0,
+      bottomInset: isFull ? padding.bottom : 0,
+      leftInset: isFull ? (padding.left > AppTheme.safeEdge ? padding.left : AppTheme.safeEdge) : 0,
+      rightInset: isFull ? (padding.right > AppTheme.safeEdge ? padding.right : AppTheme.safeEdge) : 0,
       reloadToken: _reloadToken,
       onBack: () => _setFullscreen(false),
       onFullscreenChange: _setFullscreen,
     );
-    if (expand) return Expanded(child: player);
-    return AspectRatio(aspectRatio: 16 / 9, child: player);
+    if (isFull) return Expanded(child: player);
+    final box = AspectRatio(aspectRatio: 16 / 9, child: player);
+    return wide ? Expanded(child: Center(child: box)) : box;
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    final isFullMode = _isFull || isLandscape;
+    final isFullMode = _isFull;
     final wide = Breakpoint.isWideWidth(MediaQuery.sizeOf(context).width);
 
     return PopScope(
@@ -277,7 +282,7 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
                 _urlBar(),
               ],
               if (_hasPlayUrl) ...[
-                _player(isFull: isFullMode, expand: isFullMode || wide),
+                _player(isFull: isFullMode, wide: wide),
                 if (!isFullMode)
                   const Padding(
                     padding: EdgeInsets.all(AppTheme.spaceLg),

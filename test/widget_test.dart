@@ -13,6 +13,10 @@ import 'package:ecohub_android/components/filter_tag_row.dart';
 import 'package:ecohub_android/components/filter_bar.dart';
 import 'package:ecohub_android/components/dynamic_sliver_appbar.dart';
 import 'package:ecohub_android/components/sticky_appbar.dart';
+import 'package:ecohub_android/components/home_banner.dart';
+import 'package:ecohub_android/models/film_models.dart';
+import 'package:ecohub_android/pages/server_config_page.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void _mockClipboard(WidgetTester tester, String text) {
   tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -381,6 +385,201 @@ void main() {
         tester.getSize(find.byType(FilterBar)).height,
         44 * 3 + AppTheme.spaceSm * 2,
       );
+    });
+  });
+
+  group('HomeBanner Tests', () {
+    final sampleBanners = [
+      BannerItem(id: '1', mid: 1, name: 'Banner 1', remark: 'HD', year: '2024'),
+      BannerItem(id: '2', mid: 2, name: 'Banner 2', remark: '超清', year: '2025'),
+      BannerItem(id: '3', mid: 3, name: 'Banner 3', remark: '全集', year: '2026'),
+    ];
+
+    testWidgets('empty banners renders empty sized box', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: HomeBanner(banners: []),
+          ),
+        ),
+      );
+      expect(find.byType(PageView), findsNothing);
+    });
+
+    testWidgets('single banner renders without indicator and loop', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HomeBanner(banners: [sampleBanners.first]),
+          ),
+        ),
+      );
+      expect(find.byType(PageView), findsOneWidget);
+      expect(find.text('Banner 1'), findsOneWidget);
+      expect(find.byType(AnimatedContainer), findsNothing);
+    });
+
+    testWidgets('multi banners loop smoothly forward and backward', (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HomeBanner(banners: sampleBanners),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Banner 1'), findsOneWidget);
+      expect(find.byType(AnimatedContainer), findsNWidgets(3));
+
+      // Drag right (swipe backwards from 0 to previous banner)
+      await tester.drag(find.byType(PageView), const Offset(500, 0));
+      await tester.pumpAndSettle();
+
+      // Wraps seamlessly to Banner 3
+      expect(find.text('Banner 3'), findsOneWidget);
+
+      // Drag left (swipe forward to Banner 1)
+      await tester.drag(find.byType(PageView), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Banner 1'), findsOneWidget);
+
+      // Drag left again to Banner 2
+      await tester.drag(find.byType(PageView), const Offset(-500, 0));
+      await tester.pumpAndSettle();
+      expect(find.text('Banner 2'), findsOneWidget);
+    });
+
+    testWidgets('auto-scroll advances to next banner smoothly', (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HomeBanner(banners: sampleBanners),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Banner 1'), findsOneWidget);
+
+      // Advance timer by 4800ms + animation duration
+      await tester.pump(const Duration(milliseconds: 4850));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Banner 2'), findsOneWidget);
+    });
+
+    testWidgets('auto-scroll seamlessly loops across end boundary back to first banner', (tester) async {
+      tester.view.physicalSize = const Size(800, 1200);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: HomeBanner(banners: sampleBanners),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Banner 1'), findsOneWidget);
+
+      // 1 -> 2
+      await tester.pump(const Duration(milliseconds: 4850));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(find.text('Banner 2'), findsOneWidget);
+
+      // 2 -> 3
+      await tester.pump(const Duration(milliseconds: 4850));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(find.text('Banner 3'), findsOneWidget);
+
+      // 3 -> 1 (seamless forward loop across boundary without rewinding)
+      await tester.pump(const Duration(milliseconds: 4850));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pumpAndSettle();
+      expect(find.text('Banner 1'), findsOneWidget);
+    });
+  });
+
+  group('ServerConfigPage Tests', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({
+        'server_url': 'https://eco.fe-spark.cn/api',
+        'server_history': <String>['https://eco.fe-spark.cn/api'],
+      });
+    });
+
+    testWidgets('ServerConfigPage is vertically centered in portrait', (tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ServerConfigPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('EcoHub'), findsOneWidget);
+      expect(find.byType(ElevatedButton), findsOneWidget);
+
+      final titleCenter = tester.getCenter(find.text('EcoHub'));
+      final buttonCenter = tester.getCenter(find.byType(ElevatedButton));
+      final contentMidY = (titleCenter.dy + buttonCenter.dy) / 2;
+
+      // In an 800px tall screen, content midpoint should be close to 400 (within 50px)
+      expect(contentMidY, greaterThan(350));
+      expect(contentMidY, lessThan(450));
+    });
+
+    testWidgets('ServerConfigPage is vertically centered in landscape', (tester) async {
+      tester.view.physicalSize = const Size(800, 400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ServerConfigPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('EcoHub'), findsOneWidget);
+      expect(find.byType(ElevatedButton), findsOneWidget);
+
+      final buttonCenter = tester.getCenter(find.byType(ElevatedButton));
+      // In a 400px tall screen, button should be vertically centered near 200 (within 60px)
+      expect(buttonCenter.dy, greaterThan(150));
+      expect(buttonCenter.dy, lessThan(250));
+    });
+
+    testWidgets('ServerConfigPage scrolls without overflow on compact heights', (tester) async {
+      tester.view.physicalSize = const Size(400, 250);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: ServerConfigPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
     });
   });
 }

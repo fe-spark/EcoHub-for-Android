@@ -11,6 +11,7 @@ import '../components/empty_state.dart';
 import '../components/scroll_fab.dart';
 import '../components/filter_bar.dart';
 import '../components/sticky_appbar.dart';
+import '../components/dynamic_sliver_appbar.dart';
 
 const int _pageSize = 21;
 
@@ -284,45 +285,42 @@ class _FilterPageState extends State<FilterPage> {
                   const Expanded(child: LoadingView(label: '加载中')),
                 ],
               )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+            : Stack(
+                alignment: Alignment.bottomRight,
                 children: [
-                  if (rowKeys.isNotEmpty)
-                    FilterBar(
-                      keys: rowKeys,
-                      titleOf: _titleOf,
-                      namesOf: _namesOf,
-                      valuesOf: _valuesOf,
-                      selectedOf: _selectedFor,
-                      onPick: _pick,
-                    ),
-                  Expanded(
-                    child: Stack(
-                      alignment: Alignment.bottomRight,
-                      children: [
-                        RefreshIndicator(
-                          onRefresh: () async {
-                            if (_fetchLock) return;
-                            await _loadData(true, fromPull: true);
-                          },
-                          color: AppTheme.accent,
-                          backgroundColor: AppTheme.bgCard,
-                          child: CustomScrollView(
-                            controller: _scrollController,
-                            physics: _verticalPhysics,
-                            slivers: [
-                              SliverPersistentHeader(
-                                pinned: true,
-                                delegate: StickyAppbar(child: _navBar(showPills: true)),
-                              ),
-                              ..._bodySlivers(),
-                            ],
+                  RefreshIndicator(
+                    onRefresh: () async {
+                      if (_fetchLock) return;
+                      await _loadData(true, fromPull: true);
+                    },
+                    color: AppTheme.accent,
+                    backgroundColor: AppTheme.bgCard,
+                    child: CustomScrollView(
+                      controller: _scrollController,
+                      physics: _verticalPhysics,
+                      slivers: [
+                        if (rowKeys.isNotEmpty)
+                          DynamicSliverAppBar(
+                            maxHeight: MediaQuery.sizeOf(context).height,
+                            child: FilterBar(
+                              keys: rowKeys,
+                              titleOf: _titleOf,
+                              namesOf: _namesOf,
+                              valuesOf: _valuesOf,
+                              selectedOf: _selectedFor,
+                              onPick: _pick,
+                            ),
                           ),
+                        SliverPersistentHeader(
+                          pinned: true,
+                          floating: true,
+                          delegate: StickyAppbar(child: _navBar(showPills: true)),
                         ),
-                        ScrollFab(visible: _showTopFab, onClickFab: _scrollToTop),
+                        ..._bodySlivers(),
                       ],
                     ),
                   ),
+                  ScrollFab(visible: _showTopFab, onClickFab: _scrollToTop),
                 ],
               ),
       ),
@@ -404,7 +402,9 @@ class _FilterPageState extends State<FilterPage> {
                   separatorBuilder: (context, index) => const SizedBox(width: AppTheme.spaceSm),
                   itemBuilder: (context, index) {
                     final key = keys[index];
-                    return _FilterPill(label: _labelOf(key, _selectedFor(key)));
+                    return Center(
+                      child: _FilterPill(label: _labelOf(key, _selectedFor(key))),
+                    );
                   },
                 ),
               ),
@@ -435,7 +435,7 @@ class _BackBtn extends StatelessWidget {
       child: IconButton(
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints.tightFor(width: 32, height: 32),
-        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: AppTheme.textPrimary),
+        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 24, color: AppTheme.textPrimary),
         onPressed: () => Navigator.maybePop(context),
       ),
     );

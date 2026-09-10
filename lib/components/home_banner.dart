@@ -18,30 +18,63 @@ class HomeBanner extends StatefulWidget {
 }
 
 class _HomeBannerState extends State<HomeBanner> {
+  static const int _kInitialPageBase = 10000;
+
   PageController? _controller;
   int _index = 0;
+  int _virtualPage = 0;
   Timer? _timer;
   double _viewportFraction = 1;
+  bool _isUserScrolling = false;
 
   bool get _multi => widget.banners.length > 1;
+
+  void _setupController({int? targetPage}) {
+    final width = MediaQuery.sizeOf(context).width;
+    final peek = _multi ? Breakpoint.bannerPeek(width) : 0.0;
+    final fraction = _multi ? ((width - peek * 2) / width).clamp(0.72, 1.0) : 1.0;
+    _viewportFraction = fraction;
+
+    final initialPage = targetPage ??
+        (_multi
+            ? (_kInitialPageBase ~/ widget.banners.length) * widget.banners.length
+            : 0);
+
+    _virtualPage = initialPage;
+    _index = widget.banners.isEmpty ? 0 : (initialPage % widget.banners.length);
+
+    _controller?.dispose();
+    _controller = PageController(viewportFraction: fraction, initialPage: initialPage);
+  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    final width = MediaQuery.sizeOf(context).width;
-    final peek = _multi ? Breakpoint.bannerPeek(width) : 0.0;
-    final fraction = _multi ? ((width - peek * 2) / width).clamp(0.72, 1.0) : 1.0;
     if (_controller == null) {
-      _viewportFraction = fraction;
-      _controller = PageController(viewportFraction: fraction);
+      _setupController();
       _startTimer();
       return;
     }
+    final width = MediaQuery.sizeOf(context).width;
+    final peek = _multi ? Breakpoint.bannerPeek(width) : 0.0;
+    final fraction = _multi ? ((width - peek * 2) / width).clamp(0.72, 1.0) : 1.0;
     if ((fraction - _viewportFraction).abs() < 0.02) return;
-    final page = _controller!.hasClients ? (_controller!.page?.round() ?? _index) : _index;
-    _controller!.dispose();
-    _viewportFraction = fraction;
-    _controller = PageController(viewportFraction: fraction, initialPage: page);
+    final page = _controller!.hasClients ? (_controller!.page?.round() ?? _virtualPage) : _virtualPage;
+    _setupController(targetPage: page);
+  }
+
+  @override
+  void didUpdateWidget(HomeBanner oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.banners != oldWidget.banners) {
+      final oldLen = oldWidget.banners.length;
+      final newLen = widget.banners.length;
+      if (oldLen != newLen || newLen <= 1) {
+        _timer?.cancel();
+        _setupController();
+        _startTimer();
+      }
+    }
   }
 
   @override
@@ -56,13 +89,33 @@ class _HomeBannerState extends State<HomeBanner> {
     if (!_multi) return;
     _timer = Timer.periodic(const Duration(milliseconds: 4800), (_) {
       if (!mounted || _controller == null || !_controller!.hasClients) return;
-      final next = (_index + 1) % widget.banners.length;
+      if (ModalRoute.of(context)?.isCurrent != true) return;
+      if (TickerMode.of(context) == false) return;
+      final current = _controller!.page?.round() ?? _virtualPage;
       _controller!.animateToPage(
-        next,
-        duration: const Duration(milliseconds: 400),
+        current + 1,
+        duration: const Duration(milliseconds: 450),
         curve: Curves.easeInOut,
       );
     });
+  }
+
+  void _onPageChanged(int page) {
+    _virtualPage = page;
+    if (widget.banners.isEmpty) return;
+    final realIndex = page % widget.banners.length;
+    if (_index != realIndex) {
+      setState(() => _index = realIndex);
+    }
+    if (_multi && page < widget.banners.length * 2) {
+      final jumpPage = (_kInitialPageBase ~/ widget.banners.length) * widget.banners.length + realIndex;
+      _virtualPage = jumpPage;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _controller != null && _controller!.hasClients) {
+          _controller!.jumpToPage(jumpPage);
+        }
+      });
+    }
   }
 
   void _openPlay(BannerItem item) {
@@ -227,36 +280,46 @@ class _HomeBannerState extends State<HomeBanner> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Wrap(
-                            spacing: 8,
-                            runSpacing: 6,
-                            children: [
-                              _chip(
-                                child: const Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(Icons.star_rounded, size: 11, color: AppTheme.accent),
-                                    SizedBox(width: 4),
-                                    Text('精选推荐', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppTheme.accent)),
-                                  ],
-                                ),
-                                bg: const Color(0x1FFA8C16),
-                                border: const Color(0x59FA8C16),
-                              ),
-                              if (item.cName.isNotEmpty)
-                                _chip(
-                                  child: Text(item.cName, style: const TextStyle(fontSize: 11, color: Color(0xD9FFFFFF))),
-                                  bg: const Color(0x14FFFFFF),
-                                ),
-                              if (item.remark.isNotEmpty)
-                                _chip(
-                                  child: Text(
-                                    item.remark,
-                                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFA940)),
+                          SizedBox(
+                            height: 24,
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              physics: const NeverScrollableScrollPhysics(),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _chip(
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.star_rounded, size: 11, color: AppTheme.accent),
+                                        SizedBox(width: 4),
+                                        Text('精选推荐', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: AppTheme.accent)),
+                                      ],
+                                    ),
+                                    bg: const Color(0x1FFA8C16),
+                                    border: const Color(0x59FA8C16),
                                   ),
-                                  bg: const Color(0x1FFFA940),
-                                ),
-                            ],
+                                  if (item.cName.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    _chip(
+                                      child: Text(item.cName, style: const TextStyle(fontSize: 11, color: Color(0xD9FFFFFF))),
+                                      bg: const Color(0x14FFFFFF),
+                                    ),
+                                  ],
+                                  if (item.remark.isNotEmpty) ...[
+                                    const SizedBox(width: 8),
+                                    _chip(
+                                      child: Text(
+                                        item.remark,
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Color(0xFFFFA940)),
+                                      ),
+                                      bg: const Color(0x1FFFA940),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
                           ),
                           SizedBox(height: compact ? 8 : 12),
                           Text(
@@ -368,18 +431,53 @@ class _HomeBannerState extends State<HomeBanner> {
         children: [
           SizedBox(
             height: height,
-            child: PageView.builder(
-              controller: controller,
-              itemCount: widget.banners.length,
-              onPageChanged: (i) => setState(() => _index = i),
-              itemBuilder: (context, i) {
-                final child = wide ? _wideItem(widget.banners[i], size.height) : _mobileItem(widget.banners[i]);
-                if (space <= 0) return child;
-                return Padding(
-                  padding: EdgeInsets.symmetric(horizontal: space / 2),
-                  child: child,
-                );
+            child: Listener(
+              onPointerDown: (_) {
+                _timer?.cancel();
               },
+              onPointerUp: (_) {
+                if (!_isUserScrolling) {
+                  _startTimer();
+                }
+              },
+              onPointerCancel: (_) {
+                if (!_isUserScrolling) {
+                  _startTimer();
+                }
+              },
+              child: NotificationListener<ScrollNotification>(
+                onNotification: (notification) {
+                  if (notification.metrics.axis != Axis.horizontal || notification.depth != 0) {
+                    return false;
+                  }
+                  if (notification is ScrollStartNotification) {
+                    if (notification.dragDetails != null) {
+                      _isUserScrolling = true;
+                      _timer?.cancel();
+                    }
+                  } else if (notification is ScrollEndNotification) {
+                    if (_isUserScrolling) {
+                      _isUserScrolling = false;
+                      _startTimer();
+                    }
+                  }
+                  return false;
+                },
+                child: PageView.builder(
+                  controller: controller,
+                  itemCount: _multi ? null : 1,
+                  onPageChanged: _onPageChanged,
+                  itemBuilder: (context, i) {
+                    final item = widget.banners[i % widget.banners.length];
+                    final child = wide ? _wideItem(item, size.height) : _mobileItem(item);
+                    if (space <= 0) return child;
+                    return Padding(
+                      padding: EdgeInsets.symmetric(horizontal: space / 2),
+                      child: child,
+                    );
+                  },
+                ),
+              ),
             ),
           ),
           if (_multi) ...[

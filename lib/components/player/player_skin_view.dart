@@ -7,6 +7,7 @@ import 'player_error_pad.dart';
 /// 播放器覆盖层控制栏组件（全量对齐鸿蒙端 PlayerSkin）
 class PlayerSkinView extends StatelessWidget {
   final bool isFull;
+  final bool edgeHud;
   final bool showHud;
   final bool showBack;
   final String title;
@@ -24,6 +25,10 @@ class PlayerSkinView extends StatelessWidget {
   final bool hasPrev;
   final bool hasNext;
   final PlayerPanState panState;
+  final double topInset;
+  final double leftInset;
+  final double rightInset;
+  final double bottomInset;
   final VoidCallback onBack;
   final VoidCallback onTogglePlay;
   final VoidCallback onToggleFull;
@@ -41,6 +46,7 @@ class PlayerSkinView extends StatelessWidget {
   const PlayerSkinView({
     super.key,
     required this.isFull,
+    this.edgeHud = false,
     required this.showHud,
     this.showBack = true,
     required this.title,
@@ -58,6 +64,10 @@ class PlayerSkinView extends StatelessWidget {
     this.hasPrev = false,
     this.hasNext = false,
     this.panState = const PlayerPanState(),
+    this.topInset = 0,
+    this.leftInset = 0,
+    this.rightInset = 0,
+    this.bottomInset = 0,
     required this.onBack,
     required this.onTogglePlay,
     required this.onToggleFull,
@@ -74,6 +84,10 @@ class PlayerSkinView extends StatelessWidget {
   });
 
   bool get _isLoading => (isBuffering || isOpening) && errorText.isEmpty;
+
+  double _edge(double base, double inset) => base > inset ? base : inset;
+
+  bool get _cinemaHud => isFull || edgeHud;
 
   bool get _showCenterPlay =>
       showHud && !_isLoading && errorText.isEmpty && (!isPlaying || isCompleted);
@@ -111,8 +125,12 @@ class PlayerSkinView extends StatelessWidget {
     if (!isFull || !showHud || errorText.isNotEmpty) return const SizedBox.shrink();
 
     return Container(
-      height: 48 + MediaQuery.of(context).padding.top,
-      padding: EdgeInsets.only(top: MediaQuery.of(context).padding.top, left: 8, right: 12),
+      padding: EdgeInsets.only(
+        top: _edge(8, topInset),
+        left: _edge(8, leftInset),
+        right: _edge(8, rightInset),
+        bottom: 8,
+      ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -159,9 +177,14 @@ class PlayerSkinView extends StatelessWidget {
     final timeStr =
         '${FormatUtil.duration(currentPosition.inSeconds.toDouble())} / ${FormatUtil.duration(totalDuration.inSeconds.toDouble())}';
 
-    if (isFull) {
+    if (_cinemaHud) {
       return Container(
-        padding: EdgeInsets.only(left: 12, right: 12, bottom: MediaQuery.of(context).padding.bottom + 4, top: 4),
+        padding: EdgeInsets.only(
+          left: _edge(12, leftInset),
+          right: _edge(12, rightInset),
+          bottom: _edge(4, bottomInset),
+          top: 4,
+        ),
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.bottomCenter,
@@ -212,7 +235,11 @@ class PlayerSkinView extends StatelessWidget {
                   onPressed: onToggleMute,
                 ),
                 IconButton(
-                  icon: const Icon(Icons.fullscreen_exit_rounded, color: Colors.white, size: 22),
+                  icon: Icon(
+                    isFull ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                   onPressed: onToggleFull,
                 ),
               ],
@@ -457,8 +484,8 @@ class PlayerSkinView extends StatelessWidget {
         // 竖屏常驻返回按钮（无论正在加载/初始化/报错/HUD是否隐藏，持续存在且始终置顶可点击）
         if (!isFull && showBack)
           Positioned(
-            left: 6,
-            top: 6,
+            left: _edge(6, leftInset),
+            top: _edge(6, topInset),
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: onBack,

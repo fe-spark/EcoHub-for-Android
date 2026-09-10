@@ -5,6 +5,8 @@ import '../models/film_models.dart';
 import '../api/film_api.dart';
 import '../api/http_client.dart';
 import '../utils/history_manager.dart';
+import '../utils/app_orientation.dart';
+import '../utils/breakpoint.dart';
 import '../utils/play_resume.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
@@ -56,6 +58,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   bool _relateLoading = false;
   int _activeTab = 0;
   bool _playerFull = false;
+  final GlobalKey _videoKey = GlobalKey();
   String _sourceName = '默认源';
   double _lastCurrentTime = 0;
   double _lastDuration = 0;
@@ -82,9 +85,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       _persistHistory(_lastCurrentTime, _lastDuration);
     }
     try {
-      SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-      ]);
+      SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } catch (_) {}
     SourceGuard.offReconnect(_onReconnect);
@@ -311,15 +312,18 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
             : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       } else {
-        SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       }
     } catch (_) {}
   }
 
-  Widget _buildVideoPlayer({required bool isFull}) {
+  Widget _buildVideoPlayer({required bool isFull, bool edgeHud = false}) {
+    // 对齐 OHOS hud inset：全屏/分屏时把安全区传给播放器控件，竖屏时归零（视频已在 SafeArea 内）。
+    final padding = MediaQuery.paddingOf(context);
+    final useInset = isFull || edgeHud;
     return VideoPlayerWidget(
-      key: const ValueKey('play_page_video_player'),
+      key: _videoKey,
       videoUrl: _playUrl,
       reloadToken: _playToken,
       title: _playTitle,
@@ -327,6 +331,13 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       initialTime: _initialTime,
       showBack: true,
       isFull: isFull,
+      edgeHud: edgeHud,
+      topInset: useInset ? padding.top : 0,
+      bottomInset: useInset ? padding.bottom : 0,
+      leftInset: useInset ? (padding.left > AppTheme.safeEdge ? padding.left : AppTheme.safeEdge) : 0,
+      rightInset: isFull
+          ? (padding.right > AppTheme.safeEdge ? padding.right : AppTheme.safeEdge)
+          : (edgeHud ? AppTheme.safeEdge : 0),
       hasPrev: _hasPrev(),
       hasNext: _hasNext(),
       onBack: () {
@@ -352,8 +363,10 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    final isFullMode = _playerFull || isLandscape;
+    final size = MediaQuery.sizeOf(context);
+    // 对齐 OHOS `isWideScreen()`：横屏宽屏（宽>=600 且宽>高）时进入分屏，而非全屏。
+    final split = !_playerFull && size.width >= Breakpoint.md && size.width > size.height;
+    final isFullMode = _playerFull;
 
     return PopScope(
       canPop: !isFullMode,
@@ -366,86 +379,121 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       child: Scaffold(
         backgroundColor: isFullMode ? Colors.black : AppTheme.bg,
         body: SafeArea(
-          top: !isFullMode,
-          bottom: !isFullMode,
+          top: !isFullMode && !split,
+          bottom: !isFullMode && !split,
           left: false,
           right: false,
-          child: Column(
+          child: _buildPlayBody(isFullMode: isFullMode, split: split),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlayBody({required bool isFullMode, required bool split}) {
+    // 对齐 OHOS 顶层 build：先按 loading/error 守卫，避免 playUrl 为空时渲染播放器报错。
+    if (_loading && _name.isEmpty) {
+      return const LoadingView(label: '正在打开播放页');
+    }
+    if (_errorText.isNotEmpty && _name.isEmpty) {
+      return EmptyState(
+        title: '当前内容无法播放',
+        subtitle: _errorText,
+        icon: Icons.play_disabled_rounded,
+      );
+    }
+
+    if (isFullMode) {
+      return _buildVideoPlayer(isFull: true);
+    }
+
+    if (split) {
+      // 对齐 OHOS `splitPlay()`：横屏宽屏时左侧视频、右侧详情分屏。
+      return Row(
+        children: [
+          Expanded(
+            flex: 7,
+            child: _buildVideoPlayer(isFull: false, edgeHud: true),
+          ),
+          Container(width: 1, color: const Color(0x24FFFFFF)),
+          Expanded(
+            flex: 5,
+            child: Container(
+              color: AppTheme.bgElevated,
+              child: SafeArea(
+                top: true,
+                bottom: true,
+                left: false,
+                right: false,
+                child: _sideTabs(columns: 3),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: _buildVideoPlayer(isFull: false),
+        ),
+        Container(height: 8, color: AppTheme.bgElevated),
+        Expanded(
+          child: _sideTabs(columns: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width)),
+        ),
+      ],
+    );
+  }
+
+  Widget _sideTabs({required int columns}) {
+    return Column(
+      children: [
+        // Tab Switcher
+        Container(
+          height: 44,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
             children: [
-              // Player Layer
-              if (isFullMode)
-                Expanded(
-                  child: _buildVideoPlayer(isFull: true),
-                )
-              else if (_loading && _name.isEmpty)
-                const Expanded(child: LoadingView(label: '正在打开播放页'))
-              else if (_errorText.isNotEmpty && _name.isEmpty)
-                Expanded(
-                  child: EmptyState(
-                    title: '当前内容无法播放',
-                    subtitle: _errorText,
-                    icon: Icons.play_disabled_rounded,
-                  ),
-                )
-              else
-                AspectRatio(
-                  aspectRatio: 16 / 9,
-                  child: _buildVideoPlayer(isFull: false),
-                ),
-
-              // Below Player (Tabs & Panels)
-              if (!isFullMode && !_loading && _name.isNotEmpty) ...[
-                Container(height: 8, color: AppTheme.bgElevated),
-
-                // Tab Switcher
-                Container(
-                  height: 44,
-                  padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceMd),
-                  child: Row(
-                    children: [
-                      _buildTabItem('详情', 0),
-                      _buildTabItem('相关推荐', 1),
-                    ],
-                  ),
-                ),
-
-                // Tab Contents
-                Expanded(
-                  child: _activeTab == 0
-                      ? PlayDetailPanel(
-                          filmId: _filmId,
-                          picture: _picture,
-                          name: _name,
-                          subTitle: _subTitle,
-                          actor: _actor,
-                          plot: _plot,
-                          descriptor: _descriptor,
-                          sources: _sources,
-                          playingSourceId: _playingSourceId,
-                          viewingSourceId: _viewingSourceId,
-                          episodeIndex: _episodeIndex,
-                          onViewSource: (id) {
-                            setState(() {
-                              _viewingSourceId = id;
-                            });
-                          },
-                          onSelectEpisode: (sourceId, index) {
-                            _selectEpisode(sourceId, index);
-                          },
-                        )
-                      : _buildRelatedTab(),
-                ),
-              ],
+              _buildTabItem('详情', 0),
+              _buildTabItem('相关推荐', 1),
             ],
           ),
         ),
-      ),
+        // Tab Contents
+        Expanded(
+          child: _activeTab == 0
+              ? PlayDetailPanel(
+                  filmId: _filmId,
+                  picture: _picture,
+                  name: _name,
+                  subTitle: _subTitle,
+                  actor: _actor,
+                  plot: _plot,
+                  descriptor: _descriptor,
+                  sources: _sources,
+                  playingSourceId: _playingSourceId,
+                  viewingSourceId: _viewingSourceId,
+                  episodeIndex: _episodeIndex,
+                  onViewSource: (id) {
+                    setState(() {
+                      _viewingSourceId = id;
+                    });
+                  },
+                  onSelectEpisode: (sourceId, index) {
+                    _selectEpisode(sourceId, index);
+                  },
+                )
+              : _buildRelatedTab(columns),
+        ),
+      ],
     );
   }
 
   Widget _buildTabItem(String title, int index) {
     final active = _activeTab == index;
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () {
         setState(() {
           _activeTab = index;
@@ -455,7 +503,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
         padding: const EdgeInsets.only(right: 20),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Text(
               title,
@@ -465,10 +513,10 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
                 color: active ? AppTheme.textPrimary : AppTheme.textMuted,
               ),
             ),
-            const SizedBox(height: 4),
             Container(
               width: 18,
               height: 3,
+              margin: const EdgeInsets.only(top: 6),
               decoration: BoxDecoration(
                 color: active ? AppTheme.accent : Colors.transparent,
                 borderRadius: BorderRadius.circular(2),
@@ -480,7 +528,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildRelatedTab() {
+  Widget _buildRelatedTab(int columns) {
     if (_relateLoading) {
       return const LoadingView(label: '加载相关推荐');
     }
@@ -493,7 +541,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     }
     return FilmGrid(
       films: _related,
-      columns: 3,
+      columns: columns,
       onClickFilm: _openRelated,
     );
   }
