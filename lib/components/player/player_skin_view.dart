@@ -15,6 +15,7 @@ class PlayerSkinView extends StatelessWidget {
   final bool isPlaying;
   final bool isBuffering;
   final bool isOpening;
+  final int loadSessionId;
   final bool isReady;
   final bool isCompleted;
   final bool muted;
@@ -62,6 +63,7 @@ class PlayerSkinView extends StatelessWidget {
     required this.isPlaying,
     required this.isBuffering,
     this.isOpening = false,
+    this.loadSessionId = 0,
     this.isReady = false,
     this.isCompleted = false,
     this.muted = false,
@@ -169,6 +171,7 @@ class PlayerSkinView extends StatelessWidget {
           PlayerLoadingCard(
             visible: _isLoading,
             isOpening: isOpening,
+            resetToken: loadSessionId,
             onRetry: onRetry,
           ),
 
