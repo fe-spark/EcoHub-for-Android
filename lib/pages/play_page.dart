@@ -389,6 +389,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       },
       child: Scaffold(
         backgroundColor: (_isPipActive || isFullMode) ? Colors.black : AppTheme.bg,
+        resizeToAvoidBottomInset: false,
         body: SafeArea(
           top: !_isPipActive && !isFullMode && !split,
           bottom: !_isPipActive && !isFullMode && !split,
