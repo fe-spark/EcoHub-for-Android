@@ -7,6 +7,8 @@ abstract class PlayerCastHost {
   double get currentPosition;
   double get totalDuration;
   bool get isPlaying;
+  bool get isOpening;
+  bool get isBuffering;
   String get videoUrl;
   String get title;
   bool get hasNext;
@@ -269,8 +271,12 @@ class PlayerCastController {
     final url = (mediaUrl != null && mediaUrl.isNotEmpty) ? mediaUrl : (host?.videoUrl ?? '');
     if (url.trim().isEmpty) return;
     startSec = currentPosition ?? host?.currentPosition ?? 0;
-    wasPlaying = host?.isPlaying ?? false;
-    if (wasPlaying) {
+    final playing = host?.isPlaying ?? false;
+    final opening = host?.isOpening ?? false;
+    final buffering = host?.isBuffering ?? false;
+    // 打开中/缓冲中也要切到暂停态：弹窗出现应显示暂停，而不是卡在「既不加载也不暂停」。
+    wasPlaying = playing || opening;
+    if (playing || opening || buffering) {
       pausedForPicker = true;
       host?.pauseLocal();
     }
