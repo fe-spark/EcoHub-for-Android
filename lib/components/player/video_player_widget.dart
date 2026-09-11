@@ -361,6 +361,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                     ? (_castCtrl.session.phase == CastPhase.launching)
                     : _playback.isBuffering,
                 isOpening: _castCtrl.isCasting ? false : _playback.isOpening,
+                loadSessionId: _playback.initSessionId,
                 isReady: _castCtrl.isCasting ? true : _playback.isReady,
                 isCompleted: _castCtrl.isCasting ? false : _playback.isCompleted,
                 muted: _playback.muted,
