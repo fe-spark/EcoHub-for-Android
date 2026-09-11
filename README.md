@@ -15,6 +15,8 @@
 ## 📥 下载安装
 
 - 🚀 **[下载最新版本 APK (Releases Latest)](https://github.com/fe-spark/EcoHub-for-Android/releases/latest)**
+  - 现代主流 Android 手机请下载 `*-arm64-v8a.apk`（体积更小）
+  - 较老机型请下载 `*-armeabi-v7a.apk`
 - 📜 **[查看所有历史版本与更新日志](https://github.com/fe-spark/EcoHub-for-Android/releases)**
 
 ---
@@ -56,8 +58,8 @@ flutter pub get
 # 运行调试
 flutter run
 
-# 打包 APK
-flutter build apk --release
+# 打包 APK（分包构建各架构独立 APK）
+flutter build apk --release --split-per-abi
 ```
 
 ---
