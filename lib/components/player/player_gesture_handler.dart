@@ -177,7 +177,9 @@ class _PlayerGestureHandlerState extends State<PlayerGestureHandler> {
           onPanUpdate: (d) => _onPanUpdate(d, constraints),
           onPanEnd: _onPanEnd,
           onPanCancel: () => _onPanEnd(DragEndDetails()),
-          child: widget.child,
+          child: SizedBox.expand(
+            child: widget.child,
+          ),
         );
       },
     );

@@ -31,12 +31,19 @@ class Breakpoint {
     return 1;
   }
 
-  /// 横向 FilmRow 卡片宽，对齐 OHOS `Breakpoint.cardWidth`
-  static double cardWidthOf(double width) {
-    final cols = gridColsOf(width);
-    const padding = 32.0; // SPACE_LG * 2
-    const gap = 8.0; // SPACE_SM
-    final cardW = ((width - padding - (cols - 1) * gap) / cols).floorToDouble();
+  /// 横向 FilmRow 卡片宽，对齐 OHOS `Breakpoint.cardWidth` 与 DailyUpdatePane 栅格卡片宽
+  static double cardWidthOf(
+    double width, {
+    double? windowWidth,
+    double horizontalPadding = 32.0,
+    int? columns,
+    double gap = 8.0,
+  }) {
+    final w = windowWidth ?? width;
+    final cols = columns ?? gridColsOf(w);
+    final available = w - horizontalPadding;
+    if (available <= 0 || cols <= 0) return 104.0;
+    final cardW = (available - (cols - 1) * gap) / cols;
     return cardW < 104 ? 104.0 : cardW;
   }
 

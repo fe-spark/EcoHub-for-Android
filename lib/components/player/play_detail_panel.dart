@@ -321,7 +321,7 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
         textScaler: textScaler,
         maxLines: 1,
       )..layout();
-      offset += tp.width + 32.0 + 4.0;
+      offset += tp.width + 28.0 + 8.0;
     }
     return offset;
   }
@@ -520,10 +520,10 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     final groupStart = _groupStart();
     final rowCount = (visibleEps.length / cols).ceil();
 
-    final groupBarHeight = 1.0 +
-        (widget.sources.isNotEmpty ? 40.0 : 0.0) +
-        (_needsGrouping() ? 48.0 : 0.0) +
-        8.0;
+    final groupBarHeight = PlayGroupBar.calculateHeight(
+      hasSources: widget.sources.isNotEmpty,
+      needsGrouping: _needsGrouping(),
+    );
 
     return CustomScrollView(
       controller: _listScroller,
@@ -611,6 +611,13 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
               childCount: rowCount,
             ),
           ),
+
+        // 底部留白，保证滑到底部时最后一排剧集不贴边
+        SliverToBoxAdapter(
+          child: SizedBox(
+            height: max(24.0, MediaQuery.paddingOf(context).bottom + 16.0),
+          ),
+        ),
       ],
     );
   }

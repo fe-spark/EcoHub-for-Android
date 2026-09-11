@@ -244,6 +244,7 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
       bottomNavigationBar: _ready && _siteOpen
           ? Container(
               decoration: const BoxDecoration(
+                color: AppTheme.bgElevated,
                 border: Border(top: BorderSide(color: AppTheme.border, width: 0.5)),
               ),
               child: BottomNavigationBar(

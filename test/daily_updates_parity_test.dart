@@ -6,6 +6,9 @@ import 'package:ecohub_android/pages/daily_updates_tab.dart';
 import 'package:ecohub_android/pages/daily_update_pane.dart';
 import 'package:ecohub_android/components/scroll_fab.dart';
 import 'package:ecohub_android/components/empty_state.dart';
+import 'package:ecohub_android/components/film_row.dart';
+import 'package:ecohub_android/components/film_card.dart';
+import 'package:ecohub_android/utils/breakpoint.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -245,6 +248,187 @@ void main() {
       final state = tester.state(find.byType(DailyUpdatePane));
       expect(state, isNotNull);
       expect(refreshed, isFalse);
+    });
+
+    testWidgets('Landscape mode card sizes match between FilmRow (Home) and DailyUpdatePane (Daily)', (tester) async {
+      const landscapeWidth = 890.0;
+      const landscapeHeight = 390.0;
+      const leftCutout = 48.0;
+      const rightCutout = 48.0;
+
+      tester.view.physicalSize = const Size(landscapeWidth, landscapeHeight);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = FakeViewPadding(left: leftCutout, right: rightCutout);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPadding();
+      });
+
+      // 1. Measure FilmRow card size in landscape
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FilmRow(
+              title: '首页推荐',
+              films: shortSeedList,
+              leftInset: leftCutout,
+              rightInset: rightCutout,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final filmRowCards = find.byType(FilmCard);
+      expect(filmRowCards, findsWidgets);
+      final filmRowCardSize = tester.getSize(filmRowCards.first);
+
+      // 2. Measure DailyUpdatePane card size in landscape
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DailyUpdatePane(
+              pid: 0,
+              active: true,
+              seedPid: 0,
+              seedList: shortSeedList,
+              seedPage: PageInfo(pageSize: 21, current: 1, pageCount: 1, total: 3),
+              headerHeight: 48.0,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final dailyPaneCards = find.byType(FilmCard);
+      expect(dailyPaneCards, findsWidgets);
+      final dailyPaneCardSize = tester.getSize(dailyPaneCards.first);
+
+      // Card sizes must be consistent in landscape mode
+      expect(filmRowCardSize.width, closeTo(dailyPaneCardSize.width, 0.5));
+      expect(filmRowCardSize.height, closeTo(dailyPaneCardSize.height, 0.5));
+
+      // Both should use 6 columns on 890dp landscape screen
+      expect(Breakpoint.gridColsOf(landscapeWidth), 6);
+      final expectedCardWidth = (landscapeWidth - (AppTheme.spaceLg * 2 + leftCutout + rightCutout) - (6 - 1) * AppTheme.spaceSm) / 6;
+      expect(filmRowCardSize.width, closeTo(expectedCardWidth, 0.5));
+      expect(dailyPaneCardSize.width, closeTo(expectedCardWidth, 0.5));
+    });
+
+    testWidgets('Tablet landscape mode (1200x800) card sizes match between FilmRow and DailyUpdatePane', (tester) async {
+      const tabletWidth = 1200.0;
+      const tabletHeight = 800.0;
+      const leftCutout = 24.0;
+      const rightCutout = 24.0;
+
+      tester.view.physicalSize = const Size(tabletWidth, tabletHeight);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = FakeViewPadding(left: leftCutout, right: rightCutout);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPadding();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FilmRow(
+              title: '首页推荐',
+              films: shortSeedList,
+              leftInset: leftCutout,
+              rightInset: rightCutout,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final filmRowCards = find.byType(FilmCard);
+      expect(filmRowCards, findsWidgets);
+      final filmRowCardSize = tester.getSize(filmRowCards.first);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DailyUpdatePane(
+              pid: 0,
+              active: true,
+              seedPid: 0,
+              seedList: shortSeedList,
+              seedPage: PageInfo(pageSize: 21, current: 1, pageCount: 1, total: 3),
+              headerHeight: 48.0,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final dailyPaneCards = find.byType(FilmCard);
+      expect(dailyPaneCards, findsWidgets);
+      final dailyPaneCardSize = tester.getSize(dailyPaneCards.first);
+
+      expect(filmRowCardSize.width, closeTo(dailyPaneCardSize.width, 0.5));
+      expect(filmRowCardSize.height, closeTo(dailyPaneCardSize.height, 0.5));
+      expect(Breakpoint.gridColsOf(tabletWidth), 7);
+    });
+
+    testWidgets('Portrait mode (390x844) card sizes match between FilmRow and DailyUpdatePane', (tester) async {
+      const portraitWidth = 390.0;
+      const portraitHeight = 844.0;
+
+      tester.view.physicalSize = const Size(portraitWidth, portraitHeight);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = FakeViewPadding.zero;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPadding();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FilmRow(
+              title: '首页推荐',
+              films: shortSeedList,
+              leftInset: 0,
+              rightInset: 0,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final filmRowCards = find.byType(FilmCard);
+      expect(filmRowCards, findsWidgets);
+      final filmRowCardSize = tester.getSize(filmRowCards.first);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: DailyUpdatePane(
+              pid: 0,
+              active: true,
+              seedPid: 0,
+              seedList: shortSeedList,
+              seedPage: PageInfo(pageSize: 21, current: 1, pageCount: 1, total: 3),
+              headerHeight: 48.0,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final dailyPaneCards = find.byType(FilmCard);
+      expect(dailyPaneCards, findsWidgets);
+      final dailyPaneCardSize = tester.getSize(dailyPaneCards.first);
+
+      expect(filmRowCardSize.width, closeTo(dailyPaneCardSize.width, 0.5));
+      expect(filmRowCardSize.height, closeTo(dailyPaneCardSize.height, 0.5));
+      expect(Breakpoint.gridColsOf(portraitWidth), 3);
+      expect(filmRowCardSize.width, closeTo(114.0, 0.5));
     });
   });
 }

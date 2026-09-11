@@ -4,6 +4,30 @@ import '../../models/film_models.dart';
 
 /// 播放源切换与大选集分组横滑栏组件
 class PlayGroupBar extends StatelessWidget {
+  static const double dividerHeight = 1.0;
+  static const double sourceRowHeight = 32.0;
+  static const double sourceRowMarginTop = 10.0;
+  static const double sourceBottomSpacing = 10.0;
+  static const double groupRowHeight = 30.0;
+  static const double groupRowMarginTop = 10.0;
+  static const double groupBottomSpacing = 12.0;
+
+  static double calculateHeight({
+    required bool hasSources,
+    required bool needsGrouping,
+  }) {
+    double h = dividerHeight;
+    if (hasSources) {
+      h += sourceRowMarginTop + sourceRowHeight;
+    }
+    if (needsGrouping) {
+      h += groupRowMarginTop + groupRowHeight + groupBottomSpacing;
+    } else {
+      h += sourceBottomSpacing;
+    }
+    return h;
+  }
+
   final List<PlaySource> sources;
   final String viewingSourceId;
   final ValueChanged<String>? onViewSource;
@@ -46,7 +70,7 @@ class PlayGroupBar extends StatelessWidget {
       onTap: () => onViewSource?.call(source.id),
       borderRadius: BorderRadius.circular(AppTheme.radiusPill),
       child: Container(
-        height: 32,
+        height: sourceRowHeight,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: active ? AppTheme.accent : AppTheme.bgChip,
@@ -80,20 +104,21 @@ class PlayGroupBar extends StatelessWidget {
     return InkWell(
       key: groupKeys?[index],
       onTap: () => onSelectGroup(index),
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        height: groupRowHeight,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: active ? AppTheme.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          color: active ? AppTheme.accent : AppTheme.bgChip,
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
         ),
         child: Text(
           groupLabel(index),
           style: TextStyle(
-            fontSize: 13,
-            fontWeight: active ? FontWeight.bold : FontWeight.normal,
+            fontSize: 12.5,
+            fontWeight: active ? FontWeight.bold : FontWeight.w500,
             color: active ? AppTheme.textPrimary : AppTheme.textSecondary,
           ),
         ),
@@ -107,13 +132,13 @@ class PlayGroupBar extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Divider(color: AppTheme.borderSolid, height: 1),
+        const Divider(color: AppTheme.borderSolid, height: dividerHeight),
 
         // 播放源横滑栏 (sourceRow)
         if (sources.isNotEmpty)
           Container(
-            height: 32,
-            margin: const EdgeInsets.only(top: 8),
+            height: sourceRowHeight,
+            margin: const EdgeInsets.only(top: sourceRowMarginTop),
             child: SingleChildScrollView(
               controller: sourceScroller,
               scrollDirection: Axis.horizontal,
@@ -132,36 +157,30 @@ class PlayGroupBar extends StatelessWidget {
           ),
 
         // 选集分组横滑栏 (groupBar)
-        if (needsGrouping)
-          Padding(
-            padding: EdgeInsets.fromLTRB(12, 8, 12 + rightInset, 0),
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.fromLTRB(8, 4, 12, 4),
-              decoration: BoxDecoration(
-                color: AppTheme.bgElevated,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              ),
-              child: SingleChildScrollView(
-                controller: groupScroller,
-                scrollDirection: Axis.horizontal,
-                padding: EdgeInsets.zero,
-                physics: const ClampingScrollPhysics(),
-                child: Row(
-                  key: groupRowKey,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (int i = 0; i < groupCount; i++) ...[
-                      if (i > 0) const SizedBox(width: 4),
-                      _buildGroupChip(i),
-                    ],
+        if (needsGrouping) ...[
+          Container(
+            height: groupRowHeight,
+            margin: const EdgeInsets.only(top: groupRowMarginTop),
+            child: SingleChildScrollView(
+              controller: groupScroller,
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.only(left: 12, right: 16 + rightInset),
+              child: Row(
+                key: groupRowKey,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (int i = 0; i < groupCount; i++) ...[
+                    if (i > 0) const SizedBox(width: 8),
+                    _buildGroupChip(i),
                   ],
-                ),
+                ],
               ),
             ),
           ),
-
-        const SizedBox(height: 8),
+          const SizedBox(height: groupBottomSpacing),
+        ] else ...[
+          const SizedBox(height: sourceBottomSpacing),
+        ],
       ],
     );
   }
@@ -184,7 +203,7 @@ class StickyGroupBarDelegate extends SliverPersistentHeaderDelegate {
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       width: double.infinity,
-      color: AppTheme.bgElevated,
+      color: AppTheme.bg,
       child: child,
     );
   }

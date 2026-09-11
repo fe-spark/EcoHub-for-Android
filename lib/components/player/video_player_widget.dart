@@ -179,7 +179,16 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   bool _isPortraitVideo() {
     final c = _playback.controller;
     if (c == null || !c.value.isInitialized) return false;
-    return c.value.size.height > c.value.size.width;
+    final size = c.value.size;
+    final rot = c.value.rotationCorrection;
+    final isRotated = rot == 90 || rot == 270;
+    final w = isRotated ? size.height : size.width;
+    final h = isRotated ? size.width : size.height;
+    if (w > 0 && h > 0) {
+      return h > w;
+    }
+    final aspect = c.value.aspectRatio;
+    return aspect > 0 && aspect < 1.0;
   }
 
   void _toggleFullscreen() {
@@ -401,8 +410,16 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                 },
                 onPrev: widget.onPrev,
                 onNext: widget.onNext,
-                onSeekBack10: () => _playback.seekTo(Duration(seconds: (currentPosition - 10).toInt())),
-                onSeekFwd10: () => _playback.seekTo(Duration(seconds: (currentPosition + 10).toInt())),
+                onSeekBack10: () {
+                  final target = Duration(seconds: (currentPosition - 10).clamp(0, totalDuration).toInt());
+                  _playback.seekTo(target);
+                },
+                onSeekFwd10: () {
+                  final target = Duration(seconds: (currentPosition + 10).clamp(0, totalDuration).toInt());
+                  _playback.seekTo(target);
+                },
+                onSeekStart: _playback.setDragPreview,
+                onSeekProgress: _playback.setDragPreview,
                 onSeekTo: _playback.seekTo,
                 onCast: () => _castCtrl.openCastDialog(context),
                 onStopCast: () => _castCtrl.endCastByUser(),

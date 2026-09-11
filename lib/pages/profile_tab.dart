@@ -19,8 +19,6 @@ class ProfileTab extends StatefulWidget {
 class _ProfileTabState extends State<ProfileTab> {
   BasicConfig _config = BasicConfig();
   String _sourceUrl = '';
-  String _appVersion = '1.0.0';
-  bool _isCheckingVersion = false;
   AppUpdateInfo _updateInfo = AppUpdateInfo(
     currentVersion: '',
     latestVersion: '',
@@ -63,7 +61,6 @@ class _ProfileTabState extends State<ProfileTab> {
   }
 
   Future<void> _initData() async {
-    _appVersion = await AppVersionUtil.getVersionName();
     _checkUpdateSilent();
     await _reload();
   }
@@ -95,48 +92,6 @@ class _ProfileTabState extends State<ProfileTab> {
           _sourceUrl = url;
         });
       }
-    }
-  }
-
-  Future<void> _handleCheckVersion({bool force = false}) async {
-    if (_isCheckingVersion) return;
-
-    if (!force && _updateInfo.hasUpdate) {
-      AppVersionUtil.showUpdateDialog.value = true;
-      return;
-    }
-
-    setState(() {
-      _isCheckingVersion = true;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('正在检查版本更新...')),
-    );
-
-    try {
-      final info = await AppVersionUtil.checkUpdate(force: true);
-      if (!mounted) return;
-      setState(() {
-        _updateInfo = info;
-        _isCheckingVersion = false;
-      });
-
-      if (info.hasUpdate) {
-        AppVersionUtil.showUpdateDialog.value = true;
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('当前已是最新版本 (v$_appVersion)')),
-        );
-      }
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isCheckingVersion = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('检查版本失败，请稍后重试')),
-      );
     }
   }
 

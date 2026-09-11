@@ -318,6 +318,8 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     setState(() => _playerFull = full);
     try {
       if (full) {
+        // 全量对齐 OHOS：竖屏视频（短剧等）全屏必须按竖屏方向（portraitUp）播放；
+        // 横屏视频必须按横屏方向（landscapeLeft / landscapeRight）播放。
         SystemChrome.setPreferredOrientations(isPortrait
             ? [DeviceOrientation.portraitUp]
             : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
@@ -419,7 +421,9 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     }
 
     if (isFullMode) {
-      return _buildVideoPlayer(isFull: true);
+      return SizedBox.expand(
+        child: _buildVideoPlayer(isFull: true),
+      );
     }
 
     if (split) {

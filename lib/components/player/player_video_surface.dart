@@ -22,12 +22,17 @@ class PlayerVideoSurface extends StatelessWidget {
 
   Widget _buildVideo(VideoPlayerController c) {
     final size = c.value.size;
-    final w = size.width > 0 ? size.width : 16.0;
-    final h = size.height > 0 ? size.height : 9.0;
+    final rot = c.value.rotationCorrection;
+    final isRotated = rot == 90 || rot == 270;
+    final w = isRotated ? size.height : size.width;
+    final h = isRotated ? size.width : size.height;
+    final effectiveW = w > 0 ? w : 16.0;
+    final effectiveH = h > 0 ? h : 9.0;
+    final aspect = (w > 0 && h > 0) ? (w / h) : (c.value.aspectRatio > 0 ? c.value.aspectRatio : 16 / 9);
     if (scaleMode == PlayerScaleMode.fit) {
       return Center(
         child: AspectRatio(
-          aspectRatio: c.value.aspectRatio > 0 ? c.value.aspectRatio : 16 / 9,
+          aspectRatio: aspect,
           child: VideoPlayer(c, key: ValueKey(c)),
         ),
       );
@@ -37,8 +42,8 @@ class PlayerVideoSurface extends StatelessWidget {
         fit: PlayerScale.boxFit(scaleMode),
         clipBehavior: Clip.hardEdge,
         child: SizedBox(
-          width: w,
-          height: h,
+          width: effectiveW,
+          height: effectiveH,
           child: VideoPlayer(c, key: ValueKey(c)),
         ),
       ),

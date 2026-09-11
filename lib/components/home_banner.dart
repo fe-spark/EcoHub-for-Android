@@ -83,6 +83,8 @@ class _HomeBannerState extends State<HomeBanner> {
     if (!_multi) return;
     _timer = Timer.periodic(const Duration(milliseconds: 4800), (_) {
       if (!mounted || _controller == null || !_controller!.hasClients) return;
+      final route = ModalRoute.of(context);
+      if (route != null && !route.isCurrent) return;
       if (!TickerMode.valuesOf(context).enabled) return;
       final current = _controller!.page?.round() ?? _virtualPage;
       _controller!.animateToPage(
@@ -143,76 +145,85 @@ class _HomeBannerState extends State<HomeBanner> {
   Widget _mobileItem(BannerItem item) {
     return GestureDetector(
       onTap: () => _openPlay(item),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(_multi ? AppTheme.radiusLg : 0),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            _backdrop(item, round: _multi),
-            const DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x000A0B10),
-                    Color(0x330A0B10),
-                    Color(0xB30A0B10),
-                    Color(0xF20A0B10),
-                    Color(0xFF0A0B10),
-                  ],
-                  stops: [0.0, 0.40, 0.70, 0.90, 1.0],
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(_multi ? AppTheme.radiusLg : 0),
+          border: _multi ? Border.all(color: const Color(0x1FFFFFFF), width: 0.6) : null,
+          boxShadow: _multi
+              ? const [BoxShadow(blurRadius: 12, color: Color(0x80000000), offset: Offset(0, 3))]
+              : null,
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(_multi ? AppTheme.radiusLg : 0),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _backdrop(item, round: _multi),
+              const DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x000A0B10),
+                      Color(0x000A0B10),
+                      Color(0x660A0B10),
+                      Color(0xB30A0B10),
+                      Color(0xD90A0B10),
+                    ],
+                    stops: [0.0, 0.50, 0.72, 0.90, 1.0],
+                  ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(AppTheme.spaceMd, 0, AppTheme.spaceMd, AppTheme.spaceLg),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    item.name,
-                    textAlign: TextAlign.center,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 23,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      shadows: [Shadow(blurRadius: 10, color: Color(0xE6000000), offset: Offset(0, 2))],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(AppTheme.spaceMd, 0, AppTheme.spaceMd, AppTheme.spaceLg),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(
+                      item.name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                        shadows: [Shadow(blurRadius: 10, color: Color(0xE6000000), offset: Offset(0, 2))],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      if (item.remark.isNotEmpty) ...[
-                        Text(
-                          item.remark,
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.accent,
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (item.remark.isNotEmpty) ...[
+                          Text(
+                            item.remark,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: AppTheme.accent,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Flexible(
+                          child: Text(
+                            FormatUtil.joinMeta([item.year, item.cName, item.area]),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 12, color: Color(0xBFFFFFFF)),
                           ),
                         ),
-                        const SizedBox(width: 6),
                       ],
-                      Flexible(
-                        child: Text(
-                          FormatUtil.joinMeta([item.year, item.cName, item.area]),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: Color(0xBFFFFFFF)),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 14),
-                  _playButton(compact: true, item: item),
-                ],
+                    ),
+                    const SizedBox(height: 14),
+                    _playButton(compact: true, item: item),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

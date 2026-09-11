@@ -38,8 +38,12 @@ class FilmRow extends StatelessWidget {
     final padding = MediaQuery.paddingOf(context);
     final left = leftInset ?? padding.left;
     final right = rightInset ?? padding.right;
-    final effectiveWidth = MediaQuery.sizeOf(context).width - left - right;
-    final cardW = Breakpoint.cardWidthOf(effectiveWidth > 0 ? effectiveWidth : MediaQuery.sizeOf(context).width);
+    final windowWidth = MediaQuery.sizeOf(context).width;
+    final horizontalPadding = (AppTheme.spaceLg * 2) + left + right;
+    final cardW = Breakpoint.cardWidthOf(
+      windowWidth,
+      horizontalPadding: horizontalPadding,
+    );
     // 海报 2:3 + 标题上距 6 / 高 18 + 副标上距 2 / 高 15
     final rowHeight = cardW * 1.5 + 41;
 

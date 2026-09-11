@@ -24,6 +24,15 @@ class PlayerPlaybackController extends ChangeNotifier {
   bool _isCompleted = false;
   bool get isCompleted => _isCompleted;
 
+  bool _isDragging = false;
+  bool get isDragging => _isDragging;
+
+  bool _isSeeking = false;
+  bool get isSeeking => _isSeeking;
+
+  bool _playRequested = false;
+  bool get playRequested => _playRequested;
+
   bool _muted = false;
   bool get muted => _muted;
 
@@ -109,6 +118,7 @@ class PlayerPlaybackController extends ChangeNotifier {
       _isOpening = false;
       _isBuffering = false;
       _isPlaying = false;
+      _playRequested = false;
       _errorText = '未提供播放地址';
       notifyListeners();
       onStateChanged?.call();
@@ -118,6 +128,7 @@ class PlayerPlaybackController extends ChangeNotifier {
     _isOpening = true;
     _isBuffering = true;
     _isPlaying = false;
+    _playRequested = autoPlay;
     _isCompleted = false;
     _errorText = '';
     _showHud = true;
@@ -128,6 +139,7 @@ class PlayerPlaybackController extends ChangeNotifier {
       if (sessionId != _initSessionId || !_isOpening) return;
       _isOpening = false;
       _isBuffering = false;
+      _playRequested = false;
       _errorText = '视频打开超时(15s)';
       notifyListeners();
       onStateChanged?.call();
@@ -167,6 +179,7 @@ class PlayerPlaybackController extends ChangeNotifier {
         _errorText = '';
         _totalDuration = newController.value.duration;
         _isPlaying = autoPlay;
+        _playRequested = autoPlay;
         armHideHud();
         notifyListeners();
         onStateChanged?.call();
@@ -179,6 +192,7 @@ class PlayerPlaybackController extends ChangeNotifier {
         _isOpening = false;
         _isBuffering = false;
         _isPlaying = false;
+        _playRequested = false;
         _errorText = '视频加载失败: $e';
         notifyListeners();
         onStateChanged?.call();
@@ -201,17 +215,39 @@ class PlayerPlaybackController extends ChangeNotifier {
       _isOpening = false;
     }
 
+    // 如果正在拖动或底层正在执行 seek，不要让旧 position 冲刷覆盖当前拖拽/目标进度
+    if (_isDragging || _isSeeking) {
+      if (dur != _totalDuration || buffering != _isBuffering) {
+        _totalDuration = dur;
+        _isBuffering = buffering;
+        notifyListeners();
+      }
+      return;
+    }
+
     if (playing != _isPlaying ||
         buffering != _isBuffering ||
         pos != _currentPosition ||
         dur != _totalDuration ||
         completed != _isCompleted) {
       final justCompleted = completed && !_isCompleted;
-      _isPlaying = playing;
+
+      if (!playing && !buffering && !_isOpening) {
+        _isPlaying = false;
+        _playRequested = false;
+      } else if (playing) {
+        _isPlaying = true;
+        _playRequested = true;
+      }
+
       _isBuffering = buffering;
       _currentPosition = pos;
       _totalDuration = dur;
       _isCompleted = completed;
+      if (completed) {
+        _playRequested = false;
+        _isPlaying = false;
+      }
       watcher.clearSeekWatch();
 
       final now = DateTime.now().millisecondsSinceEpoch;
@@ -230,11 +266,11 @@ class PlayerPlaybackController extends ChangeNotifier {
 
   void armHideHud() {
     watcher.armHide(() {
-      if (_isPlaying && !_isCompleted && _panState.kind == PlayerTipKind.none) {
+      if (_isPlaying && !_isCompleted && _panState.kind == PlayerTipKind.none && !_isDragging) {
         _showHud = false;
         notifyListeners();
       }
-    }, canHide: _isPlaying && !_isCompleted && _errorText.isEmpty);
+    }, canHide: _isPlaying && !_isCompleted && _errorText.isEmpty && !_isDragging);
   }
 
   void toggleHud() {
@@ -256,13 +292,15 @@ class PlayerPlaybackController extends ChangeNotifier {
       c.play();
       _safeSetWakelock(true);
       _isCompleted = false;
+      _playRequested = true;
       _isPlaying = true;
       _showHud = true;
       armHideHud();
       notifyListeners();
       return;
     }
-    if (c.value.isPlaying) {
+    if (_isPlaying || c.value.isPlaying) {
+      _playRequested = false;
       c.pause();
       _safeSetWakelock(false);
       _isPlaying = false;
@@ -270,6 +308,7 @@ class PlayerPlaybackController extends ChangeNotifier {
       _showHud = true;
       watcher.clearHide();
     } else {
+      _playRequested = true;
       c.play();
       _safeSetWakelock(true);
       _isPlaying = true;
@@ -285,6 +324,7 @@ class PlayerPlaybackController extends ChangeNotifier {
       seekTo(Duration.zero);
       _isCompleted = false;
     }
+    _playRequested = true;
     c.play();
     _safeSetWakelock(true);
     _isPlaying = true;
@@ -294,6 +334,7 @@ class PlayerPlaybackController extends ChangeNotifier {
   void pause() {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
+    _playRequested = false;
     c.pause();
     _safeSetWakelock(false);
     _isPlaying = false;
@@ -310,6 +351,7 @@ class PlayerPlaybackController extends ChangeNotifier {
     watcher.clearHide();
     _safeSetWakelock(false);
     _isPlaying = false;
+    _playRequested = false;
     _isBuffering = false;
     _isOpening = false;
     _isCompleted = false;
@@ -328,11 +370,13 @@ class PlayerPlaybackController extends ChangeNotifier {
     _controller?.pause().catchError((_) {});
     _safeSetWakelock(false);
     _isPlaying = false;
+    _playRequested = false;
     _isBuffering = false;
     notifyListeners();
   }
 
   void resumeLocal(double targetSec, bool wasPlaying) {
+    _playRequested = wasPlaying;
     seekTo(Duration(seconds: targetSec.toInt()));
     if (wasPlaying) {
       _controller?.play().catchError((_) {});
@@ -361,6 +405,7 @@ class PlayerPlaybackController extends ChangeNotifier {
       old.dispose().catchError((_) {});
     }
     _isPlaying = false;
+    _playRequested = false;
     _isBuffering = false;
     _isOpening = false;
     _isCompleted = true;
@@ -372,17 +417,45 @@ class PlayerPlaybackController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void seekTo(Duration target) {
+  Future<void> seekTo(Duration target) async {
     final c = _controller;
     if (c == null || !c.value.isInitialized) return;
+    final wasPlaying = _isPlaying || _playRequested;
     _dragPreviewPosition = null;
+    _isDragging = false;
     _currentPosition = target;
-    c.seekTo(target);
+    _isSeeking = true;
+
+    if (_isCompleted && target < _totalDuration) {
+      _isCompleted = false;
+    }
+
+    if (wasPlaying) {
+      _isPlaying = true;
+      _playRequested = true;
+    }
+
     watcher.armSeekWatch(() {
+      _isSeeking = false;
       showTransient(const PlayerPanState(kind: PlayerTipKind.seekFwd, text: 'Seek超时'));
     }, isSeeking: true);
+
     armHideHud();
     notifyListeners();
+
+    try {
+      await c.seekTo(target);
+      if (wasPlaying && _playRequested) {
+        await c.play();
+        _safeSetWakelock(true);
+        _isPlaying = true;
+      }
+    } catch (_) {
+    } finally {
+      _isSeeking = false;
+      watcher.clearSeekWatch();
+      notifyListeners();
+    }
   }
 
   void setSpeed(double speed) {
@@ -419,6 +492,7 @@ class PlayerPlaybackController extends ChangeNotifier {
 
   void setDragPreview(Duration? preview) {
     _dragPreviewPosition = preview;
+    _isDragging = preview != null;
     _showHud = true;
     watcher.clearHide();
     notifyListeners();

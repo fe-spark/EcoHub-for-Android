@@ -44,6 +44,9 @@ class PlayerSkinView extends StatelessWidget {
   final VoidCallback? onNext;
   final VoidCallback onSeekBack10;
   final VoidCallback onSeekFwd10;
+  final ValueChanged<Duration>? onSeekStart;
+  final ValueChanged<Duration>? onSeekProgress;
+  final ValueChanged<Duration>? onSeekEnd;
   final ValueChanged<Duration> onSeekTo;
   final VoidCallback? onCast;
   final VoidCallback? onStopCast;
@@ -88,6 +91,9 @@ class PlayerSkinView extends StatelessWidget {
     this.onNext,
     required this.onSeekBack10,
     required this.onSeekFwd10,
+    this.onSeekStart,
+    this.onSeekProgress,
+    this.onSeekEnd,
     required this.onSeekTo,
     this.onCast,
     this.onStopCast,
@@ -125,35 +131,37 @@ class PlayerSkinView extends StatelessWidget {
         children: [
           // 手势提示 (快进/音量/亮度/长按倍速)
           if (panState.kind != PlayerTipKind.none && castDeviceName.isEmpty)
-            Container(
-              margin: const EdgeInsets.only(bottom: 12),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: const Color(0xBD000000),
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: const [BoxShadow(color: Color(0x38000000), blurRadius: 14, offset: Offset(0, 8))],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (panState.kind == PlayerTipKind.seekFwd)
-                    const Icon(Icons.fast_forward_rounded, color: Colors.white, size: 18)
-                  else if (panState.kind == PlayerTipKind.seekBack)
-                    const Icon(Icons.fast_rewind_rounded, color: Colors.white, size: 18)
-                  else if (panState.kind == PlayerTipKind.brightness)
-                    const Icon(Icons.wb_sunny_rounded, color: Colors.white, size: 18)
-                  else if (panState.kind == PlayerTipKind.volume)
-                    Icon(muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 18)
-                  else if (panState.kind == PlayerTipKind.speed)
-                    const Icon(Icons.speed_rounded, color: AppTheme.accent, size: 18)
-                  else if (panState.kind == PlayerTipKind.scale)
-                    const Icon(Icons.aspect_ratio_rounded, color: Colors.white, size: 18),
-                  const SizedBox(width: 8),
-                  Text(
-                    panState.text,
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                  ),
-                ],
+            IgnorePointer(
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xBD000000),
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: const [BoxShadow(color: Color(0x38000000), blurRadius: 14, offset: Offset(0, 8))],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (panState.kind == PlayerTipKind.seekFwd)
+                      const Icon(Icons.fast_forward_rounded, color: Colors.white, size: 18)
+                    else if (panState.kind == PlayerTipKind.seekBack)
+                      const Icon(Icons.fast_rewind_rounded, color: Colors.white, size: 18)
+                    else if (panState.kind == PlayerTipKind.brightness)
+                      const Icon(Icons.wb_sunny_rounded, color: Colors.white, size: 18)
+                    else if (panState.kind == PlayerTipKind.volume)
+                      Icon(muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 18)
+                    else if (panState.kind == PlayerTipKind.speed)
+                      const Icon(Icons.speed_rounded, color: AppTheme.accent, size: 18)
+                    else if (panState.kind == PlayerTipKind.scale)
+                      const Icon(Icons.aspect_ratio_rounded, color: Colors.white, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      panState.text,
+                      style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
               ),
             ),
 
@@ -240,8 +248,10 @@ class PlayerSkinView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      children: [
+    return SizedBox.expand(
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
         // 中心交互组（提示、加载动画、中心播放键）
         Positioned(
           top: _edge(0, topInset),
@@ -249,7 +259,7 @@ class PlayerSkinView extends StatelessWidget {
           left: _edge(0, leftInset),
           right: _edge(0, rightInset),
           child: IgnorePointer(
-            ignoring: panState.kind == PlayerTipKind.none && !_isLoading && !_showCenterPlay,
+            ignoring: !_isLoading && !_showCenterPlay,
             child: _buildCenterGroup(context),
           ),
         ),
@@ -281,6 +291,9 @@ class PlayerSkinView extends StatelessWidget {
             onToggleMute: onToggleMute,
             onSpeed: onSpeed,
             onScale: onScale,
+            onSeekStart: onSeekStart,
+            onSeekProgress: onSeekProgress,
+            onSeekEnd: onSeekEnd,
             onSeekTo: onSeekTo,
           ),
         ),
@@ -376,6 +389,7 @@ class PlayerSkinView extends StatelessWidget {
             ),
           ),
       ],
-    );
-  }
+    ),
+  );
+}
 }

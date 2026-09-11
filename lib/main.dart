@@ -23,20 +23,24 @@ import 'utils/app_settings_manager.dart';
 
 final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
+/// 全局默认沉浸式系统 UI 覆盖样式：全透明状态栏与导航条，并彻底关闭 Android 10+ 的对比度强制浅色遮罩
+const SystemUiOverlayStyle kDefaultSystemUiOverlayStyle = SystemUiOverlayStyle(
+  statusBarColor: Colors.transparent,
+  statusBarIconBrightness: Brightness.light,
+  statusBarBrightness: Brightness.dark,
+  systemNavigationBarColor: Colors.transparent,
+  systemNavigationBarDividerColor: Colors.transparent,
+  systemNavigationBarIconBrightness: Brightness.light,
+  systemNavigationBarContrastEnforced: false,
+  systemStatusBarContrastEnforced: false,
+);
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 沉浸式透明状态栏与边缘到边缘布局，底栏导航色对齐 OHOS #12141C
+  // 沉浸式透明状态栏与边缘到边缘布局，透明导航条并禁用系统浅色强制对比度遮罩
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      statusBarBrightness: Brightness.dark,
-      systemNavigationBarColor: Color(0xFF12141C),
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
+  SystemChrome.setSystemUIOverlayStyle(kDefaultSystemUiOverlayStyle);
 
   // 对齐 OHOS `AUTO_ROTATION_RESTRICTED`：默认自动旋转（竖屏 + 左右横屏，排除倒置）
   SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
@@ -88,73 +92,88 @@ class _EcoHubAppState extends State<EcoHubApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'EcoHub',
-      debugShowCheckedModeBanner: false,
-      navigatorKey: appNavigatorKey,
-      navigatorObservers: [EcoHubRouteObserver()],
-      theme: AppTheme.darkTheme,
-      initialRoute: '/',
-      onGenerateRoute: (settings) {
-        final args = settings.arguments as Map<String, dynamic>? ?? {};
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: kDefaultSystemUiOverlayStyle,
+      child: MaterialApp(
+        title: 'EcoHub',
+        debugShowCheckedModeBanner: false,
+        navigatorKey: appNavigatorKey,
+        navigatorObservers: [EcoHubRouteObserver()],
+        theme: AppTheme.darkTheme,
+        builder: (context, child) {
+          final mediaQuery = MediaQuery.of(context);
+          return MediaQuery(
+            data: mediaQuery.copyWith(
+              textScaler: mediaQuery.textScaler.clamp(
+                minScaleFactor: 0.9,
+                maxScaleFactor: 1.1,
+              ),
+            ),
+            child: child ?? const SizedBox.shrink(),
+          );
+        },
+        initialRoute: '/',
+        onGenerateRoute: (settings) {
+          final args = settings.arguments as Map<String, dynamic>? ?? {};
 
-        Widget page;
-        switch (settings.name) {
-          case '/':
-            page = const SplashPage();
-            break;
-          case '/main':
-            page = const MainScaffoldPage();
-            break;
-          case '/server_config':
-            page = ServerConfigPage(
-              mode: args['mode'] ?? '',
-            );
-            break;
-          case '/filter':
-            page = FilterPage(
-              pid: args['Pid'] ?? args['pid'] ?? '',
-              category: args['Category'] ?? '',
-              sort: args['Sort'] ?? '',
-            );
-            break;
-          case '/search':
-            page = SearchPage(
-              initialKeyword: args['keyword'] ?? '',
-            );
-            break;
-          case '/history':
-            page = const HistoryPage();
-            break;
-          case '/favorite':
-            page = const FavoritePage();
-            break;
-          case '/tip':
-            page = const TipPage();
-            break;
-          case '/custom_player':
-            page = CustomPlayerPage(url: args['url'] ?? '');
-            break;
-          case '/play':
-            page = PlayPage(
-              id: args['id'] ?? '',
-              sourceId: args['sourceId'] ?? '',
-              episodeIndex: int.tryParse('${args['episodeIndex']}') ?? 0,
-              currentTime: double.tryParse('${args['currentTime']}') ?? 0,
-            );
-            break;
-          case '/about':
-            page = const AboutPage();
-            break;
-          case '/settings':
-            page = const SettingsPage();
-            break;
-          default:
-            page = const SplashPage();
-        }
+          Widget page;
+          switch (settings.name) {
+            case '/':
+              page = const SplashPage();
+              break;
+            case '/main':
+              page = const MainScaffoldPage();
+              break;
+            case '/server_config':
+              page = ServerConfigPage(
+                mode: args['mode'] ?? '',
+              );
+              break;
+            case '/filter':
+              page = FilterPage(
+                pid: args['Pid'] ?? args['pid'] ?? '',
+                category: args['Category'] ?? '',
+                sort: args['Sort'] ?? '',
+              );
+              break;
+            case '/search':
+              page = SearchPage(
+                initialKeyword: args['keyword'] ?? '',
+              );
+              break;
+            case '/history':
+              page = const HistoryPage();
+              break;
+            case '/favorite':
+              page = const FavoritePage();
+              break;
+            case '/tip':
+              page = const TipPage();
+              break;
+            case '/custom_player':
+              page = CustomPlayerPage(url: args['url'] ?? '');
+              break;
+            case '/play':
+              page = PlayPage(
+                id: args['id'] ?? '',
+                sourceId: args['sourceId'] ?? '',
+                episodeIndex: int.tryParse('${args['episodeIndex']}') ?? 0,
+                currentTime: double.tryParse('${args['currentTime']}') ?? 0,
+              );
+              break;
+            case '/about':
+              page = const AboutPage();
+              break;
+            case '/settings':
+              page = const SettingsPage();
+              break;
+            default:
+              page = const SplashPage();
+          }
 
-        return MaterialPageRoute(settings: settings, builder: (_) => page);
-      },
+          return MaterialPageRoute(settings: settings, builder: (_) => page);
+        },
+      ),
     );
   }
 }

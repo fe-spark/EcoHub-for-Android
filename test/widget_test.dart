@@ -27,6 +27,8 @@ import 'package:ecohub_android/components/player/player_skin_view.dart';
 import 'package:ecohub_android/components/player/player_video_surface.dart';
 import 'package:ecohub_android/components/player/player_scale.dart';
 import 'package:ecohub_android/components/player/player_playback_controller.dart';
+import 'package:ecohub_android/components/player/player_bars.dart';
+import 'package:ecohub_android/components/player/player_gesture_handler.dart';
 import 'package:ecohub_android/pages/server_config_page.dart';
 import 'package:ecohub_android/pages/daily_updates_tab.dart';
 import 'package:ecohub_android/pages/settings_page.dart';
@@ -885,9 +887,9 @@ void main() {
       final rotatedSource0 = tester.getTopLeft(find.text('默认源'));
 
       // Both should be left-aligned in the flex: 5 panel (starting at ~519.2)
-      // group0 text is at 519.2 + 12 (padding) + 8 (container) + 16 (chip padding) = 555.2
+      // group0 text is at 519.2 + 12 (padding) + 14 (chip padding) = 545.2
       // source0 text is at 519.2 + 12 (padding) + 12 (padding) + 16 (chip padding) = 559.2
-      expect(rotatedGroup0.dx, closeTo(555.2, 1.0));
+      expect(rotatedGroup0.dx, closeTo(545.2, 1.0));
       expect(rotatedSource0.dx, closeTo(559.2, 1.0));
     });
 
@@ -1634,6 +1636,195 @@ void main() {
       );
       await tester.pump();
       expect(find.byType(Image), findsOneWidget);
+    });
+  });
+
+  group('Player Seeking and Gesture Tests', () {
+    testWidgets('PlayerBottomBar dragging slider smoothly triggers callbacks without snap-back', (tester) async {
+      Duration? startedAt;
+      final progressUpdates = <Duration>[];
+      Duration? endedAt;
+      Duration? seekToAt;
+      final positionNotifier = ValueNotifier<Duration>(const Duration(seconds: 10));
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 100,
+              child: ValueListenableBuilder<Duration>(
+                valueListenable: positionNotifier,
+                builder: (context, pos, _) {
+                  return PlayerBottomBar(
+                    isReady: true,
+                    isOpening: false,
+                    showHud: true,
+                    errorText: '',
+                    cinemaHud: false,
+                    isFull: false,
+                    isPlaying: true,
+                    muted: false,
+                    currentPosition: pos,
+                    totalDuration: const Duration(seconds: 100),
+                    currentSpeed: 1.0,
+                    scaleLabel: '适应',
+                    onTogglePlay: () {},
+                    onToggleFull: () {},
+                    onToggleMute: () {},
+                    onSpeed: () {},
+                    onSeekStart: (p) => startedAt = p,
+                    onSeekProgress: (p) => progressUpdates.add(p),
+                    onSeekEnd: (p) => endedAt = p,
+                    onSeekTo: (p) => seekToAt = p,
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final sliderFinder = find.byType(Slider);
+      expect(sliderFinder, findsOneWidget);
+      expect(find.text('00:10 / 01:40'), findsOneWidget);
+
+      final gesture = await tester.startGesture(tester.getCenter(sliderFinder));
+      await tester.pump();
+
+      expect(startedAt, isNotNull);
+
+      await gesture.moveBy(const Offset(100, 0));
+      await tester.pump();
+
+      expect(progressUpdates, isNotEmpty);
+
+      // Updating currentPosition during drag should NOT override the dragged time
+      positionNotifier.value = const Duration(seconds: 12);
+      await tester.pump();
+
+      // Still in dragging state, text is derived from drag position rather than 00:12
+      expect(find.text('00:12 / 01:40'), findsNothing);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(endedAt, isNotNull);
+      expect(seekToAt, isNotNull);
+      expect(seekToAt, equals(endedAt));
+    });
+
+    test('PlayerPlaybackController drag preview and state management', () {
+      final ctrl = PlayerPlaybackController();
+      expect(ctrl.isDragging, isFalse);
+      expect(ctrl.isSeeking, isFalse);
+      expect(ctrl.playRequested, isFalse);
+
+      ctrl.setDragPreview(const Duration(seconds: 42));
+      expect(ctrl.isDragging, isTrue);
+      expect(ctrl.dragPreviewPosition, const Duration(seconds: 42));
+      expect(ctrl.displayPosition, const Duration(seconds: 42));
+
+      ctrl.setDragPreview(null);
+      expect(ctrl.isDragging, isFalse);
+      expect(ctrl.dragPreviewPosition, isNull);
+
+      ctrl.pauseLocal();
+      expect(ctrl.playRequested, isFalse);
+    });
+
+    testWidgets('PlayerSkinView does not intercept touch gestures with center tips while playing', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              height: 300,
+              child: PlayerSkinView(
+                isFull: false,
+                edgeHud: false,
+                showHud: true,
+                showBack: true,
+                title: '测试',
+                isPlaying: true, // 播放中
+                isBuffering: false,
+                isOpening: false,
+                panState: const PlayerPanState(
+                  kind: PlayerTipKind.seekFwd,
+                  text: '00:30 (+00:15)',
+                ),
+                currentPosition: const Duration(seconds: 15),
+                totalDuration: const Duration(seconds: 60),
+                onBack: () {},
+                onTogglePlay: () {},
+                onToggleFull: () {},
+                onToggleMute: () {},
+                onSpeed: () {},
+                onRetry: () {},
+                onSeekBack10: () {},
+                onSeekFwd10: () {},
+                onSeekTo: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('00:30 (+00:15)'), findsOneWidget);
+
+      final ignorePointers = tester.widgetList<IgnorePointer>(find.byType(IgnorePointer));
+      final centerIgnore = ignorePointers.firstWhere((w) => w.ignoring == true);
+      expect(centerIgnore.ignoring, isTrue);
+    });
+
+    testWidgets('PlayerGestureHandler horizontal swipe triggers onSeekProgress and onSeekEnd', (tester) async {
+      Duration? progressPos;
+      Duration? endedPos;
+      PlayerPanState? lastPan;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 600,
+              height: 400,
+              child: PlayerGestureHandler(
+                currentPosition: const Duration(seconds: 10),
+                totalDuration: const Duration(seconds: 100),
+                isPlaying: true,
+                isFull: false,
+                onSingleTap: () {},
+                onDoubleTap: () {},
+                onSpeedChange: (_) {},
+                onSeekProgress: (pos) => progressPos = pos,
+                onSeekEnd: (pos) => endedPos = pos,
+                onPanStateChange: (pan) => lastPan = pan,
+                child: Container(color: Colors.black),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final gesture = await tester.startGesture(const Offset(300, 200));
+      // First move to cross touch slop and initiate drag
+      await gesture.moveBy(const Offset(25, 0));
+      await tester.pump();
+      // Second move to update drag progress
+      await gesture.moveBy(const Offset(60, 0));
+      await tester.pump();
+
+      expect(progressPos, isNotNull);
+      expect(lastPan?.kind, PlayerTipKind.seekFwd);
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(endedPos, isNotNull);
+      expect(lastPan?.kind, PlayerTipKind.none);
     });
   });
 
