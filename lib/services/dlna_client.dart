@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import '../types/dlna_types.dart';
 
@@ -13,6 +14,7 @@ class DlnaClient {
   static const String avt = 'urn:schemas-upnp-org:service:AVTransport:1';
   static const String rcs = 'urn:schemas-upnp-org:service:RenderingControl:1';
   static const String renderer = 'urn:schemas-upnp-org:device:MediaRenderer:1';
+  static const MethodChannel _multicastChannel = MethodChannel('com.ecohub.ecohub/multicast');
 
   RawDatagramSocket? _socket;
   int _scanToken = 0;
@@ -24,6 +26,12 @@ class DlnaClient {
     final token = _scanToken;
     _devices.clear();
     _closeSocket();
+
+    if (Platform.isAndroid) {
+      try {
+        await _multicastChannel.invokeMethod('acquireMulticastLock');
+      } catch (_) {}
+    }
 
     const msearch = 'M-SEARCH * HTTP/1.1\r\n'
         'HOST: $ssdpAddr:$ssdpPort\r\n'
@@ -403,6 +411,11 @@ class DlnaClient {
       _socket?.close();
     } catch (_) {}
     _socket = null;
+    if (Platform.isAndroid) {
+      try {
+        _multicastChannel.invokeMethod('releaseMulticastLock');
+      } catch (_) {}
+    }
   }
 
   void dispose() {

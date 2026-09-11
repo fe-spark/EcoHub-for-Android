@@ -1,10 +1,32 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ecohub_android/components/cast/player_cast_controller.dart';
+import 'package:ecohub_android/components/cast/player_cast_sheet.dart';
 import 'package:ecohub_android/components/player/player_playback_controller.dart';
 import 'package:ecohub_android/components/player/video_player_widget.dart';
 import 'package:ecohub_android/services/cast_session.dart';
+import 'package:ecohub_android/services/dlna_client.dart';
 import 'package:ecohub_android/types/dlna_types.dart';
+
+class FakeDlnaClient extends DlnaClient {
+  int discoverCalls = 0;
+  int cancelCalls = 0;
+  Completer<List<DlnaDevice>>? pendingCompleter;
+
+  @override
+  Future<List<DlnaDevice>> discover({void Function(List<DlnaDevice>)? onUpdate}) {
+    discoverCalls++;
+    final completer = Completer<List<DlnaDevice>>();
+    pendingCompleter = completer;
+    return completer.future;
+  }
+
+  @override
+  void cancelDiscover() {
+    cancelCalls++;
+  }
+}
 
 class MockPlayerCastHost implements PlayerCastHost {
   double currentPos = 25.0;
@@ -381,6 +403,110 @@ void main() {
       await tester.pump();
 
       expect(find.byType(VideoPlayerWidget), findsOneWidget);
+    });
+  });
+
+  group('PlayerCastSheet Refresh & State Feedback Tests', () {
+    testWidgets('refresh button provides active feedback during scanning and allows re-scan', (tester) async {
+      final fakeClient = FakeDlnaClient();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlayerCastSheet(
+              mediaUrl: 'https://example.com/test.mp4',
+              client: fakeClient,
+              autoStartScan: true,
+              debounceMs: 0,
+              onCasted: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // 1. 扫描中状态：显示“扫描中”，带有旋转菊花，且按钮是可点击的（非 null）
+      expect(find.text('扫描中'), findsWidgets);
+      final textBtnFinder = find.widgetWithText(TextButton, '扫描中');
+      expect(textBtnFinder, findsOneWidget);
+      final btn = tester.widget<TextButton>(textBtnFinder);
+      expect(btn.onPressed, isNotNull);
+      expect(fakeClient.discoverCalls, 1);
+
+      // 2. 点击刷新：打断上一轮扫描并重启扫描
+      await tester.tap(textBtnFinder);
+      await tester.pump();
+
+      expect(fakeClient.discoverCalls, 2);
+      expect(fakeClient.cancelCalls, greaterThanOrEqualTo(1));
+      expect(find.text('扫描中'), findsWidgets);
+
+      // 3. 完成第 2 次扫描
+      fakeClient.pendingCompleter?.complete([
+        const DlnaDevice(
+          usn: 'uuid:dev-1',
+          friendlyName: '客厅电视',
+          location: 'http://192.168.1.50:8080/desc.xml',
+          controlURL: 'http://192.168.1.50:8080/ctl',
+        ),
+      ]);
+      await tester.pumpAndSettle();
+
+      // 4. 扫描完成后，按钮恢复为“刷新”，设备被渲染
+      expect(find.text('客厅电视'), findsOneWidget);
+      expect(find.text('刷新'), findsOneWidget);
+
+      // 5. 点击“刷新”，重新开始扫描并立即显示反馈
+      await tester.pump(const Duration(milliseconds: 350));
+      final refreshBtnFinder = find.widgetWithText(TextButton, '刷新');
+      await tester.tap(refreshBtnFinder);
+      await tester.pump();
+
+      expect(fakeClient.discoverCalls, 3);
+      expect(find.text('扫描中'), findsWidgets);
+    });
+
+    testWidgets('stale scan completes do not overwrite newer scan sequence', (tester) async {
+      final fakeClient = FakeDlnaClient();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: PlayerCastSheet(
+              mediaUrl: 'https://example.com/test.mp4',
+              client: fakeClient,
+              autoStartScan: true,
+              debounceMs: 0,
+              onCasted: (_) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final firstCompleter = fakeClient.pendingCompleter;
+      expect(fakeClient.discoverCalls, 1);
+
+      // 重新触发第 2 次扫描
+      final btnFinder = find.widgetWithText(TextButton, '扫描中');
+      await tester.tap(btnFinder);
+      await tester.pump();
+      expect(fakeClient.discoverCalls, 2);
+
+      // 第一次扫描此时才返回，不应覆盖第二次扫描的 scanning 状态
+      firstCompleter?.complete([
+        const DlnaDevice(
+          usn: 'uuid:old-dev',
+          friendlyName: '旧设备',
+          location: 'http://192.168.1.99:8080/desc.xml',
+          controlURL: 'http://192.168.1.99:8080/ctl',
+        ),
+      ]);
+      await tester.pump();
+
+      // 由于第一批次的 seq 已过期，页面应依然保持在“扫描中”状态
+      expect(find.text('扫描中'), findsWidgets);
+      expect(find.text('旧设备'), findsNothing);
     });
   });
 }

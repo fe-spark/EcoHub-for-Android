@@ -306,19 +306,6 @@ class _ProfileTabState extends State<ProfileTab> {
                         ],
                         _menuLine(),
                         _buildMenuRow(
-                          icon: Icons.refresh_rounded,
-                          title: '版本检查',
-                          extra: _isCheckingVersion
-                              ? '检查中...'
-                              : (_updateInfo.hasUpdate
-                                  ? '发现新版本 v${_updateInfo.latestVersion}'
-                                  : 'v$_appVersion'),
-                          hasBadge: _updateInfo.hasUpdate,
-                          extraHighlight: _updateInfo.hasUpdate,
-                          onTap: () => _handleCheckVersion(force: false),
-                        ),
-                        _menuLine(),
-                        _buildMenuRow(
                           icon: Icons.settings_rounded,
                           title: '设置',
                           onTap: () => NavUtil.openSettings(context),
@@ -327,6 +314,9 @@ class _ProfileTabState extends State<ProfileTab> {
                         _buildMenuRow(
                           icon: Icons.info_outline_rounded,
                           title: '关于',
+                          extra: _updateInfo.hasUpdate ? '发现新版本 v${_updateInfo.latestVersion}' : '',
+                          hasBadge: _updateInfo.hasUpdate,
+                          extraHighlight: _updateInfo.hasUpdate,
                           onTap: () => NavUtil.openAbout(context),
                         ),
                       ],

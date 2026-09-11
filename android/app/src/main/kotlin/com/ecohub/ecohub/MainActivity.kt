@@ -10,6 +10,7 @@ import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.drawable.Icon
+import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Rational
@@ -24,10 +25,12 @@ import java.util.Locale
 class MainActivity : FlutterActivity() {
     private val PIP_CHANNEL = "com.ecohub.ecohub/pip"
     private val SETTINGS_CHANNEL = "com.ecohub.ecohub/settings"
+    private val MULTICAST_CHANNEL = "com.ecohub.ecohub/multicast"
     private val ACTION_PIP_CONTROL = "com.ecohub.ecohub.PIP_CONTROL"
     private val EXTRA_CONTROL_TYPE = "control_type"
 
     private var pipChannel: MethodChannel? = null
+    private var multicastLock: WifiManager.MulticastLock? = null
     private var autoPipEnabled = false
     private var aspectNum = 16
     private var aspectDen = 9
@@ -67,6 +70,11 @@ class MainActivity : FlutterActivity() {
             } catch (_: Exception) {}
             receiverRegistered = false
         }
+        try {
+            if (multicastLock?.isHeld == true) {
+                multicastLock?.release()
+            }
+        } catch (_: Exception) {}
         super.onDestroy()
     }
 
@@ -201,6 +209,38 @@ class MainActivity : FlutterActivity() {
                         codeCacheDir?.let { deleteDirContents(it) }
                     }
                     result.success(true)
+                }
+                else -> result.notImplemented()
+            }
+        }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, MULTICAST_CHANNEL).setMethodCallHandler { call, result ->
+            when (call.method) {
+                "acquireMulticastLock" -> {
+                    try {
+                        if (multicastLock == null) {
+                            val wifiManager = applicationContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                            multicastLock = wifiManager?.createMulticastLock("ecohub_dlna_multicast")?.apply {
+                                setReferenceCounted(false)
+                            }
+                        }
+                        if (multicastLock?.isHeld != true) {
+                            multicastLock?.acquire()
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
+                }
+                "releaseMulticastLock" -> {
+                    try {
+                        if (multicastLock?.isHeld == true) {
+                            multicastLock?.release()
+                        }
+                        result.success(true)
+                    } catch (e: Exception) {
+                        result.success(false)
+                    }
                 }
                 else -> result.notImplemented()
             }
