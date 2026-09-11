@@ -14,6 +14,7 @@ class PlayerCastSheet extends StatefulWidget {
   final ValueChanged<DlnaDevice> onCasted;
   final DlnaClient? client;
   final bool autoStartScan;
+  final int debounceMs;
 
   const PlayerCastSheet({
     super.key,
@@ -26,6 +27,7 @@ class PlayerCastSheet extends StatefulWidget {
     required this.onCasted,
     this.client,
     this.autoStartScan = true,
+    this.debounceMs = 300,
   });
 
   static void show(
@@ -39,6 +41,7 @@ class PlayerCastSheet extends StatefulWidget {
     required ValueChanged<DlnaDevice> onCasted,
     DlnaClient? client,
     bool autoStartScan = true,
+    int debounceMs = 300,
     VoidCallback? onDismissed,
   }) {
     showModalBottomSheet(
@@ -58,6 +61,7 @@ class PlayerCastSheet extends StatefulWidget {
         onCasted: onCasted,
         client: client,
         autoStartScan: autoStartScan,
+        debounceMs: debounceMs,
       ),
     ).then((_) {
       onDismissed?.call();
@@ -75,6 +79,8 @@ class _PlayerCastSheetState extends State<PlayerCastSheet> {
   String _errorText = '';
   bool _casting = false;
   bool _dismissed = false;
+  int _scanSequence = 0;
+  DateTime _lastScanClickTime = DateTime.fromMillisecondsSinceEpoch(0);
 
   @override
   void initState() {
@@ -95,7 +101,17 @@ class _PlayerCastSheetState extends State<PlayerCastSheet> {
     super.dispose();
   }
 
-  void _startScan() {
+  void _startScan({bool manual = false}) {
+    if (manual && widget.debounceMs > 0) {
+      final now = DateTime.now();
+      if (now.difference(_lastScanClickTime).inMilliseconds < widget.debounceMs) {
+        return;
+      }
+      _lastScanClickTime = now;
+    }
+    _scanSequence++;
+    final currentSeq = _scanSequence;
+
     _client.cancelDiscover();
     setState(() {
       _scanState = DlnaScanState.scanning;
@@ -106,14 +122,16 @@ class _PlayerCastSheetState extends State<PlayerCastSheet> {
     });
 
     _client.discover(onUpdate: (list) {
-      if (mounted) _mergeDevices(list);
+      if (mounted && currentSeq == _scanSequence) {
+        _mergeDevices(list);
+      }
     }).then((list) {
-      if (mounted) {
+      if (mounted && currentSeq == _scanSequence) {
         _mergeDevices(list);
         setState(() => _scanState = DlnaScanState.done);
       }
     }).catchError((e) {
-      if (mounted) {
+      if (mounted && currentSeq == _scanSequence) {
         setState(() {
           _errorText = '$e';
           _scanState = DlnaScanState.error;
@@ -206,15 +224,34 @@ class _PlayerCastSheetState extends State<PlayerCastSheet> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: (_scanState != DlnaScanState.scanning && !_casting) ? _startScan : null,
-                    child: Text(
-                      '刷新',
-                      style: TextStyle(
-                        color: _scanState == DlnaScanState.scanning
-                            ? AppTheme.textMuted
-                            : AppTheme.accent,
-                        fontSize: 13,
-                      ),
+                    onPressed: _casting ? null : () => _startScan(manual: true),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: const Size(48, 32),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_scanState == DlnaScanState.scanning) ...[
+                          const SizedBox(
+                            width: 12,
+                            height: 12,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.accent,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                        ],
+                        Text(
+                          _scanState == DlnaScanState.scanning ? '扫描中' : '刷新',
+                          style: TextStyle(
+                            color: _casting ? AppTheme.textMuted : AppTheme.accent,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ],

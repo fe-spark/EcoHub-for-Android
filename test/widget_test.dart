@@ -31,6 +31,7 @@ import 'package:ecohub_android/pages/server_config_page.dart';
 import 'package:ecohub_android/pages/daily_updates_tab.dart';
 import 'package:ecohub_android/pages/settings_page.dart';
 import 'package:ecohub_android/pages/profile_tab.dart';
+import 'package:ecohub_android/pages/about_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void _setViewInsets(WidgetTester tester, FakeViewPadding insets) {
@@ -1738,7 +1739,25 @@ void main() {
       expect(find.text('设置'), findsOneWidget);
       expect(find.text('关于'), findsOneWidget);
       expect(find.text('自定义播放'), findsOneWidget);
-      expect(find.text('版本检查'), findsOneWidget);
+      expect(find.text('版本检查'), findsNothing);
+    });
+
+    testWidgets('AboutPage renders version update item and removes demo site', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: AboutPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('关于'), findsOneWidget);
+      expect(find.text('版本更新'), findsOneWidget);
+      expect(find.text('在线演示站点'), findsNothing);
+      expect(find.text('EcoHub 开源项目'), findsOneWidget);
+      expect(find.text('EcoHub for OHOS'), findsOneWidget);
+      expect(find.text('EcoHub for Android'), findsOneWidget);
+      expect(find.text('Telegram 交流群组'), findsOneWidget);
     });
   });
 }
