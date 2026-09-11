@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
+import '../utils/format_util.dart';
 
 /// 播放页底部详情弹层，对齐 OHOS `FilmDetailDialog`
 class FilmDetailDialog extends StatelessWidget {
@@ -46,6 +47,7 @@ class FilmDetailDialog extends StatelessWidget {
   }
 
   Widget _section(String title, String body, {Color bodyColor = AppTheme.textPrimary}) {
+    final cleanContent = title == '剧情简介' ? FormatUtil.cleanPlot(body) : body;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(10),
@@ -75,7 +77,7 @@ class FilmDetailDialog extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Text(body, style: TextStyle(fontSize: 13, height: title == '剧情简介' ? 1.7 : 1.55, color: bodyColor)),
+          Text(cleanContent, style: TextStyle(fontSize: 13, height: title == '剧情简介' ? 1.7 : 1.55, color: bodyColor)),
         ],
       ),
     );
@@ -85,8 +87,9 @@ class FilmDetailDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final landscape = media.size.height > 0 && media.size.height < 500;
-    final bottom = media.padding.bottom < 16 ? 16.0 : media.padding.bottom;
-    final scrollMax = landscape ? 150.0 : media.size.height * 0.5;
+    final bottom = landscape
+        ? (media.padding.bottom < 8 ? 8.0 : media.padding.bottom)
+        : (media.padding.bottom < 16 ? 16.0 : media.padding.bottom);
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -107,7 +110,7 @@ class FilmDetailDialog extends StatelessWidget {
                 child: Container(
                   width: 36,
                   height: 4,
-                  margin: const EdgeInsets.only(top: 8, bottom: 12),
+                  margin: EdgeInsets.only(top: landscape ? 4 : 8, bottom: landscape ? 8 : 12),
                   decoration: BoxDecoration(
                     color: const Color(0x38FFFFFF),
                     borderRadius: BorderRadius.circular(2),
@@ -133,69 +136,71 @@ class FilmDetailDialog extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: EdgeInsets.fromLTRB(12, 12, 12, tags.isNotEmpty ? 6 : 12),
-                decoration: BoxDecoration(
-                  color: AppTheme.bgCard,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                  border: Border.all(color: const Color(0x0FFFFFFF), width: 0.5),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            name,
-                            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
-                          ),
-                        ),
-                        if (scoreText.isNotEmpty)
-                          Container(
-                            margin: const EdgeInsets.only(left: 8),
-                            padding: const EdgeInsets.fromLTRB(6, 3, 6, 3),
-                            decoration: BoxDecoration(
-                              color: AppTheme.accentSoft,
-                              borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                            ),
-                            child: Text(
-                              '★ $scoreText 分',
-                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.accent),
-                            ),
-                          ),
-                      ],
-                    ),
-                    if (tags.isNotEmpty) ...[
-                      const SizedBox(height: 8),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: tags
-                            .map(
-                              (tag) => Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.bgChip,
-                                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                                ),
-                                child: Text(tag, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: scrollMax),
+              SizedBox(height: landscape ? 8 : 12),
+              Flexible(
                 child: SingleChildScrollView(
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.fromLTRB(12, 12, 12, tags.isNotEmpty ? 6 : 12),
+                        decoration: BoxDecoration(
+                          color: AppTheme.bgCard,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                          border: Border.all(color: const Color(0x0FFFFFFF), width: 0.5),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    name,
+                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                                  ),
+                                ),
+                                if (scoreText.isNotEmpty)
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 8),
+                                    padding: const EdgeInsets.fromLTRB(6, 3, 6, 3),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.accentSoft,
+                                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                    ),
+                                    child: Text(
+                                      '★ $scoreText 分',
+                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppTheme.accent),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                            if (tags.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: tags
+                                    .map(
+                                      (tag) => Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.bgChip,
+                                          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                        ),
+                                        child: Text(tag, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                      if (director.isNotEmpty || actor.isNotEmpty || plot.isNotEmpty)
+                        const SizedBox(height: 10),
                       if (director.isNotEmpty) _section('导演', director),
                       if (director.isNotEmpty && actor.isNotEmpty) const SizedBox(height: 10),
                       if (actor.isNotEmpty) _section('主演', actor),

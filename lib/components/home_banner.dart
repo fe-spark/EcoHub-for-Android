@@ -36,13 +36,9 @@ class _HomeBannerState extends State<HomeBanner> {
     _viewportFraction = fraction;
 
     final initialPage = targetPage ??
-        (_multi
-            ? (_kInitialPageBase ~/ widget.banners.length) * widget.banners.length
-            : 0);
-
+        (_multi ? (_kInitialPageBase ~/ widget.banners.length) * widget.banners.length : 0);
     _virtualPage = initialPage;
     _index = widget.banners.isEmpty ? 0 : (initialPage % widget.banners.length);
-
     _controller?.dispose();
     _controller = PageController(viewportFraction: fraction, initialPage: initialPage);
   }
@@ -67,9 +63,7 @@ class _HomeBannerState extends State<HomeBanner> {
   void didUpdateWidget(HomeBanner oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.banners != oldWidget.banners) {
-      final oldLen = oldWidget.banners.length;
-      final newLen = widget.banners.length;
-      if (oldLen != newLen || newLen <= 1) {
+      if (oldWidget.banners.length != widget.banners.length || widget.banners.length <= 1) {
         _timer?.cancel();
         _setupController();
         _startTimer();
@@ -89,8 +83,7 @@ class _HomeBannerState extends State<HomeBanner> {
     if (!_multi) return;
     _timer = Timer.periodic(const Duration(milliseconds: 4800), (_) {
       if (!mounted || _controller == null || !_controller!.hasClients) return;
-      if (ModalRoute.of(context)?.isCurrent != true) return;
-      if (TickerMode.of(context) == false) return;
+      if (!TickerMode.valuesOf(context).enabled) return;
       final current = _controller!.page?.round() ?? _virtualPage;
       _controller!.animateToPage(
         current + 1,

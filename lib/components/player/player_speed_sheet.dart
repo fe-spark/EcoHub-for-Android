@@ -17,6 +17,7 @@ class PlayerSpeedSheet extends StatelessWidget {
   static void show(BuildContext context, double currentSpeed, ValueChanged<double> onSelectSpeed) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: AppTheme.bgElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(AppTheme.radiusLg)),
@@ -30,44 +31,60 @@ class PlayerSpeedSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final landscape = media.size.height > 0 && media.size.height < 500;
+    final maxHeight = media.size.height * 0.88;
+
     return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: AppTheme.spaceMd),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text(
-                '播放倍速',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary,
-                ),
-              ),
-            ),
-            const Divider(color: AppTheme.border),
-            ...speeds.map((speed) {
-              final active = (currentSpeed - speed).abs() < 0.01;
-              return ListTile(
-                title: Center(
-                  child: Text(
-                    PlayerSpeed.label(speed),
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: active ? FontWeight.bold : FontWeight.normal,
-                      color: active ? AppTheme.accent : AppTheme.textSecondary,
-                    ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: landscape ? AppTheme.spaceSm : AppTheme.spaceMd),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: landscape ? 4 : 8),
+                child: const Text(
+                  '播放倍速',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
                   ),
                 ),
-                onTap: () {
-                  onSelectSpeed(speed);
-                  Navigator.pop(context);
-                },
-              );
-            }),
-          ],
+              ),
+              const Divider(color: AppTheme.border),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: speeds.map((speed) {
+                      final active = (currentSpeed - speed).abs() < 0.01;
+                      return ListTile(
+                        dense: landscape,
+                        visualDensity: landscape ? VisualDensity.compact : VisualDensity.standard,
+                        title: Center(
+                          child: Text(
+                            PlayerSpeed.label(speed),
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: active ? FontWeight.bold : FontWeight.normal,
+                              color: active ? AppTheme.accent : AppTheme.textSecondary,
+                            ),
+                          ),
+                        ),
+                        onTap: () {
+                          onSelectSpeed(speed);
+                          Navigator.pop(context);
+                        },
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

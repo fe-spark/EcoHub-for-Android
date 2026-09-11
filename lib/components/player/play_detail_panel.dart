@@ -4,6 +4,7 @@ import '../../common/app_theme.dart';
 import '../../models/film_models.dart';
 import '../../utils/breakpoint.dart';
 import 'film_detail_header.dart';
+import 'play_group_bar.dart';
 
 const int _groupSize = 100;
 const int _epNameWideLen = 6;
@@ -25,6 +26,9 @@ class PlayDetailPanel extends StatefulWidget {
   final int episodeIndex;
   final ValueChanged<String>? onViewSource;
   final void Function(String sourceId, int index)? onSelectEpisode;
+  final bool isSplit;
+  final int? episodeColumns;
+  final double rightInset;
 
   const PlayDetailPanel({
     super.key,
@@ -41,6 +45,9 @@ class PlayDetailPanel extends StatefulWidget {
     required this.episodeIndex,
     this.onViewSource,
     this.onSelectEpisode,
+    this.isSplit = false,
+    this.episodeColumns,
+    this.rightInset = 0,
   });
 
   @override
@@ -53,7 +60,11 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
   final ScrollController _groupScroller = ScrollController();
   final ScrollController _sourceScroller = ScrollController();
   final GlobalKey _headerKey = GlobalKey();
-  double _headerHeight = 156.0;
+  final GlobalKey _sourceRowKey = GlobalKey();
+  final GlobalKey _groupRowKey = GlobalKey();
+  final Map<String, GlobalKey> _sourceKeys = {};
+  final Map<int, GlobalKey> _groupKeys = {};
+  double _headerHeight = 64.0;
 
   @override
   void initState() {
@@ -62,6 +73,7 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measureHeader();
       _syncSourceBar(false);
+      _syncGroupBar(false);
       _checkReadyAndScroll(false);
     });
   }
@@ -75,6 +87,7 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
         _measureHeader();
         _checkReadyAndScroll(false);
         _syncSourceBar(false);
+        _syncGroupBar(false);
       });
     } else if (oldWidget.viewingSourceId != widget.viewingSourceId) {
       _clampGroup(widget.viewingSourceId);
@@ -82,6 +95,7 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
         _measureHeader();
         _checkReadyAndScroll(true);
         _syncSourceBar(true);
+        _syncGroupBar(true);
       });
     } else if (oldWidget.episodeIndex != widget.episodeIndex ||
         oldWidget.playingSourceId != widget.playingSourceId) {
@@ -109,11 +123,26 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
       final box = ctx.findRenderObject() as RenderBox?;
       if (box != null && box.hasSize) {
         final h = box.size.height;
-        if (h > 0 && (_headerHeight - h).abs() > 1) {
+        if (h > 0 && (_headerHeight - h).abs() > 0.5) {
           _headerHeight = h;
         }
       }
     }
+  }
+
+  Map<String, GlobalKey> get _currentSourceKeys {
+    for (final s in widget.sources) {
+      _sourceKeys.putIfAbsent(s.id, () => GlobalKey());
+    }
+    return _sourceKeys;
+  }
+
+  Map<int, GlobalKey> get _currentGroupKeys {
+    final count = _groupCount();
+    for (int i = 0; i < count; i++) {
+      _groupKeys.putIfAbsent(i, () => GlobalKey());
+    }
+    return _groupKeys;
   }
 
   PlaySource? _findSource(String id) {
@@ -205,7 +234,11 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
   }
 
   int _epCols(double screenWidth) {
-    final bp = Breakpoint.ofWidth(screenWidth);
+    if (widget.episodeColumns != null) {
+      return widget.episodeColumns!;
+    }
+    final effectiveWidth = widget.isSplit ? screenWidth * (5 / 12) : screenWidth;
+    final bp = Breakpoint.ofWidth(effectiveWidth);
     final isWide = _usesWideTiles();
     if (bp == 'lg' || bp == 'xl') {
       return isWide ? 3 : 5;
@@ -216,28 +249,110 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     return isWide ? 2 : 3;
   }
 
+  double _calculateSourceTargetOffset(int targetIndex) {
+    if (targetIndex <= 0) return 0.0;
+    if (targetIndex < widget.sources.length) {
+      final targetSource = widget.sources[targetIndex];
+      final itemCtx = _sourceKeys[targetSource.id]?.currentContext;
+      final rowCtx = _sourceRowKey.currentContext;
+      if (itemCtx != null && rowCtx != null) {
+        final itemBox = itemCtx.findRenderObject() as RenderBox?;
+        final rowBox = rowCtx.findRenderObject() as RenderBox?;
+        if (itemBox != null && itemBox.hasSize && rowBox != null && rowBox.hasSize) {
+          return itemBox.localToGlobal(Offset.zero, ancestor: rowBox).dx;
+        }
+      }
+    }
+
+    // Fallback: 理论估算
+    double offset = 0.0;
+    final textScaler = MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling;
+    for (int i = 0; i < targetIndex && i < widget.sources.length; i++) {
+      final s = widget.sources[i];
+      final isCurrentViewing = s.id == widget.viewingSourceId;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: s.name,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isCurrentViewing ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      final extra = isCurrentViewing ? 40.0 : 24.0;
+      offset += tp.width + extra + 8.0;
+    }
+    return offset;
+  }
+
+  double _calculateGroupTargetOffset(int targetGroup) {
+    if (targetGroup <= 0) return 0.0;
+    final count = _groupCount();
+    if (targetGroup < count) {
+      final itemCtx = _groupKeys[targetGroup]?.currentContext;
+      final rowCtx = _groupRowKey.currentContext;
+      if (itemCtx != null && rowCtx != null) {
+        final itemBox = itemCtx.findRenderObject() as RenderBox?;
+        final rowBox = rowCtx.findRenderObject() as RenderBox?;
+        if (itemBox != null && itemBox.hasSize && rowBox != null && rowBox.hasSize) {
+          return itemBox.localToGlobal(Offset.zero, ancestor: rowBox).dx;
+        }
+      }
+    }
+
+    // Fallback: 理论估算
+    double offset = 0.0;
+    final textScaler = MediaQuery.maybeTextScalerOf(context) ?? TextScaler.noScaling;
+    for (int i = 0; i < targetGroup && i < count; i++) {
+      final label = _groupLabel(i);
+      final isCurrentGroup = _groupOf(widget.viewingSourceId) == i;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isCurrentGroup ? FontWeight.bold : FontWeight.normal,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+        textScaler: textScaler,
+        maxLines: 1,
+      )..layout();
+      offset += tp.width + 32.0 + 4.0;
+    }
+    return offset;
+  }
+
   void _syncSourceBar(bool smooth) {
     if (widget.sources.isEmpty || !_sourceScroller.hasClients) return;
     final index = widget.sources.indexWhere((s) => s.id == widget.viewingSourceId);
     if (index < 0) return;
 
-    double targetOffset = 0;
-    for (int i = 0; i < index; i++) {
-      final s = widget.sources[i];
-      final isAct = s.id == widget.viewingSourceId;
-      final textW = s.name.length * 13.0;
-      final itemW = textW + (isAct ? 40.0 : 24.0);
-      targetOffset += itemW + 8.0;
+    final targetOffset = _calculateSourceTargetOffset(index);
+    final maxExtent = _sourceScroller.position.maxScrollExtent;
+
+    // 若目标偏移量 > 0 但此时 maxScrollExtent 仍为 0，可能下一微帧才完成 viewport 测算，安排下一微帧重试
+    if (targetOffset > 0 && maxExtent <= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncSourceBar(smooth);
+      });
+      return;
     }
 
-    final maxScroll = _sourceScroller.position.maxScrollExtent;
-    final safeOffset = targetOffset.clamp(0.0, maxScroll);
+    final clampedOffset = targetOffset.clamp(0.0, maxExtent);
+
+    // 避免重复滚动或微小差值抖动
+    if ((_sourceScroller.offset - clampedOffset).abs() < 1.0) return;
+
     try {
       if (smooth) {
-        _sourceScroller.animateTo(safeOffset,
+        _sourceScroller.animateTo(clampedOffset,
             duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
       } else {
-        _sourceScroller.jumpTo(safeOffset);
+        _sourceScroller.jumpTo(clampedOffset);
       }
     } catch (_) {}
   }
@@ -245,13 +360,27 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
   void _syncGroupBar(bool smooth) {
     if (!_needsGrouping() || !_groupScroller.hasClients) return;
     final g = _groupOf(widget.viewingSourceId);
-    final targetOffset = (g * 76.0).clamp(0.0, _groupScroller.position.maxScrollExtent);
+
+    final targetOffset = _calculateGroupTargetOffset(g);
+    final maxExtent = _groupScroller.position.maxScrollExtent;
+
+    if (targetOffset > 0 && maxExtent <= 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _syncGroupBar(smooth);
+      });
+      return;
+    }
+
+    final clampedOffset = targetOffset.clamp(0.0, maxExtent);
+
+    if ((_groupScroller.offset - clampedOffset).abs() < 1.0) return;
+
     try {
       if (smooth) {
-        _groupScroller.animateTo(targetOffset,
+        _groupScroller.animateTo(clampedOffset,
             duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
       } else {
-        _groupScroller.jumpTo(targetOffset);
+        _groupScroller.jumpTo(clampedOffset);
       }
     } catch (_) {}
   }
@@ -289,8 +418,10 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
         final maxRow = max(0, ((visibleCount / cols).ceil() - 1));
         final safeRow = min(targetRow, maxRow);
 
-        // 第一组首行或无分组前1-2行剧集：保持自然置顶（标题+吸顶栏+首行完整可见，绝不遮挡）
-        if ((g == 0 && safeRow == 0) || (safeRow <= 1 && !_needsGrouping())) {
+        // 竖屏且首行（或无分组前1-2行）：纵向空间充足，保持自然置顶（标题+吸顶栏+首行完整可见）
+        // 横屏分栏（widget.isSplit）下纵向可视高度紧凑(~300dp)，如果滚到 0.0 会被未吸顶标题占据空间导致底部剧集被截断只露出一半，
+        // 因此横屏分栏下吸顶对齐到 _headerHeight，保证吸顶栏吸顶且首行选集直接完整展示在下方！
+        if (!widget.isSplit && ((g == 0 && safeRow == 0) || (safeRow <= 1 && !_needsGrouping()))) {
           if (smooth) {
             _listScroller.animateTo(0.0,
                 duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
@@ -342,121 +473,6 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
 
   bool _isEpisodeOn(int index) {
     return widget.viewingSourceId == widget.playingSourceId && widget.episodeIndex == index;
-  }
-
-  Widget _buildSourceChip(PlaySource source) {
-    final active = widget.viewingSourceId == source.id;
-    return InkWell(
-      onTap: () {
-        if (widget.onViewSource != null) {
-          widget.onViewSource!(source.id);
-        }
-      },
-      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        decoration: BoxDecoration(
-          color: active ? AppTheme.accent : AppTheme.bgChip,
-          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-        ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (active) ...[
-              const Icon(Icons.check_rounded, size: 12, color: AppTheme.textPrimary),
-              const SizedBox(width: 4),
-            ],
-            Text(
-              source.name,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: active ? FontWeight.bold : FontWeight.normal,
-                color: active ? AppTheme.textPrimary : AppTheme.textSecondary,
-              ),
-              maxLines: 1,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGroupChip(int index) {
-    final active = _groupOf(widget.viewingSourceId) == index;
-    return InkWell(
-      onTap: () {
-        _setGroup(widget.viewingSourceId, index, true);
-        _syncGroupBar(true);
-      },
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        height: 32,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: active ? AppTheme.accent : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Text(
-          _groupLabel(index),
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: active ? FontWeight.bold : FontWeight.normal,
-            color: active ? AppTheme.textPrimary : AppTheme.textSecondary,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildGroupBar() {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Divider(color: AppTheme.border, height: 1),
-
-        // 播放源横滑栏 (sourceRow)
-        if (widget.sources.isNotEmpty)
-          Container(
-            height: 32,
-            margin: const EdgeInsets.only(top: 8),
-            child: ListView.separated(
-              controller: _sourceScroller,
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.only(left: 12, right: 16),
-              itemCount: widget.sources.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 8),
-              itemBuilder: (context, index) => _buildSourceChip(widget.sources[index]),
-            ),
-          ),
-
-        // 选集分组横滑栏 (groupBar)
-        if (_needsGrouping())
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: Container(
-              height: 40,
-              padding: const EdgeInsets.fromLTRB(8, 4, 12, 4),
-              decoration: BoxDecoration(
-                color: AppTheme.bgElevated,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-              ),
-              child: ListView.separated(
-                controller: _groupScroller,
-                scrollDirection: Axis.horizontal,
-                itemCount: _groupCount(),
-                separatorBuilder: (context, index) => const SizedBox(width: 4),
-                itemBuilder: (context, index) => _buildGroupChip(index),
-              ),
-            ),
-          ),
-
-        const SizedBox(height: 8),
-      ],
-    );
   }
 
   Widget _buildEpisodeTile(MovieUrlInfo ep, int index, bool isWide) {
@@ -524,25 +540,45 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
               actor: widget.actor,
               plot: widget.plot,
               descriptor: widget.descriptor,
+              rightInset: widget.rightInset,
             ),
           ),
         ),
 
-        // 吸顶播放源与分组控制栏 (对应 OHOS ListItemGroup header sticky)
+        // 吸顶播放源与分组控制栏
         SliverPersistentHeader(
           pinned: true,
-          delegate: _StickyGroupBarDelegate(
+          delegate: StickyGroupBarDelegate(
             height: groupBarHeight,
-            child: _buildGroupBar(),
+            child: PlayGroupBar(
+              sources: widget.sources,
+              viewingSourceId: widget.viewingSourceId,
+              onViewSource: widget.onViewSource,
+              needsGrouping: _needsGrouping(),
+              groupCount: _groupCount(),
+              currentGroup: _groupOf(widget.viewingSourceId),
+              onSelectGroup: (index) {
+                _setGroup(widget.viewingSourceId, index, true);
+                _syncGroupBar(true);
+              },
+              groupLabel: _groupLabel,
+              sourceScroller: _sourceScroller,
+              groupScroller: _groupScroller,
+              rightInset: widget.rightInset,
+              sourceKeys: _currentSourceKeys,
+              groupKeys: _currentGroupKeys,
+              sourceRowKey: _sourceRowKey,
+              groupRowKey: _groupRowKey,
+            ),
           ),
         ),
 
         // 选集列表（对齐 OHOS epRow: 固定 54dp 行高，44dp 净高）
         if (visibleEps.isEmpty)
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(
+              padding: EdgeInsets.fromLTRB(12, 32, 12 + widget.rightInset, 32),
+              child: const Center(
                 child: Text('暂无数据', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
               ),
             ),
@@ -553,7 +589,7 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
               (context, row) {
                 return Container(
                   height: _epRowHeight,
-                  padding: const EdgeInsets.fromLTRB(12, 4, 12, 6),
+                  padding: EdgeInsets.fromLTRB(12, 4, 12 + widget.rightInset, 6),
                   child: Row(
                     children: [
                       for (int col = 0; col < cols; col++) ...[
@@ -577,31 +613,5 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
           ),
       ],
     );
-  }
-}
-
-class _StickyGroupBarDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
-  final double height;
-
-  _StickyGroupBarDelegate({required this.child, required this.height});
-
-  @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      color: AppTheme.bg,
-      child: child,
-    );
-  }
-
-  @override
-  bool shouldRebuild(covariant _StickyGroupBarDelegate oldDelegate) {
-    return oldDelegate.height != height || oldDelegate.child != child;
   }
 }

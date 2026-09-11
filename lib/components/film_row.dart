@@ -11,6 +11,8 @@ class FilmRow extends StatelessWidget {
   final String moreText;
   final int pid;
   final VoidCallback? onMore;
+  final double? leftInset;
+  final double? rightInset;
 
   const FilmRow({
     super.key,
@@ -19,6 +21,8 @@ class FilmRow extends StatelessWidget {
     this.moreText = '查看全部',
     this.pid = 0,
     this.onMore,
+    this.leftInset,
+    this.rightInset,
   });
 
   void _openMore(BuildContext context) {
@@ -31,7 +35,11 @@ class FilmRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cardW = Breakpoint.cardWidthOf(MediaQuery.sizeOf(context).width);
+    final padding = MediaQuery.paddingOf(context);
+    final left = leftInset ?? padding.left;
+    final right = rightInset ?? padding.right;
+    final effectiveWidth = MediaQuery.sizeOf(context).width - left - right;
+    final cardW = Breakpoint.cardWidthOf(effectiveWidth > 0 ? effectiveWidth : MediaQuery.sizeOf(context).width);
     // 海报 2:3 + 标题上距 6 / 高 18 + 副标上距 2 / 高 15
     final rowHeight = cardW * 1.5 + 41;
 
@@ -49,10 +57,10 @@ class FilmRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppTheme.spaceLg,
+            padding: EdgeInsets.fromLTRB(
+              AppTheme.spaceLg + left,
               0,
-              AppTheme.spaceLg,
+              AppTheme.spaceLg + right,
               AppTheme.spaceMd,
             ),
             child: Row(
@@ -118,9 +126,9 @@ class FilmRow extends StatelessWidget {
             ),
           ),
           if (films.isEmpty)
-            const Padding(
-              padding: EdgeInsets.only(left: AppTheme.spaceLg),
-              child: Text(
+            Padding(
+              padding: EdgeInsets.only(left: AppTheme.spaceLg + left),
+              child: const Text(
                 '暂无影片',
                 style: TextStyle(
                   fontSize: 12,
@@ -133,7 +141,10 @@ class FilmRow extends StatelessWidget {
               height: rowHeight,
               child: ListView.separated(
                 scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
+                padding: EdgeInsets.only(
+                  left: AppTheme.spaceLg + left,
+                  right: AppTheme.spaceLg + right,
+                ),
                 itemCount: films.length,
                 separatorBuilder: (context, index) =>
                     const SizedBox(width: AppTheme.spaceSm),

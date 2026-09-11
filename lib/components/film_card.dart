@@ -58,19 +58,20 @@ class FilmCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final posterUrl = _resolvedPosterUrl();
 
-    final card = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-            border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-            child: AspectRatio(
-              aspectRatio: 2 / 3,
+    return InkWell(
+      onTap: () => _handleClick(context),
+      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final hasBoundedHeight = constraints.hasBoundedHeight && constraints.maxHeight > 50;
+
+          Widget poster = DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              border: Border.all(color: const Color(0x14FFFFFF), width: 0.5),
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
               child: Stack(
                 fit: StackFit.expand,
                 children: [
@@ -110,48 +111,61 @@ class FilmCard extends StatelessWidget {
                 ],
               ),
             ),
-          ),
-        ),
-        if (showMeta) ...[
-          const SizedBox(height: 6),
-          SizedBox(
-            height: 18,
-            child: Text(
-              film.name,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color: AppTheme.textPrimary,
-                height: 1.38,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          const SizedBox(height: 2),
-          SizedBox(
-            height: 15,
-            child: Text(
-              film.subTitle.isNotEmpty
-                  ? film.subTitle
-                  : FormatUtil.joinMeta([film.year, film.cName]),
-              style: const TextStyle(
-                fontSize: 11,
-                color: AppTheme.textMuted,
-                height: 1.36,
-              ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-        ],
-      ],
-    );
+          );
 
-    return InkWell(
-      onTap: () => _handleClick(context),
-      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-      child: cardWidth != null ? SizedBox(width: cardWidth, child: card) : card,
+          if (hasBoundedHeight) {
+            poster = Expanded(child: poster);
+          } else {
+            poster = AspectRatio(
+              aspectRatio: 2 / 3,
+              child: poster,
+            );
+          }
+
+          final card = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: hasBoundedHeight ? MainAxisSize.max : MainAxisSize.min,
+            children: [
+              poster,
+              if (showMeta) ...[
+                const SizedBox(height: 6),
+                SizedBox(
+                  height: 18,
+                  child: Text(
+                    film.name,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: AppTheme.textPrimary,
+                      height: 1.38,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                SizedBox(
+                  height: 15,
+                  child: Text(
+                    film.subTitle.isNotEmpty
+                        ? film.subTitle
+                        : FormatUtil.joinMeta([film.year, film.cName]),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppTheme.textMuted,
+                      height: 1.36,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          );
+
+          return cardWidth != null ? SizedBox(width: cardWidth, child: card) : card;
+        },
+      ),
     );
   }
 

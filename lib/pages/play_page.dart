@@ -11,11 +11,13 @@ import '../utils/play_resume.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
 import '../utils/format_util.dart';
+import '../utils/split_cutout_insets.dart';
+import '../utils/app_settings_manager.dart';
 import '../components/player/video_player_widget.dart';
-import '../components/player/play_detail_panel.dart';
-import '../components/film_grid.dart';
+import '../components/player/play_side_tabs.dart';
 import '../components/loading_view.dart';
 import '../components/empty_state.dart';
+import '../services/pip_manager.dart';
 
 /// 影片播放主页面
 class PlayPage extends StatefulWidget {
@@ -63,11 +65,14 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   double _lastCurrentTime = 0;
   double _lastDuration = 0;
   bool _persistEnabled = true;
+  bool _isPipActive = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    PipManager.instance.addListener(_onPipChanged);
+    _isPipActive = PipManager.instance.isPipActive;
     _filmId = widget.id;
     _episodeIndex = widget.episodeIndex;
     _initialTime = widget.currentTime;
@@ -81,6 +86,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    PipManager.instance.removeListener(_onPipChanged);
     if (_lastCurrentTime > 0) {
       _persistHistory(_lastCurrentTime, _lastDuration);
     }
@@ -90,6 +96,12 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     } catch (_) {}
     SourceGuard.offReconnect(_onReconnect);
     super.dispose();
+  }
+
+  void _onPipChanged(bool active) {
+    if (mounted && _isPipActive != active) {
+      setState(() => _isPipActive = active);
+    }
   }
 
   @override
@@ -204,6 +216,9 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   }
 
   void _selectEpisode(String sourceId, int index) {
+    if (_playingSourceId == sourceId && _episodeIndex == index && _playUrl.isNotEmpty) {
+      return;
+    }
     final source = _findSource(sourceId);
     if (source == null || index < 0 || index >= source.linkList.length) return;
     final ep = source.linkList[index];
@@ -224,14 +239,11 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   }
 
   bool _hasNext() {
-    final source = _findSource(_playingSourceId);
-    if (source == null) return false;
-    return _episodeIndex < source.linkList.length - 1;
+    final s = _findSource(_playingSourceId);
+    return s != null && _episodeIndex < s.linkList.length - 1;
   }
 
-  bool _hasPrev() {
-    return _episodeIndex > 0 && _findSource(_playingSourceId) != null;
-  }
+  bool _hasPrev() => _episodeIndex > 0 && _findSource(_playingSourceId) != null;
 
   void _playPrev() {
     if (!_hasPrev()) {
@@ -263,7 +275,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     HistoryManager.find(_filmId).then((prev) {
       final cur = currentTime ?? (prev?.currentTime ?? 0);
       final dur = duration ?? (prev?.duration ?? 0);
-      final item = HistoryItem(
+      HistoryManager.save(HistoryItem(
         id: _filmId,
         name: _name,
         picture: _picture,
@@ -274,8 +286,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
         currentTime: cur,
         duration: dur,
         timeStamp: DateTime.now().millisecondsSinceEpoch,
-      );
-      HistoryManager.save(item);
+      ));
     });
   }
 
@@ -318,9 +329,13 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     } catch (_) {}
   }
 
-  Widget _buildVideoPlayer({required bool isFull, bool edgeHud = false}) {
+  Widget _buildVideoPlayer({
+    required bool isFull,
+    bool edgeHud = false,
+    double? overrideLeftInset,
+  }) {
     // 对齐 OHOS hud inset：全屏/分屏时把安全区传给播放器控件，竖屏时归零（视频已在 SafeArea 内）。
-    final padding = MediaQuery.paddingOf(context);
+    final viewPadding = MediaQuery.viewPaddingOf(context);
     final useInset = isFull || edgeHud;
     return VideoPlayerWidget(
       key: _videoKey,
@@ -332,23 +347,17 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       showBack: true,
       isFull: isFull,
       edgeHud: edgeHud,
-      topInset: useInset ? padding.top : 0,
-      bottomInset: useInset ? padding.bottom : 0,
-      leftInset: useInset ? (padding.left > AppTheme.safeEdge ? padding.left : AppTheme.safeEdge) : 0,
+      topInset: useInset ? viewPadding.top : 0,
+      bottomInset: useInset ? viewPadding.bottom : 0,
+      leftInset: overrideLeftInset ?? (useInset ? viewPadding.left : 0),
       rightInset: isFull
-          ? (padding.right > AppTheme.safeEdge ? padding.right : AppTheme.safeEdge)
+          ? viewPadding.right
           : (edgeHud ? AppTheme.safeEdge : 0),
       hasPrev: _hasPrev(),
       hasNext: _hasNext(),
-      onBack: () {
-        if (_playerFull) {
-          _setFullscreen(false);
-        } else {
-          Navigator.pop(context);
-        }
-      },
+      onBack: () => _playerFull ? _setFullscreen(false) : Navigator.pop(context),
       onEnded: () {
-        if (_hasNext()) _playNext();
+        if (AppSettingsManager.instance.autoPlayNext && _hasNext()) _playNext();
       },
       onPrev: _playPrev,
       onNext: _playNext,
@@ -369,7 +378,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     final isFullMode = _playerFull;
 
     return PopScope(
-      canPop: !isFullMode,
+      canPop: !_isPipActive && !isFullMode,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop) return;
         if (isFullMode) {
@@ -377,12 +386,12 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
         }
       },
       child: Scaffold(
-        backgroundColor: isFullMode ? Colors.black : AppTheme.bg,
+        backgroundColor: (_isPipActive || isFullMode) ? Colors.black : AppTheme.bg,
         body: SafeArea(
-          top: !isFullMode && !split,
-          bottom: !isFullMode && !split,
-          left: false,
-          right: false,
+          top: !_isPipActive && !isFullMode && !split,
+          bottom: !_isPipActive && !isFullMode && !split,
+          left: !_isPipActive && !isFullMode && !split,
+          right: !_isPipActive && !isFullMode && !split,
           child: _buildPlayBody(isFullMode: isFullMode, split: split),
         ),
       ),
@@ -402,17 +411,36 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       );
     }
 
+    if (_isPipActive) {
+      // 画中画模式：整屏独占渲染播放器画面，其它详情与选集等 UI 彻底隐藏，避免在系统浮窗中呈现缩略图
+      return SizedBox.expand(
+        child: _buildVideoPlayer(isFull: false),
+      );
+    }
+
     if (isFullMode) {
       return _buildVideoPlayer(isFull: true);
     }
 
     if (split) {
+      final media = MediaQuery.of(context);
+      final cutout = SplitCutoutInsets.resolve(
+        media.viewPadding,
+        padding: media.padding,
+        displayFeatures: media.displayFeatures,
+        size: media.size,
+      );
+
       // 对齐 OHOS `splitPlay()`：横屏宽屏时左侧视频、右侧详情分屏。
       return Row(
         children: [
           Expanded(
             flex: 7,
-            child: _buildVideoPlayer(isFull: false, edgeHud: true),
+            child: _buildVideoPlayer(
+              isFull: false,
+              edgeHud: true,
+              overrideLeftInset: cutout.left,
+            ),
           ),
           Container(width: 1, color: const Color(0x24FFFFFF)),
           Expanded(
@@ -424,7 +452,11 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
                 bottom: true,
                 left: false,
                 right: false,
-                child: _sideTabs(columns: 3),
+                child: _sideTabs(
+                  columns: 3,
+                  isSplit: true,
+                  rightInset: cutout.right,
+                ),
               ),
             ),
           ),
@@ -440,109 +472,42 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
         ),
         Container(height: 8, color: AppTheme.bgElevated),
         Expanded(
-          child: _sideTabs(columns: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width)),
-        ),
-      ],
-    );
-  }
-
-  Widget _sideTabs({required int columns}) {
-    return Column(
-      children: [
-        // Tab Switcher
-        Container(
-          height: 44,
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Row(
-            children: [
-              _buildTabItem('详情', 0),
-              _buildTabItem('相关推荐', 1),
-            ],
+          child: _sideTabs(
+            columns: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width),
+            isSplit: false,
           ),
         ),
-        // Tab Contents
-        Expanded(
-          child: _activeTab == 0
-              ? PlayDetailPanel(
-                  filmId: _filmId,
-                  picture: _picture,
-                  name: _name,
-                  subTitle: _subTitle,
-                  actor: _actor,
-                  plot: _plot,
-                  descriptor: _descriptor,
-                  sources: _sources,
-                  playingSourceId: _playingSourceId,
-                  viewingSourceId: _viewingSourceId,
-                  episodeIndex: _episodeIndex,
-                  onViewSource: (id) {
-                    setState(() {
-                      _viewingSourceId = id;
-                    });
-                  },
-                  onSelectEpisode: (sourceId, index) {
-                    _selectEpisode(sourceId, index);
-                  },
-                )
-              : _buildRelatedTab(columns),
-        ),
       ],
     );
   }
 
-  Widget _buildTabItem(String title, int index) {
-    final active = _activeTab == index;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () {
-        setState(() {
-          _activeTab = index;
-        });
-      },
-      child: Padding(
-        padding: const EdgeInsets.only(right: 20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: active ? AppTheme.textPrimary : AppTheme.textMuted,
-              ),
-            ),
-            Container(
-              width: 18,
-              height: 3,
-              margin: const EdgeInsets.only(top: 6),
-              decoration: BoxDecoration(
-                color: active ? AppTheme.accent : Colors.transparent,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRelatedTab(int columns) {
-    if (_relateLoading) {
-      return const LoadingView(label: '加载相关推荐');
-    }
-    if (_related.isEmpty) {
-      return const EmptyState(
-        title: '暂无相关推荐',
-        subtitle: '换一部片子再看看',
-        icon: Icons.movie_outlined,
-      );
-    }
-    return FilmGrid(
-      films: _related,
+  Widget _sideTabs({
+    required int columns,
+    bool isSplit = false,
+    double rightInset = 0,
+  }) {
+    return PlaySideTabs(
+      activeTab: _activeTab,
+      onTabChange: (tab) => setState(() => _activeTab = tab),
+      filmId: _filmId,
+      picture: _picture,
+      name: _name,
+      subTitle: _subTitle,
+      actor: _actor,
+      plot: _plot,
+      descriptor: _descriptor,
+      sources: _sources,
+      playingSourceId: _playingSourceId,
+      viewingSourceId: _viewingSourceId,
+      episodeIndex: _episodeIndex,
+      isSplit: isSplit,
+      rightInset: rightInset,
+      onViewSource: (id) => setState(() => _viewingSourceId = id),
+      onSelectEpisode: (sourceId, index) => _selectEpisode(sourceId, index),
+      relateLoading: _relateLoading,
+      related: _related,
       columns: columns,
-      onClickFilm: _openRelated,
+      onOpenRelated: _openRelated,
     );
   }
 }

@@ -46,15 +46,6 @@ class FilmApi {
     return ApiParser.parseDailyUpdate(res.data);
   }
 
-  static Future<List<CategoryItem>> getNavCategory() async {
-    final res = await HttpClient.instance.get('/navCategory');
-    if (res.code != 0 || res.data == null) return [];
-    if (res.data is List) {
-      return ApiParser.parseCategories(res.data);
-    }
-    return [];
-  }
-
   static Future<BasicConfig> getSiteConfig({
     bool force = false,
     int timeoutMs = 15000,
@@ -108,14 +99,6 @@ class FilmApi {
       );
     }
     return ApiParser.parseSearch(res.data);
-  }
-
-  static Future<ClassifyResult> getClassify(String pid) async {
-    final res = await HttpClient.instance.get('/filmClassify', params: {'Pid': pid});
-    if (res.code != 0 || res.data == null) {
-      throw Exception(res.msg.isNotEmpty ? res.msg : '分类数据获取失败');
-    }
-    return ApiParser.parseClassify(res.data);
   }
 
   static Future<FilterResult> getFilter(Map<String, dynamic> query) async {

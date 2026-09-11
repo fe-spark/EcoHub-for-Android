@@ -16,6 +16,48 @@ class FormatUtil {
     return s.length >= 4 ? s.substring(0, 4) : s;
   }
 
+  static String remarks(dynamic value) {
+    final t = text(value);
+    if (t.isEmpty) return '';
+    if (t.startsWith('更新至') || t.startsWith('全') || t.endsWith('全') || t == '完结') {
+      return t;
+    }
+    final epMatch = RegExp(r'^第\s*(\d+)\s*集$').firstMatch(t);
+    if (epMatch != null) return '更新至${epMatch.group(1)}集';
+    final numMatch = RegExp(r'^(\d+)\s*集$').firstMatch(t);
+    if (numMatch != null) return '更新至${numMatch.group(1)}集';
+    final updateMatch = RegExp(r'^更新第?\s*(\d+)\s*集$').firstMatch(t);
+    if (updateMatch != null) return '更新至${updateMatch.group(1)}集';
+    return t;
+  }
+
+  /// 深度清洗 HTML 剧情简介文本
+  static String cleanPlot(String raw) {
+    if (raw.isEmpty) return '';
+    final text = raw
+        .replaceAll(RegExp(r'<\s*br\s*/?>', caseSensitive: false), '\n')
+        .replaceAll(RegExp(r'<\s*/(p|div|li|tr|h[1-6])\s*>', caseSensitive: false), '\n\n')
+        .replaceAll(RegExp(r'<script[\s\S]*?</script>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<style[\s\S]*?</style>', caseSensitive: false), '')
+        .replaceAll(RegExp(r'<[^>]+>'), '')
+        .replaceAll(RegExp(r'&emsp;|&ensp;|&thinsp;|&nbsp;|&#160;|&#12288;|\u3000'), ' ')
+        .replaceAll('&quot;', '"')
+        .replaceAll(RegExp(r"&apos;|&#39;"), "'")
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&amp;', '&');
+
+    final lines = text.split('\n');
+    final cleanedLines = <String>[];
+    for (final line in lines) {
+      final trimmed = line.replaceAll(RegExp(r'^[\s\u3000\u00A0\u2000-\u200B]+|[\s\u3000\u00A0\u2000-\u200B]+$'), '');
+      if (trimmed.isNotEmpty) {
+        cleanedLines.add(trimmed);
+      }
+    }
+    return cleanedLines.join('\n\n');
+  }
+
   static String poster(MovieBasicInfo film) {
     String raw = '';
     if (film.picture.isNotEmpty) {

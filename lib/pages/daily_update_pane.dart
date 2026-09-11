@@ -14,15 +14,23 @@ const int _pageSize = 21;
 class DailyUpdatePane extends StatefulWidget {
   final int pid;
   final bool active;
+  final int seedPid;
   final List<MovieBasicInfo>? seedList;
   final PageInfo? seedPage;
+  final int reloadToken;
+  final double headerHeight;
+  final VoidCallback? onAllRefreshed;
 
   const DailyUpdatePane({
     super.key,
     required this.pid,
     this.active = true,
+    this.seedPid = 0,
     this.seedList,
     this.seedPage,
+    this.reloadToken = 0,
+    this.headerHeight = 0,
+    this.onAllRefreshed,
   });
 
   @override
@@ -30,15 +38,15 @@ class DailyUpdatePane extends StatefulWidget {
 }
 
 class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAliveClientMixin {
-  List<MovieBasicInfo> _list = [];
+  List<MovieBasicInfo> _films = [];
   PageInfo _page = PageInfo(pageSize: _pageSize, current: 1, pageCount: 1, total: 0);
   bool _loading = true;
   bool _loadingMore = false;
   bool _fetchLock = false;
   String _errorText = '';
-  final ScrollController _scrollController = ScrollController();
   bool _hasLoaded = false;
   bool _showTopFab = false;
+  final ScrollController _scrollController = ScrollController();
 
   @override
   bool get wantKeepAlive => true;
@@ -47,20 +55,16 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
   void initState() {
     super.initState();
     _scrollController.addListener(_onScroll);
-    if (widget.seedList != null && widget.pid == 0) {
-      _list = widget.seedList!;
-      _page = widget.seedPage ?? _page;
-      _loading = false;
-      _hasLoaded = true;
-    } else if (widget.active) {
-      _loadData(true, fromPull: false);
-    }
+    _boot();
   }
 
   @override
   void didUpdateWidget(covariant DailyUpdatePane oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.active && !_hasLoaded) {
+    if (widget.reloadToken != oldWidget.reloadToken) {
+      _hasLoaded = false;
+      _boot();
+    } else if (widget.active && !_hasLoaded) {
       _loadData(true, fromPull: false);
     }
   }
@@ -72,11 +76,46 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
     super.dispose();
   }
 
+  void _boot() {
+    if (_consumeSeed()) {
+      return;
+    }
+    _films = [];
+    _page = PageInfo(pageSize: _pageSize, current: 1, pageCount: 1, total: 0);
+    _errorText = '';
+    if (widget.active) {
+      _loadData(true, fromPull: false);
+    } else {
+      _loading = true;
+    }
+  }
+
+  bool _consumeSeed() {
+    if (widget.pid != widget.seedPid || widget.seedList == null) {
+      return false;
+    }
+    _films = List<MovieBasicInfo>.from(widget.seedList!);
+    _page = widget.seedPage ??
+        PageInfo(
+          pageSize: _pageSize,
+          current: 1,
+          pageCount: 1,
+          total: widget.seedList!.length,
+        );
+    _hasLoaded = true;
+    _loading = false;
+    _errorText = '';
+    return true;
+  }
+
   void _toast(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), duration: const Duration(milliseconds: 1400)),
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(milliseconds: 1400),
+      ),
     );
   }
 
@@ -84,7 +123,7 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
     if (!_scrollController.hasClients) return;
     final pos = _scrollController.position;
     if (pos.pixels >= pos.maxScrollExtent - 200) {
-      if (!_loadingMore && _page.current < _page.pageCount) {
+      if (!_loadingMore && _hasMore()) {
         _loadData(false, fromPull: false);
       }
     }
@@ -96,6 +135,19 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
     }
   }
 
+  bool _hasMore() {
+    return _page.current < _page.pageCount;
+  }
+
+  void _scrollToTop() {
+    setState(() => _showTopFab = false);
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOut,
+    );
+  }
+
   Future<void> _loadData(bool reset, {required bool fromPull}) async {
     if (_fetchLock) return;
     final nextPage = reset ? 1 : _page.current + 1;
@@ -103,7 +155,7 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
 
     _fetchLock = true;
     if (reset) {
-      if (!fromPull && _list.isEmpty) {
+      if (!fromPull && _films.isEmpty) {
         setState(() {
           _loading = true;
           _errorText = '';
@@ -120,7 +172,7 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
       final res = await FilmApi.getDailyUpdates(widget.pid, nextPage, pageSize: _pageSize);
       if (!mounted) return;
       setState(() {
-        _list = reset ? res.list : [..._list, ...res.list];
+        _films = reset ? res.list : [..._films, ...res.list];
         _page = res.page;
         _loading = false;
         _loadingMore = false;
@@ -128,20 +180,25 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
         _errorText = '';
       });
       ok = true;
+      if (fromPull && widget.pid == widget.seedPid) {
+        widget.onAllRefreshed?.call();
+      }
     } catch (e) {
       if (!mounted) return;
+      final msg = e.toString().replaceFirst(RegExp(r'^Exception:\s*'), '');
       setState(() {
         _loading = false;
         _loadingMore = false;
-        if (reset && _list.isEmpty) {
-          _errorText = '$e';
+        if (reset && _films.isEmpty) {
+          _errorText = msg.isNotEmpty ? msg : '每日更新加载失败';
         } else if (!reset) {
-          _toast('$e');
+          _toast(msg);
         }
       });
     } finally {
       _fetchLock = false;
     }
+
     if (fromPull) {
       if (ok) {
         _toast('已更新');
@@ -151,95 +208,111 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
     }
   }
 
-  Widget _refreshable({required Widget child}) {
-    return RefreshIndicator(
-      onRefresh: () => _loadData(true, fromPull: true),
-      color: AppTheme.accent,
-      backgroundColor: AppTheme.bgCard,
-      child: child,
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     super.build(context);
-    if (_loading && _list.isEmpty) {
-      return const LoadingView(label: '正在加载今日更新');
+    final media = MediaQuery.of(context);
+    final leftInset = media.padding.left;
+    final rightInset = media.padding.right;
+    final width = media.size.width;
+
+    if (_loading && _films.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.only(
+          top: widget.headerHeight,
+          left: leftInset,
+          right: rightInset,
+        ),
+        child: const LoadingView(label: '正在加载今日更新'),
+      );
     }
 
-    if (_errorText.isNotEmpty && _list.isEmpty) {
-      return _refreshable(
+    if (_films.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: () => _loadData(true, fromPull: true),
+        color: AppTheme.accent,
+        backgroundColor: AppTheme.bgCard,
+        edgeOffset: widget.headerHeight,
+        displacement: 16,
         child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
+          physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+          padding: EdgeInsets.only(left: leftInset, right: rightInset),
           children: [
-            const SizedBox(height: 48),
-            EmptyState(
-              title: '加载失败',
-              subtitle: _errorText,
-              icon: Icons.error_outline_rounded,
-              action: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.bgCard,
-                  foregroundColor: AppTheme.textPrimary,
+            SizedBox(height: widget.headerHeight + 24),
+            if (_errorText.isNotEmpty)
+              EmptyState(
+                title: '加载失败',
+                subtitle: _errorText,
+                icon: Icons.error_outline_rounded,
+                action: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.bgCard,
+                    foregroundColor: AppTheme.textPrimary,
+                  ),
+                  onPressed: () => _loadData(true, fromPull: false),
+                  child: const Text('重试'),
                 ),
-                onPressed: () => _loadData(true, fromPull: false),
-                child: const Text('重试'),
+              )
+            else
+              const EmptyState(
+                title: '暂无更新',
+                subtitle: '近 24 小时还没有新片入库',
+                icon: Icons.local_fire_department_rounded,
               ),
-            ),
           ],
         ),
       );
     }
 
-    if (_list.isEmpty) {
-      return _refreshable(
-        child: ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          children: const [
-            SizedBox(height: 48),
-            EmptyState(
-              title: '暂无更新',
-              subtitle: '近 24 小时还没有新片入库',
-              icon: Icons.local_fire_department_rounded,
-            ),
-          ],
-        ),
-      );
-    }
-
-    final cols = Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width);
+    final cols = Breakpoint.gridColsOf(width);
+    final cardAspectRatio = Breakpoint.gridAspectRatio(
+      width: width,
+      columns: cols,
+      horizontalPadding: (AppTheme.spaceLg * 2) + leftInset + rightInset,
+    );
 
     return Stack(
       alignment: Alignment.bottomRight,
       children: [
-        _refreshable(
+        RefreshIndicator(
+          onRefresh: () => _loadData(true, fromPull: true),
+          color: AppTheme.accent,
+          backgroundColor: AppTheme.bgCard,
+          edgeOffset: widget.headerHeight,
+          displacement: 16,
           child: CustomScrollView(
             controller: _scrollController,
-            physics: const AlwaysScrollableScrollPhysics(),
+            physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
             slivers: [
+              SliverToBoxAdapter(
+                child: SizedBox(height: widget.headerHeight + 8),
+              ),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceSm),
+                padding: EdgeInsets.only(
+                  left: AppTheme.spaceLg + leftInset,
+                  right: AppTheme.spaceLg + rightInset,
+                ),
                 sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: cols,
-                    childAspectRatio: 0.54,
+                    childAspectRatio: cardAspectRatio,
                     crossAxisSpacing: AppTheme.spaceSm,
                     mainAxisSpacing: AppTheme.spaceMd,
                   ),
                   delegate: SliverChildBuilderDelegate(
-                    (context, index) => FilmCard(film: _list[index]),
-                    childCount: _list.length,
+                    (context, index) => FilmCard(film: _films[index]),
+                    childCount: _films.length,
                   ),
                 ),
               ),
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
+                child: SizedBox(
+                  height: 72,
                   child: Center(
                     child: Text(
                       _loadingMore
                           ? '加载中...'
-                          : (_page.current >= _page.pageCount ? '没有更多了' : ''),
+                          : (_hasMore() ? '' : '没有更多了'),
                       style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
                     ),
                   ),
@@ -248,14 +321,15 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
             ],
           ),
         ),
-        ScrollFab(
-          visible: _showTopFab,
-          onClickFab: () {
-            setState(() => _showTopFab = false);
-            _scrollController.animateTo(0, duration: const Duration(milliseconds: 280), curve: Curves.easeOut);
-          },
+        Padding(
+          padding: EdgeInsets.only(right: rightInset),
+          child: ScrollFab(
+            visible: _showTopFab,
+            onClickFab: _scrollToTop,
+          ),
         ),
       ],
     );
   }
 }
+

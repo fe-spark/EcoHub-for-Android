@@ -359,7 +359,11 @@ class _FilterPageState extends State<FilterPage> {
         sliver: SliverGrid(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width),
-            childAspectRatio: 0.54,
+            childAspectRatio: Breakpoint.gridAspectRatio(
+              width: MediaQuery.sizeOf(context).width,
+              columns: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width),
+              horizontalPadding: AppTheme.spaceMd * 2,
+            ),
             crossAxisSpacing: AppTheme.spaceSm,
             mainAxisSpacing: AppTheme.spaceMd,
           ),

@@ -1,0 +1,118 @@
+name: Build APK
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: apk-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Assemble APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Assemble APK
+        run: flutter build apk --release
+
+      - name: Collect artifacts
+        id: apk
+        run: |
+          mkdir -p dist
+          version=$(python3 -c "
+          import re
+          with open('pubspec.yaml') as f:
+              m = re.search(r'^version:\s*([^\+\s]+)', f.read(), re.M)
+              print(m.group(1) if m else 'unknown')
+          ")
+          short_sha="${GITHUB_SHA::7}"
+          found=0
+          for src in build/app/outputs/flutter-apk/*.apk; do
+            [ -f "$src" ] || continue
+            base=$(basename "$src")
+            if [[ "$base" == *release.apk ]]; then
+              if [[ "$base" == "app-release.apk" ]]; then
+                dest="dist/EcoHub-${version}-${short_sha}.apk"
+              else
+                abi=$(echo "$base" | sed -E 's/^app-(.*)-release\.apk$/\1/')
+                dest="dist/EcoHub-${version}-${short_sha}-${abi}.apk"
+              fi
+              cp "$src" "$dest"
+              echo "Copied $src -> $dest"
+              found=1
+            fi
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "No release APK produced under build/app/outputs/flutter-apk/" >&2
+            ls -la build/app/outputs/flutter-apk/ || true
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: ecohub-apk
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Attach APK to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/*.apk --clobber
+          else
+            notes_flag=()
+            if [ -f "RELEASE.md" ] && [ -s "RELEASE.md" ]; then
+              notes_flag=(--notes-file RELEASE.md)
+            else
+              tag_msg=$(git tag -l --format='%(contents)' "$tag" | sed '/^[[:space:]]*$/d')
+              if [ -n "$tag_msg" ]; then
+                notes_flag=(--notes "$tag_msg")
+              else
+                prev_tag=$(git describe --tags --abbrev=0 "${tag}^" 2>/dev/null || true)
+                if [ -n "$prev_tag" ]; then
+                  commit_logs=$(git log "${prev_tag}..${tag}" --pretty=format:"- %s" --no-merges)
+                else
+                  commit_logs=$(git log -n 10 --pretty=format:"- %s" --no-merges)
+                fi
+                if [ -n "$commit_logs" ]; then
+                  notes_flag=(--notes "$commit_logs")
+                else
+                  notes_flag=(--generate-notes)
+                fi
+              fi
+            fi
+            gh release create "$tag" dist/*.apk --title "$tag" "${notes_flag[@]}"
+          fi

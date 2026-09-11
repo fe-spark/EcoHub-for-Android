@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../common/app_theme.dart';
 import '../../models/film_models.dart';
 import '../../utils/favorite_manager.dart';
+import '../../utils/format_util.dart';
 import '../film_detail_dialog.dart';
 
 /// 播放页影片详情头部，对齐 OHOS `FilmDetailHeader`
@@ -13,6 +14,7 @@ class FilmDetailHeader extends StatefulWidget {
   final String actor;
   final String plot;
   final MovieDescriptor? descriptor;
+  final double rightInset;
 
   const FilmDetailHeader({
     super.key,
@@ -23,6 +25,7 @@ class FilmDetailHeader extends StatefulWidget {
     this.actor = '',
     this.plot = '',
     this.descriptor,
+    this.rightInset = 0,
   });
 
   @override
@@ -77,16 +80,28 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
         : (widget.descriptor?.content.isNotEmpty == true
             ? widget.descriptor!.content
             : (widget.descriptor?.blurb ?? ''));
-    return raw
-        .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
-        .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n')
-        .replaceAll(RegExp(r'<[^>]+>'), '')
-        .replaceAll('&nbsp;', ' ')
-        .replaceAll('&amp;', '&')
-        .replaceAll('&lt;', '<')
-        .replaceAll('&gt;', '>')
-        .replaceAll(RegExp(r'\n{3,}'), '\n\n')
-        .trim();
+    return FormatUtil.cleanPlot(raw);
+  }
+
+  String _briefMetaText() {
+    final parts = <String>[];
+    final year = widget.descriptor?.year.trim() ?? '';
+    if (year.isNotEmpty) parts.add(year);
+    final cat = (widget.descriptor?.classTag.isNotEmpty == true)
+        ? widget.descriptor!.classTag
+        : (widget.descriptor?.cName ?? '');
+    if (cat.trim().isNotEmpty) {
+      final firstCat = cat.trim().split(RegExp(r'[,/，\s]+'))[0].trim();
+      if (firstCat.isNotEmpty) parts.add(firstCat);
+    }
+    final rawArea = (widget.descriptor?.area.isNotEmpty == true)
+        ? widget.descriptor!.area
+        : (widget.descriptor?.language ?? '');
+    if (rawArea.trim().isNotEmpty) {
+      final firstArea = rawArea.trim().split(RegExp(r'[,/，\s]+'))[0].trim();
+      if (firstArea.isNotEmpty) parts.add(firstArea);
+    }
+    return parts.join(' · ');
   }
 
   List<String> _metaTags() {
@@ -123,10 +138,12 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
     return raw.replaceAll(RegExp(r'\s*[，,、]\s*'), ' / ');
   }
 
+  // ignore: unused_element
   bool _hasDetailInfo() {
     return _directorText().isNotEmpty || _actorText().isNotEmpty || _cleanPlot().isNotEmpty;
   }
 
+  // ignore: unused_element
   String _snippet() {
     final actor = _actorText();
     if (actor.isNotEmpty) return '主演：$actor';
@@ -175,207 +192,148 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
   @override
   Widget build(BuildContext context) {
     final score = _scoreText();
-    final tags = _metaTags();
+    final metaText = _briefMetaText();
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. 标题与收藏操作按钮行
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(
-                  child: Text(
-                    widget.name,
-                    style: const TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 1. 片名与收藏行（左侧片名最多2行后省略；右上角常驻唯一收藏胶囊，平衡短片名与长片名的视觉重心）
+        Padding(
+          padding: EdgeInsets.fromLTRB(12, 8, 12 + widget.rightInset, 4),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  widget.name,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                    height: 24 / 18,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(width: 10),
-                InkWell(
-                  onTap: _toggleFavorite,
-                  borderRadius: BorderRadius.circular(13),
-                  child: Container(
-                    padding: const EdgeInsets.fromLTRB(10, 4, 10, 4),
-                    decoration: BoxDecoration(
-                      color: _isFav ? const Color(0x1FFA8C16) : AppTheme.bgCard,
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(
-                        width: 0.5,
-                        color: _isFav ? const Color(0x4DFA8C16) : AppTheme.border,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          _isFav ? Icons.star_rounded : Icons.star_outline_rounded,
-                          size: 13,
-                          color: _isFav ? AppTheme.accent : AppTheme.textMuted,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          _isFav ? '已收藏' : '收藏',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                            color: _isFav ? AppTheme.accent : AppTheme.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 2. 元数据行（左侧固定评分徽章，右侧标签支持横向滚动）
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: Row(
-              children: [
-                if (score.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.fromLTRB(8, 3, 8, 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentSoft,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('★', style: TextStyle(fontSize: 12, color: AppTheme.accent)),
-                        const SizedBox(width: 3),
-                        Text(
-                          score,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.accent,
-                          ),
-                        ),
-                        const SizedBox(width: 1),
-                        const Text('分', style: TextStyle(fontSize: 10, color: AppTheme.accent)),
-                      ],
-                    ),
-                  )
-                else
-                  Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding: const EdgeInsets.fromLTRB(7, 3, 7, 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.bgChip,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                    ),
-                    child: const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text('★', style: TextStyle(fontSize: 11, color: AppTheme.textMuted)),
-                        SizedBox(width: 3),
-                        Text(
-                          '暂无评分',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: AppTheme.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: tags
-                          .map(
-                            (tag) => Container(
-                              margin: const EdgeInsets.only(right: 6),
-                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: AppTheme.bgChip,
-                                borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                              ),
-                              child: Text(
-                                tag,
-                                style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
-                              ),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // 3. 详细信息卡片导引条（独立整行大热区，带摘要与高亮详情入口）
-          if (_hasDetailInfo())
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-              child: InkWell(
-                onTap: _openDialog,
-                borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+              ),
+              const SizedBox(width: 10),
+              // 收藏按钮（右上角唯一的实体胶囊，26vp 精致尺寸，顶部对齐）
+              InkWell(
+                onTap: _toggleFavorite,
+                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
                 child: Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.fromLTRB(10, 8, 8, 8),
+                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
                   decoration: BoxDecoration(
-                    color: AppTheme.bgCard,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                    color: _isFav ? const Color(0x24FA8C16) : AppTheme.bgCard,
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                    border: Border.all(
+                      width: 0.5,
+                      color: _isFav ? const Color(0x59FA8C16) : AppTheme.border,
+                    ),
                   ),
                   child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.article_outlined, size: 14, color: AppTheme.accent),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(
-                          _snippet(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                        ),
+                      Icon(
+                        _isFav ? Icons.star_rounded : Icons.star_outline_rounded,
+                        size: 13,
+                        color: _isFav ? AppTheme.accent : AppTheme.textSecondary,
                       ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.fromLTRB(6, 3, 4, 3),
-                        decoration: BoxDecoration(
-                          color: AppTheme.accentSoft,
-                          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '详情',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.accent,
-                              ),
-                            ),
-                            Icon(Icons.chevron_right_rounded, size: 12, color: AppTheme.accent),
-                          ],
+                      const SizedBox(width: 3),
+                      Text(
+                        _isFav ? '已收藏' : '收藏',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: _isFav ? AppTheme.accent : AppTheme.textSecondary,
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+
+        // 2. 元数据与详情行（纯信息展示，全靠左自然流式排布，整行点击直达详情弹窗）
+        Padding(
+          padding: EdgeInsets.fromLTRB(12, 2, 12 + widget.rightInset, 8),
+          child: InkWell(
+            onTap: _openDialog,
+            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+            child: Row(
+              children: [
+                // 评分微标（如有）
+                if (score.isNotEmpty)
+                  Container(
+                    margin: const EdgeInsets.only(right: 6),
+                    padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+                    decoration: BoxDecoration(
+                       color: AppTheme.accentSoft,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Text('★', style: TextStyle(fontSize: 10, color: AppTheme.accent)),
+                        const SizedBox(width: 2),
+                        Text(
+                          score,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppTheme.accent,
+                          ),
+                        ),
+                        const SizedBox(width: 1),
+                        const Text('分', style: TextStyle(fontSize: 9, color: AppTheme.accent)),
+                      ],
+                    ),
+                  ),
+
+                // 核心信息摘要（年份 · 分类 · 地区）
+                if (metaText.isNotEmpty)
+                  Flexible(
+                    child: Text(
+                      metaText,
+                      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+
+                // 紧贴左侧的纯文字更多入口（主题高亮色链接，无按钮底色）
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (metaText.isNotEmpty)
+                      const Text(
+                        ' · ',
+                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                      ),
+                    const Text(
+                      '更多',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.accent,
+                      ),
+                    ),
+                    const SizedBox(width: 1),
+                    const Icon(
+                      Icons.chevron_right_rounded,
+                      size: 10,
+                      color: AppTheme.accent,
+                    ),
+                  ],
+                ),
+              ],
             ),
-        ],
-      ),
+          ),
+        ),
+      ],
     );
   }
 }

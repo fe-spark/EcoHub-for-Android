@@ -6,6 +6,7 @@ import '../components/player/video_player_widget.dart';
 import '../utils/breakpoint.dart';
 import '../utils/app_orientation.dart';
 import '../utils/clipboard_sniffer.dart';
+import '../services/pip_manager.dart';
 
 /// 自定义播放页面，对齐 OHOS `CustomPlayerPage`
 class CustomPlayerPage extends StatefulWidget {
@@ -22,22 +23,32 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
   String _playUrl = '';
   int _reloadToken = 0;
   bool _isFull = false;
+  bool _isPipActive = false;
   final GlobalKey _videoKey = GlobalKey();
 
   @override
   void initState() {
     super.initState();
+    PipManager.instance.addListener(_onPipChanged);
+    _isPipActive = PipManager.instance.isPipActive;
     _applyRouteUrl(widget.url);
   }
 
   @override
   void dispose() {
+    PipManager.instance.removeListener(_onPipChanged);
     _inputController.dispose();
     try {
       SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } catch (_) {}
     super.dispose();
+  }
+
+  void _onPipChanged(bool active) {
+    if (mounted && _isPipActive != active) {
+      setState(() => _isPipActive = active);
+    }
   }
 
   void _applyRouteUrl(String raw) {
@@ -244,8 +255,8 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
       isFull: isFull,
       topInset: isFull ? padding.top : 0,
       bottomInset: isFull ? padding.bottom : 0,
-      leftInset: isFull ? (padding.left > AppTheme.safeEdge ? padding.left : AppTheme.safeEdge) : 0,
-      rightInset: isFull ? (padding.right > AppTheme.safeEdge ? padding.right : AppTheme.safeEdge) : 0,
+      leftInset: isFull ? padding.left : 0,
+      rightInset: isFull ? padding.right : 0,
       reloadToken: _reloadToken,
       onBack: () => _setFullscreen(false),
       onFullscreenChange: _setFullscreen,
@@ -257,6 +268,30 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_isPipActive && _hasPlayUrl) {
+      return PopScope(
+        canPop: false,
+        child: Scaffold(
+          backgroundColor: Colors.black,
+          body: SizedBox.expand(
+            child: VideoPlayerWidget(
+              key: _videoKey,
+              videoUrl: _playUrl,
+              title: '自定义播放',
+              showBack: false,
+              isFull: false,
+              topInset: 0,
+              bottomInset: 0,
+              leftInset: 0,
+              rightInset: 0,
+              reloadToken: _reloadToken,
+              onFullscreenChange: _setFullscreen,
+            ),
+          ),
+        ),
+      );
+    }
+
     final isFullMode = _isFull;
     final wide = Breakpoint.isWideWidth(MediaQuery.sizeOf(context).width);
 

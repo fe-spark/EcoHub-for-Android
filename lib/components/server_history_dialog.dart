@@ -20,12 +20,16 @@ Future<void> showServerHistoryDialog({
           final history = historyOf();
           return Dialog(
             backgroundColor: AppTheme.bgElevated,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(AppTheme.radiusLg),
               side: const BorderSide(color: AppTheme.border, width: 0.5),
             ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
+              constraints: BoxConstraints(
+                maxWidth: 400,
+                maxHeight: MediaQuery.of(context).size.height * 0.85,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -36,14 +40,13 @@ Future<void> showServerHistoryDialog({
                   ),
                   if (history.isEmpty)
                     const SizedBox(
-                      height: 140,
+                      height: 120,
                       child: Center(
                         child: Text('暂无历史记录', style: TextStyle(color: AppTheme.textMuted, fontSize: 13)),
                       ),
                     )
                   else
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxHeight: 220),
+                    Flexible(
                       child: ListView.separated(
                         shrinkWrap: true,
                         padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),

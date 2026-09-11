@@ -317,6 +317,18 @@ class _ProfileTabState extends State<ProfileTab> {
                           extraHighlight: _updateInfo.hasUpdate,
                           onTap: () => _handleCheckVersion(force: false),
                         ),
+                        _menuLine(),
+                        _buildMenuRow(
+                          icon: Icons.settings_rounded,
+                          title: '设置',
+                          onTap: () => NavUtil.openSettings(context),
+                        ),
+                        _menuLine(),
+                        _buildMenuRow(
+                          icon: Icons.info_outline_rounded,
+                          title: '关于',
+                          onTap: () => NavUtil.openAbout(context),
+                        ),
                       ],
                     ),
                   ),
