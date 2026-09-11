@@ -231,8 +231,14 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
 
   @override
   void resumeLocal(double targetSec, bool wasPlaying) {
-    // 投屏结束后重新挂载初始化本地播放器，以电视端进度无缝继续播放
-    _playback.initPlayer(widget.videoUrl, initialTime: targetSec, autoPlay: wasPlaying);
+    // 投屏选择器取消时本地播放器仍在：只 seek/play，避免 initPlayer 导致画面重载。
+    // parkLocal 销毁 controller 之后（真正结束投屏）才重新挂载。
+    final c = _playback.controller;
+    if (c != null && c.value.isInitialized) {
+      _playback.resumeLocal(targetSec, wasPlaying);
+    } else {
+      _playback.initPlayer(widget.videoUrl, initialTime: targetSec, autoPlay: wasPlaying);
+    }
     _syncAutoPip();
   }
 

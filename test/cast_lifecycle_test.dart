@@ -152,6 +152,16 @@ void main() {
       expect(ctrl.isBuffering, isFalse);
     });
 
+    test('resumeLocal after pauseLocal does not remount or enter opening state', () {
+      final ctrl = PlayerPlaybackController();
+      ctrl.pauseLocal();
+      ctrl.resumeLocal(42, true);
+      expect(ctrl.controller, isNull);
+      expect(ctrl.isOpening, isFalse);
+      expect(ctrl.isPlaying, isTrue);
+      expect(ctrl.playRequested, isTrue);
+    });
+
     test('remountCompleted sets isCompleted and duration without playing', () {
       final ctrl = PlayerPlaybackController();
       ctrl.remountCompleted(100.0, 100.0);
@@ -172,6 +182,43 @@ void main() {
       renderingControlURL: 'http://192.168.1.100:49152/RenderingControl/control',
       host: '192.168.1.100',
     );
+
+    testWidgets('openCastDialog delegates to sheet without pre-pausing so wasPlaying stays true', (tester) async {
+      final castCtrl = PlayerCastController();
+      final host = MockPlayerCastHost();
+      castCtrl.attachHost(host);
+
+      late BuildContext ctx;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                ctx = context;
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+
+      host.playing = true;
+      host.currentPos = 18.0;
+      host.pauseLocalCalled = false;
+      castCtrl.openCastDialog(ctx);
+      await tester.pump();
+
+      expect(castCtrl.startSec, 18.0);
+      expect(castCtrl.wasPlaying, isTrue);
+      expect(castCtrl.pausedForPicker, isTrue);
+      expect(host.pauseLocalCalled, isTrue);
+      expect(host.parkLocalCalled, isFalse);
+
+      Navigator.pop(ctx);
+      await tester.pumpAndSettle();
+      expect(host.resumeTargetSec, 18.0);
+      expect(host.resumeWasPlaying, isTrue);
+    });
 
     testWidgets('openCastSheet snapshots startSec, wasPlaying and pauses local player', (tester) async {
       final castCtrl = PlayerCastController();
@@ -209,6 +256,7 @@ void main() {
       expect(castCtrl.wasPlaying, isTrue);
       expect(castCtrl.pausedForPicker, isTrue);
       expect(host.pauseLocalCalled, isTrue);
+      expect(host.parkLocalCalled, isFalse);
 
       // Dismiss the bottom sheet
       Navigator.pop(ctx);
@@ -217,6 +265,8 @@ void main() {
       expect(castCtrl.pausedForPicker, isFalse);
       expect(host.resumeTargetSec, 42.0);
       expect(host.resumeWasPlaying, isTrue);
+      // 取消选择器不得销毁本地播放器
+      expect(host.parkLocalCalled, isFalse);
     });
 
     test('bindCastDevice parks local player, exits fullscreen, pushes volume and disables PiP', () {

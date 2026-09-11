@@ -58,17 +58,13 @@ class PlayerCastController {
   void openCastDialog(BuildContext context) {
     final host = _host;
     if (host == null || host.videoUrl.trim().isEmpty) return;
-    startSec = host.currentPosition;
-    wasPlaying = host.isPlaying;
-    if (wasPlaying) {
-      pausedForPicker = true;
-      host.pauseLocal();
-    }
+    // 只走 openCastSheet：它会快照 wasPlaying 并 pause。这里先 pause 会把
+    // isPlaying 打成 false，sheet 再快照会把 wasPlaying 覆盖错。
     openCastSheet(
       context,
       mediaUrl: host.videoUrl,
       mediaTitle: host.title,
-      currentPosition: startSec,
+      currentPosition: host.currentPosition,
       totalDuration: host.totalDuration,
     );
   }
