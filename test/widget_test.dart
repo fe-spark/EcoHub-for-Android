@@ -1,3 +1,5 @@
+import 'dart:ui' show DisplayFeature, DisplayFeatureState, DisplayFeatureType;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,7 @@ import 'package:ecohub_android/utils/app_version_util.dart';
 import 'package:ecohub_android/utils/clipboard_sniffer.dart';
 import 'package:ecohub_android/utils/nav_util.dart';
 import 'package:ecohub_android/utils/breakpoint.dart';
+import 'package:ecohub_android/utils/split_cutout_insets.dart';
 import 'package:ecohub_android/common/app_theme.dart';
 import 'package:ecohub_android/components/filter_tag_row.dart';
 import 'package:ecohub_android/components/filter_bar.dart';
@@ -15,8 +18,40 @@ import 'package:ecohub_android/components/dynamic_sliver_appbar.dart';
 import 'package:ecohub_android/components/sticky_appbar.dart';
 import 'package:ecohub_android/components/home_banner.dart';
 import 'package:ecohub_android/models/film_models.dart';
+import 'package:ecohub_android/components/film_card.dart';
+import 'package:ecohub_android/components/film_grid.dart';
+import 'package:ecohub_android/components/film_row.dart';
+import 'package:ecohub_android/components/player/play_detail_panel.dart';
+import 'package:ecohub_android/components/player/video_player_widget.dart';
+import 'package:ecohub_android/components/player/player_skin_view.dart';
+import 'package:ecohub_android/components/player/player_video_surface.dart';
+import 'package:ecohub_android/components/player/player_scale.dart';
+import 'package:ecohub_android/components/player/player_playback_controller.dart';
 import 'package:ecohub_android/pages/server_config_page.dart';
+import 'package:ecohub_android/pages/daily_updates_tab.dart';
+import 'package:ecohub_android/pages/settings_page.dart';
+import 'package:ecohub_android/pages/profile_tab.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+void _setViewInsets(WidgetTester tester, FakeViewPadding insets) {
+  tester.view.padding = insets;
+  tester.view.viewPadding = insets;
+}
+
+void _resetViewInsets(WidgetTester tester) {
+  tester.view.resetPadding();
+  tester.view.resetViewPadding();
+}
+
+SplitCutoutInsets _cutoutOf(BuildContext context) {
+  final mq = MediaQuery.of(context);
+  return SplitCutoutInsets.resolve(
+    mq.viewPadding,
+    padding: mq.padding,
+    displayFeatures: mq.displayFeatures,
+    size: mq.size,
+  );
+}
 
 void _mockClipboard(WidgetTester tester, String text) {
   tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
@@ -580,6 +615,1130 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('SplitCutoutInsets Tests', () {
+    test('asymmetric padding zeroes non-cutout side', () {
+      final s = SplitCutoutInsets.resolve(const EdgeInsets.fromLTRB(59, 0, 48, 0));
+      expect(s.left, 59);
+      expect(s.right, 0);
+
+      final s2 = SplitCutoutInsets.resolve(const EdgeInsets.fromLTRB(48, 0, 59, 0));
+      expect(s2.left, 0);
+      expect(s2.right, 59);
+    });
+
+    test('right-only padding insets right', () {
+      final s = SplitCutoutInsets.resolve(const EdgeInsets.fromLTRB(0, 0, 64, 0));
+      expect(s.left, 0);
+      expect(s.right, 64);
+    });
+
+    test('left-only padding insets left', () {
+      final s = SplitCutoutInsets.resolve(const EdgeInsets.fromLTRB(64, 0, 0, 0));
+      expect(s.left, 64);
+      expect(s.right, 0);
+    });
+
+    test('equal non-zero keeps both', () {
+      final s = SplitCutoutInsets.resolve(const EdgeInsets.fromLTRB(48, 0, 48, 0));
+      expect(s.left, 48);
+      expect(s.right, 48);
+    });
+
+    test('both zero stays zero', () {
+      final s = SplitCutoutInsets.resolve(EdgeInsets.zero);
+      expect(s.left, 0);
+      expect(s.right, 0);
+    });
+
+    test('right punch hole from displayFeatures when padding is 0', () {
+      const hole = DisplayFeature(
+        bounds: Rect.fromLTWH(984, 180, 40, 40),
+        type: DisplayFeatureType.cutout,
+        state: DisplayFeatureState.unknown,
+      );
+      final s = SplitCutoutInsets.resolve(
+        EdgeInsets.zero,
+        displayFeatures: const [hole],
+        size: const Size(1024, 466),
+      );
+      expect(s.left, 0);
+      expect(s.right, 40);
+    });
+
+    test('left punch hole from displayFeatures when padding is 0', () {
+      const hole = DisplayFeature(
+        bounds: Rect.fromLTWH(0, 180, 40, 40),
+        type: DisplayFeatureType.cutout,
+        state: DisplayFeatureState.unknown,
+      );
+      final s = SplitCutoutInsets.resolve(
+        EdgeInsets.zero,
+        displayFeatures: const [hole],
+        size: const Size(1024, 466),
+      );
+      expect(s.left, 40);
+      expect(s.right, 0);
+    });
+
+    test('right punch hole zeros left padding', () {
+      const hole = DisplayFeature(
+        bounds: Rect.fromLTWH(984, 180, 40, 40),
+        type: DisplayFeatureType.cutout,
+        state: DisplayFeatureState.unknown,
+      );
+      final s = SplitCutoutInsets.resolve(
+        const EdgeInsets.fromLTRB(64, 0, 0, 0),
+        displayFeatures: const [hole],
+        size: const Size(1024, 466),
+      );
+      expect(s.left, 0);
+      expect(s.right, 40);
+    });
+
+    testWidgets('displayFeatures survive SafeArea consuming padding', (tester) async {
+      tester.view.physicalSize = const Size(1024, 466);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      const hole = DisplayFeature(
+        bounds: Rect.fromLTWH(984, 180, 40, 40),
+        type: DisplayFeatureType.cutout,
+        state: DisplayFeatureState.unknown,
+      );
+
+      late SplitCutoutInsets cutout;
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(
+            size: Size(1024, 466),
+            padding: EdgeInsets.fromLTRB(64, 0, 0, 0),
+            viewPadding: EdgeInsets.fromLTRB(64, 0, 0, 0),
+            displayFeatures: [hole],
+          ),
+          child: SafeArea(
+            child: Builder(
+              builder: (context) {
+                final mq = MediaQuery.of(context);
+                cutout = SplitCutoutInsets.resolve(
+                  mq.viewPadding,
+                  padding: mq.padding,
+                  displayFeatures: mq.displayFeatures,
+                  size: mq.size,
+                );
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+
+      expect(cutout.left, 0);
+      expect(cutout.right, 40);
+    });
+
+    testWidgets('PlayerPlaybackController parkForCast releases controller and resets states', (tester) async {
+      final ctrl = PlayerPlaybackController();
+      ctrl.parkForCast();
+      expect(ctrl.controller, isNull);
+      expect(ctrl.isPlaying, isFalse);
+      expect(ctrl.isBuffering, isFalse);
+      expect(ctrl.isOpening, isFalse);
+    });
+  });
+
+  group('FilmGrid and FilmCard Layout Tests', () {
+    test('filmCardAspectRatio and gridAspectRatio calculations', () {
+      final ratio1 = Breakpoint.filmCardAspectRatio(107.9);
+      expect(ratio1, closeTo(0.5319, 0.001));
+
+      final ratio2 = Breakpoint.filmCardAspectRatio(100.0);
+      expect(ratio2, closeTo(0.5235, 0.001));
+
+      final gridRatio = Breakpoint.gridAspectRatio(
+        width: 350.0,
+        columns: 3,
+        horizontalPadding: 24.0,
+        crossAxisSpacing: 8.0,
+      );
+      expect(gridRatio, closeTo(0.5272, 0.001));
+    });
+
+    testWidgets('FilmGrid does not overflow in landscape split-screen width', (tester) async {
+      tester.view.physicalSize = const Size(890, 390);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final mockFilms = List.generate(
+        6,
+        (i) => MovieBasicInfo(
+          id: i + 1,
+          name: '测试影片 $i',
+          subTitle: '2024 · 动作',
+          remarks: '更新至第${i + 1}集',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 350,
+              height: 390,
+              child: FilmGrid(
+                films: mockFilms,
+                columns: 3,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('测试影片 0'), findsOneWidget);
+    });
+
+    testWidgets('FilmCard does not overflow even under tight height constraint', (tester) async {
+      final film = MovieBasicInfo(
+        id: 1,
+        name: '很长很长的影片标题测试文字',
+        subTitle: '2024 · 剧情 · 中国大陆',
+        remarks: 'HD国语',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 108,
+              height: 190,
+              child: FilmCard(film: film),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('很长很长的影片标题测试文字'), findsOneWidget);
+    });
+
+    testWidgets('PlayDetailPanel layout positions in landscape split', (tester) async {
+      tester.view.physicalSize = const Size(890, 390);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final sources = [
+        PlaySource(
+          id: 's1',
+          sourceId: 'src_1',
+          name: '默认源',
+          linkList: List.generate(150, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i')),
+        ),
+        PlaySource(
+          id: 's2',
+          sourceId: 'src_2',
+          name: '蓝光极速源',
+          linkList: List.generate(150, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i')),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                const Expanded(flex: 7, child: SizedBox()),
+                Expanded(
+                  flex: 5,
+                  child: PlayDetailPanel(
+                    filmId: '1',
+                    name: '测试影片标题',
+                    sources: sources,
+                    playingSourceId: 's1',
+                    viewingSourceId: 's1',
+                    episodeIndex: 0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      // Test starting in portrait and rotating to landscape
+      tester.view.physicalSize = const Size(390, 890);
+      tester.view.devicePixelRatio = 1.0;
+      await tester.pumpAndSettle();
+
+      final portraitGroup0 = tester.getTopLeft(find.text('1-100'));
+      expect(portraitGroup0.dx, greaterThan(0));
+
+      // Now rotate to landscape
+      tester.view.physicalSize = const Size(890, 390);
+      await tester.pumpAndSettle();
+
+      final rotatedGroup0 = tester.getTopLeft(find.text('1-100'));
+      final rotatedSource0 = tester.getTopLeft(find.text('默认源'));
+
+      // Both should be left-aligned in the flex: 5 panel (starting at ~519.2)
+      // group0 text is at 519.2 + 12 (padding) + 8 (container) + 16 (chip padding) = 555.2
+      // source0 text is at 519.2 + 12 (padding) + 12 (padding) + 16 (chip padding) = 559.2
+      expect(rotatedGroup0.dx, closeTo(555.2, 1.0));
+      expect(rotatedSource0.dx, closeTo(559.2, 1.0));
+    });
+
+    testWidgets('PlayDetailPanel precisely aligns selected source chip to leading edge on initial entry and clicks in split', (tester) async {
+      tester.view.physicalSize = const Size(800, 360);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      final sources = [
+        PlaySource(id: 's1', sourceId: 'src_1', name: '金鹰1(JY)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's2', sourceId: 'src_2', name: '速博(SUBO)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's3', sourceId: 'src_3', name: 'HD(SN)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's4', sourceId: 'src_4', name: '金鹰2(JY)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's5', sourceId: 'src_5', name: '红牛(HN)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's6', sourceId: 'src_6', name: '非凡(FF)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's7', sourceId: 'src_7', name: '暴风(BF)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's8', sourceId: 'src_8', name: '量子(LZ)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's9', sourceId: 'src_9', name: '卧龙(WL)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+        PlaySource(id: 's10', sourceId: 'src_10', name: '极速(JS)', linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i'))),
+      ];
+
+      String viewingId = 's2';
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              return Scaffold(
+                body: Row(
+                  children: [
+                    const Expanded(flex: 7, child: SizedBox()),
+                    Expanded(
+                      flex: 5,
+                      child: PlayDetailPanel(
+                        filmId: '1',
+                        name: '测试影片标题',
+                        sources: sources,
+                        playingSourceId: 's2',
+                        viewingSourceId: viewingId,
+                        episodeIndex: 2,
+                        isSplit: true,
+                        onViewSource: (id) => setState(() => viewingId = id),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final panelLeft = 800 * 7 / 12; // 466.666
+
+      // 1. 首次进入时恢复播放非首个源，选中源胶囊必须精确对齐首位内边距，绝不被切掉一半
+      final suboFinder = find.text('速博(SUBO)');
+      final suboChip = find.ancestor(of: suboFinder, matching: find.byType(InkWell)).first;
+      final suboRect = tester.getRect(suboChip);
+      expect(suboRect.left - panelLeft, closeTo(12.0, 1.0));
+
+      // 2. 点击切换到 HD(SN) 后精确对齐首位，且前一个 tag 完全移出视口左侧
+      await tester.tap(find.text('HD(SN)'));
+      await tester.pumpAndSettle();
+      final hdsnFinder = find.text('HD(SN)');
+      final hdsnChip = find.ancestor(of: hdsnFinder, matching: find.byType(InkWell)).first;
+      final hdsnRect = tester.getRect(hdsnChip);
+      expect(hdsnRect.left - panelLeft, closeTo(12.0, 1.0));
+
+      // 3. 连续依次点击后续源：金鹰2(JY)、红牛(HN)、非凡(FF)，依次验证零累积误差对齐与前项完全移出
+      await tester.tap(find.text('金鹰2(JY)'));
+      await tester.pumpAndSettle();
+      final jy2Finder = find.text('金鹰2(JY)');
+      final jy2Chip = find.ancestor(of: jy2Finder, matching: find.byType(InkWell)).first;
+      final jy2Rect = tester.getRect(jy2Chip);
+      expect(jy2Rect.left - panelLeft, closeTo(12.0, 1.0));
+
+      await tester.tap(find.text('红牛(HN)'));
+      await tester.pumpAndSettle();
+      final hnFinder = find.text('红牛(HN)');
+      final hnChip = find.ancestor(of: hnFinder, matching: find.byType(InkWell)).first;
+      final hnRect = tester.getRect(hnChip);
+      expect(hnRect.left - panelLeft, closeTo(12.0, 1.0));
+
+      await tester.tap(find.text('非凡(FF)'));
+      await tester.pumpAndSettle();
+      final ffFinder = find.text('非凡(FF)');
+      final ffChip = find.ancestor(of: ffFinder, matching: find.byType(InkWell)).first;
+      final ffRect = tester.getRect(ffChip);
+      expect(ffRect.left - panelLeft, closeTo(12.0, 1.0));
+    });
+
+    testWidgets('Landscape split mode honors right safe area insets', (tester) async {
+      tester.view.physicalSize = const Size(890, 390);
+      tester.view.devicePixelRatio = 1.0;
+      _setViewInsets(tester, const FakeViewPadding(right: 48.0));
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        _resetViewInsets(tester);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              final cutout = _cutoutOf(context);
+              return Scaffold(
+                body: Row(
+                  children: [
+                    const Expanded(flex: 7, child: SizedBox()),
+                    Expanded(
+                      flex: 5,
+                      child: Container(
+                        color: AppTheme.bgElevated,
+                        child: SafeArea(
+                          top: true,
+                          bottom: true,
+                          left: false,
+                          right: false,
+                          child: Padding(
+                            padding: EdgeInsets.only(right: cutout.right),
+                            child: const Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('左侧标题'),
+                                Text('右侧收藏按钮'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final buttonTopRight = tester.getTopRight(find.text('右侧收藏按钮'));
+      // In 890 width screen with 48px right inset, rightmost widget must not exceed 890 - 48 = 842
+      expect(buttonTopRight.dx, closeTo(890.0 - 48.0, 0.01));
+    });
+
+    testWidgets('Landscape split mode adapts insets dynamically based on cutout side', (tester) async {
+      tester.view.physicalSize = const Size(1024, 466);
+      tester.view.devicePixelRatio = 1.0;
+      // 仅左侧有切口时，右侧详情贴齐平整短边
+      _setViewInsets(tester, const FakeViewPadding(left: 59.0, right: 0.0));
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        _resetViewInsets(tester);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              final cutout = _cutoutOf(context);
+
+              return Scaffold(
+                body: Row(
+                  children: [
+                    const Expanded(flex: 7, child: SizedBox()),
+                    Expanded(
+                      flex: 5,
+                      child: Container(
+                        color: AppTheme.bgElevated,
+                        child: Padding(
+                          padding: EdgeInsets.only(right: cutout.right),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('左侧'),
+                              Text('贴边右侧按钮'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 当刘海在左侧时，右侧按钮紧贴屏幕边缘（1024），不被向内挤压
+      final buttonPos = tester.getTopRight(find.text('贴边右侧按钮'));
+      expect(buttonPos.dx, closeTo(1024.0, 0.01));
+    });
+
+    testWidgets('Landscape split zeroes right inset when cutout is on left with right system nav inset', (tester) async {
+      tester.view.physicalSize = const Size(1024, 466);
+      tester.view.devicePixelRatio = 1.0;
+      _setViewInsets(tester, const FakeViewPadding(left: 59.0, right: 48.0));
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        _resetViewInsets(tester);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              final cutout = _cutoutOf(context);
+
+              return Scaffold(
+                body: Row(
+                  children: [
+                    const Expanded(flex: 7, child: SizedBox()),
+                    Expanded(
+                      flex: 5,
+                      child: Container(
+                        color: AppTheme.bgElevated,
+                        child: Padding(
+                          padding: EdgeInsets.only(right: cutout.right),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('左侧'),
+                              Text('无刘海贴边右侧按钮'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final buttonPos = tester.getTopRight(find.text('无刘海贴边右侧按钮'));
+      expect(buttonPos.dx, closeTo(1024.0, 0.01));
+    });
+
+    testWidgets('Landscape split ignores left padding when punch hole is on right', (tester) async {
+      tester.view.physicalSize = const Size(1024, 466);
+      tester.view.devicePixelRatio = 1.0;
+      _setViewInsets(tester, const FakeViewPadding(left: 64.0));
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        _resetViewInsets(tester);
+      });
+
+      const hole = DisplayFeature(
+        bounds: Rect.fromLTWH(984, 180, 40, 40),
+        type: DisplayFeatureType.cutout,
+        state: DisplayFeatureState.unknown,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (outer) {
+              return MediaQuery(
+                data: MediaQuery.of(outer).copyWith(displayFeatures: const [hole]),
+                child: Builder(
+                  builder: (context) {
+                    final cutout = _cutoutOf(context);
+                    expect(cutout.left, 0);
+                    return Scaffold(
+                      body: Row(
+                        children: [
+                          const Expanded(flex: 7, child: SizedBox()),
+                          Expanded(
+                            flex: 5,
+                            child: Padding(
+                              padding: EdgeInsets.only(right: cutout.right),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('左侧'),
+                                  Text('右侧按钮'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final buttonPos = tester.getTopRight(find.text('右侧按钮'));
+      expect(buttonPos.dx, closeTo(1024.0 - 40.0, 0.01));
+    });
+
+    testWidgets('Landscape split insets right from punch-hole displayFeature', (tester) async {
+      tester.view.physicalSize = const Size(1024, 466);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() => tester.view.resetPhysicalSize());
+
+      const hole = DisplayFeature(
+        bounds: Rect.fromLTWH(984, 180, 40, 40),
+        type: DisplayFeatureType.cutout,
+        state: DisplayFeatureState.unknown,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (outer) {
+              return MediaQuery(
+                data: MediaQuery.of(outer).copyWith(displayFeatures: const [hole]),
+                child: Builder(
+                  builder: (context) {
+                    final cutout = _cutoutOf(context);
+                    return Scaffold(
+                      body: Row(
+                        children: [
+                          const Expanded(flex: 7, child: SizedBox()),
+                          Expanded(
+                            flex: 5,
+                            child: Padding(
+                              padding: EdgeInsets.only(right: cutout.right),
+                              child: const Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text('左侧'),
+                                  Text('避让挖孔'),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final buttonPos = tester.getTopRight(find.text('避让挖孔'));
+      expect(buttonPos.dx, closeTo(1024.0 - 40.0, 0.01));
+    });
+
+    testWidgets('PlayDetailPanel uses 3 columns when isSplit is true on wide screens', (tester) async {
+      tester.view.physicalSize = const Size(1024, 466);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      final sources = [
+        PlaySource(
+          id: 's1',
+          sourceId: 'src_1',
+          name: '默认源',
+          linkList: List.generate(10, (i) => MovieUrlInfo(episode: '第${i + 1}集', link: 'url$i')),
+        ),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Row(
+              children: [
+                const Expanded(flex: 7, child: SizedBox()),
+                Expanded(
+                  flex: 5,
+                  child: PlayDetailPanel(
+                    filmId: '1',
+                    name: '测试影片标题',
+                    sources: sources,
+                    playingSourceId: 's1',
+                    viewingSourceId: 's1',
+                    episodeIndex: 0,
+                    isSplit: true,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Check episode 1, 2, 3 positions - row 1 should contain 3 columns
+      final ep1 = tester.getTopLeft(find.text('第1集'));
+      final ep2 = tester.getTopLeft(find.text('第2集'));
+      final ep3 = tester.getTopLeft(find.text('第3集'));
+      final ep4 = tester.getTopLeft(find.text('第4集'));
+
+      // ep1, ep2, ep3 are in the same horizontal row (same dy)
+      expect(ep1.dy, equals(ep2.dy));
+      expect(ep2.dy, equals(ep3.dy));
+      // ep4 is wrapped to the next row (greater dy)
+      expect(ep4.dy, greaterThan(ep1.dy));
+    });
+
+    testWidgets('Split mode video back button stays at edge when cutout is on right', (tester) async {
+      tester.view.physicalSize = const Size(1024, 466);
+      tester.view.devicePixelRatio = 1.0;
+      _setViewInsets(tester, const FakeViewPadding(right: 64.0, left: 0.0));
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        _resetViewInsets(tester);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              final cutout = _cutoutOf(context);
+              return Scaffold(
+                body: Row(
+                  children: [
+                    Expanded(
+                      flex: 7,
+                      child: VideoPlayerWidget(
+                        videoUrl: 'http://example.com/test.mp4',
+                        title: '测试',
+                        showBack: true,
+                        isFull: false,
+                        edgeHud: true,
+                        leftInset: cutout.left,
+                        rightInset: 16.0,
+                      ),
+                    ),
+                    const Expanded(flex: 5, child: SizedBox()),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Back icon should be near left edge (_edge(6, 0) = 6)
+      final backButton = find.byIcon(Icons.arrow_back_ios_new_rounded);
+      expect(backButton, findsOneWidget);
+      final backButtonPos = tester.getTopLeft(backButton);
+      // Container left is 6.0, icon centered in 36x36 container (6 + (36 - 18) / 2 = 15)
+      expect(backButtonPos.dx, closeTo(15.0, 1.0));
+    });
+
+    testWidgets('Split mode video back button avoids cutout when cutout is on left', (tester) async {
+      tester.view.physicalSize = const Size(1024, 466);
+      tester.view.devicePixelRatio = 1.0;
+      _setViewInsets(tester, const FakeViewPadding(left: 64.0, right: 0.0));
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        _resetViewInsets(tester);
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) {
+              final cutout = _cutoutOf(context);
+              return Scaffold(
+                body: Row(
+                  children: [
+                    Expanded(
+                      flex: 7,
+                      child: VideoPlayerWidget(
+                        videoUrl: 'http://example.com/test.mp4',
+                        title: '测试',
+                        showBack: true,
+                        isFull: false,
+                        edgeHud: true,
+                        leftInset: cutout.left,
+                        rightInset: 16.0,
+                      ),
+                    ),
+                    const Expanded(flex: 5, child: SizedBox()),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Back icon should be offset past the 64px cutout
+      final backButton = find.byIcon(Icons.arrow_back_ios_new_rounded);
+      expect(backButton, findsOneWidget);
+      final backButtonPos = tester.getTopLeft(backButton);
+      // Container left is 64.0, icon centered in 36x36 container (64 + 9 = 73)
+      expect(backButtonPos.dx, closeTo(73.0, 1.0));
+    });
+
+    testWidgets('FilmRow honors left and right safe area insets via padding', (tester) async {
+      tester.view.physicalSize = const Size(800, 600);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = FakeViewPadding(left: 48.0, right: 36.0);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetPadding();
+      });
+
+      final testFilms = [
+        MovieBasicInfo(id: 1, name: '片A'),
+        MovieBasicInfo(id: 2, name: '片B'),
+      ];
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: FilmRow(
+              title: '推荐电影',
+              films: testFilms,
+              leftInset: 48.0,
+              rightInset: 36.0,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 标题起始位置：AppTheme.spaceLg (16) + leftInset (48) + 指示条宽与间距 (3.5 + 8) ≈ 75.5
+      final titlePos = tester.getTopLeft(find.text('推荐电影'));
+      expect(titlePos.dx, closeTo(16.0 + 48.0 + 3.5 + 8.0, 1.0));
+
+      // 查看全部按钮右侧：800 - (16 + 36) = 748
+      final morePos = tester.getTopRight(find.text('查看全部'));
+      expect(morePos.dx, lessThanOrEqualTo(800.0 - 36.0 - 16.0));
+
+      // 第一张卡片左侧起始位置：AppTheme.spaceLg (16) + leftInset (48) = 64
+      final firstCardPos = tester.getTopLeft(find.text('片A'));
+      expect(firstCardPos.dx, greaterThanOrEqualTo(64.0));
+    });
+
+    testWidgets('PlayerSkinView portrait back header has highest layer and responds to click even when error pad is active', (tester) async {
+      bool backClicked = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 400,
+              height: 225,
+              child: PlayerSkinView(
+                isFull: false,
+                showHud: false,
+                showBack: true,
+                title: '测试标题',
+                isPlaying: false,
+                isBuffering: false,
+                errorText: '视频加载失败: 403 Forbidden',
+                currentPosition: Duration.zero,
+                totalDuration: Duration.zero,
+                onBack: () => backClicked = true,
+                onTogglePlay: () {},
+                onToggleFull: () {},
+                onToggleMute: () {},
+                onSpeed: () {},
+                onRetry: () {},
+                onSeekBack10: () {},
+                onSeekFwd10: () {},
+                onSeekTo: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 错误垫片正常展示
+      expect(find.text('播放异常'), findsOneWidget);
+
+      // 返回按钮正常可见且可点击
+      final backBtn = find.byIcon(Icons.arrow_back_ios_new_rounded);
+      expect(backBtn, findsOneWidget);
+
+      await tester.tap(backBtn);
+      await tester.pumpAndSettle();
+
+      // 验证点击成功穿透/最顶层响应，而不是被错误层拦截
+      expect(backClicked, isTrue);
+    });
+
+    testWidgets('PlayerSkinView fullscreen header is visible and clickable on error', (tester) async {
+      bool backClicked = false;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 800,
+              height: 400,
+              child: PlayerSkinView(
+                isFull: true,
+                showHud: false,
+                showBack: true,
+                title: '全屏测试标题',
+                isPlaying: false,
+                isBuffering: false,
+                errorText: '视频加载失败: 403 Forbidden',
+                currentPosition: Duration.zero,
+                totalDuration: Duration.zero,
+                onBack: () => backClicked = true,
+                onTogglePlay: () {},
+                onToggleFull: () {},
+                onToggleMute: () {},
+                onSpeed: () {},
+                onRetry: () {},
+                onSeekBack10: () {},
+                onSeekFwd10: () {},
+                onSeekTo: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('播放异常'), findsOneWidget);
+      expect(find.text('全屏测试标题'), findsOneWidget);
+
+      final backBtn = find.byIcon(Icons.arrow_back_ios_new_rounded);
+      expect(backBtn, findsOneWidget);
+
+      await tester.tap(backBtn);
+      await tester.pumpAndSettle();
+
+      expect(backClicked, isTrue);
+    });
+
+    testWidgets('PlayerSkinView error prompt content stays within safe area when cutout is on left', (tester) async {
+      const cutoutWidth = 64.0;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              height: 300,
+              child: PlayerSkinView(
+                isFull: false,
+                edgeHud: true,
+                showHud: false,
+                showBack: true,
+                title: '分屏测试',
+                leftInset: cutoutWidth,
+                isPlaying: false,
+                isBuffering: false,
+                errorText: '视频加载失败: PlatformException(VideoError, Failed to load video...)',
+                currentPosition: Duration.zero,
+                totalDuration: Duration.zero,
+                onBack: () {},
+                onTogglePlay: () {},
+                onToggleFull: () {},
+                onToggleMute: () {},
+                onSpeed: () {},
+                onRetry: () {},
+                onSeekBack10: () {},
+                onSeekFwd10: () {},
+                onSeekTo: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final errorTextFinder = find.text('视频加载失败: PlatformException(VideoError, Failed to load video...)');
+      expect(errorTextFinder, findsOneWidget);
+
+      final errorTextPos = tester.getTopLeft(errorTextFinder);
+      // 必须完整避开左侧 64px 挖孔（且保留至少 16px 呼吸间距，位置应 >= 80px）
+      expect(errorTextPos.dx, greaterThanOrEqualTo(cutoutWidth + 16.0));
+    });
+
+    testWidgets('PlayerSkinView does not show loading card when paused even if buffering', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              height: 300,
+              child: PlayerSkinView(
+                isFull: false,
+                edgeHud: false,
+                showHud: true,
+                showBack: true,
+                title: '测试',
+                isPlaying: false, // 已暂停
+                isBuffering: true, // 仍处于底层缓冲中
+                isOpening: false,
+                currentPosition: const Duration(seconds: 10),
+                totalDuration: const Duration(seconds: 60),
+                onBack: () {},
+                onTogglePlay: () {},
+                onToggleFull: () {},
+                onToggleMute: () {},
+                onSpeed: () {},
+                onRetry: () {},
+                onSeekBack10: () {},
+                onSeekFwd10: () {},
+                onSeekTo: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 暂停状态下不应该显示“加载中...”或“正在打开...”
+      expect(find.text('加载中...'), findsNothing);
+      expect(find.text('正在打开...'), findsNothing);
+      // 应该展示中心播放大按钮
+      expect(find.byIcon(Icons.play_arrow_rounded), findsOneWidget);
+    });
+
+    testWidgets('PlayerVideoSurface displays poster in opening phase before video ready', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: SizedBox(
+              width: 500,
+              height: 300,
+              child: PlayerVideoSurface(
+                controller: null,
+                scaleMode: PlayerScaleMode.fit,
+                poster: 'https://example.com/poster.jpg',
+                isOpening: true,
+                isReady: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.byType(Image), findsOneWidget);
+    });
+  });
+
+  group('DailyUpdatesTab Tests', () {
+    testWidgets('DailyUpdatesTab state supports multiple tickers for refresh recreation', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: DailyUpdatesTab(),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final state = tester.state(find.byType(DailyUpdatesTab));
+      expect(state, isA<TickerProvider>());
+      final tickerProvider = state as TickerProvider;
+
+      final ticker1 = tickerProvider.createTicker((_) {});
+      final ticker2 = tickerProvider.createTicker((_) {});
+
+      expect(ticker1, isNotNull);
+      expect(ticker2, isNotNull);
+
+      ticker1.dispose();
+      ticker2.dispose();
+    });
+
+    testWidgets('VideoPlayerWidget handles episode switching without stale disposed errors', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: VideoPlayerWidget(
+              videoUrl: 'http://example.com/ep1.mp4',
+              title: '第1集',
+              isFull: true,
+              reloadToken: 1,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: VideoPlayerWidget(
+              videoUrl: 'http://example.com/ep2.mp4',
+              title: '第2集',
+              isFull: true,
+              reloadToken: 2,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('第2集'), findsOneWidget);
+    });
+  });
+
+  group('SettingsPage and ProfileTab Tests', () {
+    testWidgets('SettingsPage renders sections and switches properly', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SettingsPage(),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('设置'), findsOneWidget);
+      expect(find.text('播放'), findsOneWidget);
+      expect(find.text('回到桌面开启画中画'), findsOneWidget);
+      expect(find.text('自动连播下一集'), findsOneWidget);
+      expect(find.text('通用'), findsOneWidget);
+      expect(find.text('清理本地缓存'), findsOneWidget);
+
+      // Tap on 清理本地缓存 to open dialog
+      await tester.tap(find.text('清理本地缓存'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('确定清理本地缓存吗？'), findsOneWidget);
+      expect(find.text('取消'), findsOneWidget);
+      expect(find.text('清理'), findsOneWidget);
+
+      // Dismiss dialog
+      await tester.tap(find.text('取消'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('确定清理本地缓存吗？'), findsNothing);
+    });
+
+    testWidgets('ProfileTab renders Settings menu item', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(body: ProfileTab()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('设置'), findsOneWidget);
+      expect(find.text('关于'), findsOneWidget);
+      expect(find.text('自定义播放'), findsOneWidget);
+      expect(find.text('版本检查'), findsOneWidget);
     });
   });
 }

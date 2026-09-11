@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../common/app_theme.dart';
-import '../../utils/format_util.dart';
 import 'player_gesture_handler.dart';
 import 'player_error_pad.dart';
+import 'player_bars.dart';
+import 'player_loading_card.dart';
 
 /// 播放器覆盖层控制栏组件（全量对齐鸿蒙端 PlayerSkin）
 class PlayerSkinView extends StatelessWidget {
@@ -29,6 +30,8 @@ class PlayerSkinView extends StatelessWidget {
   final double leftInset;
   final double rightInset;
   final double bottomInset;
+  final String castDeviceName;
+  final bool canCast;
   final VoidCallback onBack;
   final VoidCallback onTogglePlay;
   final VoidCallback onToggleFull;
@@ -36,12 +39,15 @@ class PlayerSkinView extends StatelessWidget {
   final VoidCallback onSpeed;
   final VoidCallback? onScale;
   final VoidCallback onRetry;
-  final VoidCallback? onCopyError;
+  final VoidCallback? onErrorDetail;
   final VoidCallback? onPrev;
   final VoidCallback? onNext;
   final VoidCallback onSeekBack10;
   final VoidCallback onSeekFwd10;
   final ValueChanged<Duration> onSeekTo;
+  final VoidCallback? onCast;
+  final VoidCallback? onStopCast;
+  final VoidCallback? onPip;
 
   const PlayerSkinView({
     super.key,
@@ -68,6 +74,8 @@ class PlayerSkinView extends StatelessWidget {
     this.leftInset = 0,
     this.rightInset = 0,
     this.bottomInset = 0,
+    this.castDeviceName = '',
+    this.canCast = false,
     required this.onBack,
     required this.onTogglePlay,
     required this.onToggleFull,
@@ -75,239 +83,39 @@ class PlayerSkinView extends StatelessWidget {
     required this.onSpeed,
     this.onScale,
     required this.onRetry,
-    this.onCopyError,
+    this.onErrorDetail,
     this.onPrev,
     this.onNext,
     required this.onSeekBack10,
     required this.onSeekFwd10,
     required this.onSeekTo,
+    this.onCast,
+    this.onStopCast,
+    this.onPip,
   });
 
-  bool get _isLoading => (isBuffering || isOpening) && errorText.isEmpty;
+  bool get _isLoading {
+    if (castDeviceName.isNotEmpty || errorText.isNotEmpty) return false;
+    if (isOpening) return true;
+    // 非播放中（已暂停/播放完毕）不展示加载卡片，避免暂停时持续显示“加载中”
+    if (!isPlaying || isCompleted) return false;
+    return isBuffering;
+  }
 
   double _edge(double base, double inset) => base > inset ? base : inset;
 
   bool get _cinemaHud => isFull || edgeHud;
 
   bool get _showCenterPlay =>
-      showHud && !_isLoading && errorText.isEmpty && (!isPlaying || isCompleted);
+      showHud &&
+      !_isLoading &&
+      errorText.isEmpty &&
+      castDeviceName.isEmpty &&
+      (!isPlaying || isCompleted);
 
   double get _progressPercent {
     if (totalDuration.inMilliseconds <= 0) return 0.0;
     return (currentPosition.inMilliseconds / totalDuration.inMilliseconds).clamp(0.0, 1.0);
-  }
-
-  Widget _buildSlider(BuildContext context) {
-    final maxMs = totalDuration.inMilliseconds > 0 ? totalDuration.inMilliseconds.toDouble() : 1.0;
-    final curMs = currentPosition.inMilliseconds.clamp(0, maxMs.toInt()).toDouble();
-
-    return SliderTheme(
-      data: SliderTheme.of(context).copyWith(
-        trackHeight: 2.5,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-        overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
-        activeTrackColor: AppTheme.accent,
-        inactiveTrackColor: Colors.white24,
-        thumbColor: Colors.white,
-      ),
-      child: Slider(
-        value: curMs,
-        min: 0.0,
-        max: maxMs,
-        onChanged: (val) {
-          onSeekTo(Duration(milliseconds: val.toInt()));
-        },
-      ),
-    );
-  }
-
-  Widget _buildTopBar(BuildContext context) {
-    if (!isFull || !showHud || errorText.isNotEmpty) return const SizedBox.shrink();
-
-    return Container(
-      padding: EdgeInsets.only(
-        top: _edge(8, topInset),
-        left: _edge(8, leftInset),
-        right: _edge(8, rightInset),
-        bottom: 8,
-      ),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0xAA000000), Color(0x55000000), Colors.transparent],
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-            onPressed: onBack,
-          ),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ),
-          if (hasPrev)
-            TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
-              icon: const Icon(Icons.skip_previous_rounded, size: 16),
-              label: const Text('上集', style: TextStyle(fontSize: 13)),
-              onPressed: onPrev,
-            ),
-          if (hasNext)
-            TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
-              icon: const Icon(Icons.skip_next_rounded, size: 16),
-              label: const Text('下集', style: TextStyle(fontSize: 13)),
-              onPressed: onNext,
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomBar(BuildContext context) {
-    if (!isReady || isOpening || !showHud || errorText.isNotEmpty) return const SizedBox.shrink();
-
-    final timeStr =
-        '${FormatUtil.duration(currentPosition.inSeconds.toDouble())} / ${FormatUtil.duration(totalDuration.inSeconds.toDouble())}';
-
-    if (_cinemaHud) {
-      return Container(
-        padding: EdgeInsets.only(
-          left: _edge(12, leftInset),
-          right: _edge(12, rightInset),
-          bottom: _edge(4, bottomInset),
-          top: 4,
-        ),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [Color(0xCC000000), Colors.transparent],
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildSlider(context),
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 24),
-                  onPressed: onTogglePlay,
-                ),
-                Text(timeStr, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
-                const Spacer(),
-                InkWell(
-                  onTap: onSpeed,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                    ),
-                    child: Text('${currentSpeed}x', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
-                ),
-                if (onScale != null)
-                  InkWell(
-                    onTap: onScale,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                    child: Container(
-                      margin: const EdgeInsets.only(left: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      ),
-                      child: Text(scaleLabel, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
-                    ),
-                  ),
-                IconButton(
-                  icon: Icon(muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 20),
-                  onPressed: onToggleMute,
-                ),
-                IconButton(
-                  icon: Icon(
-                    isFull ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                  onPressed: onToggleFull,
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
-
-    // 竖屏底栏
-    return Container(
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [Color(0xB8000000), Colors.transparent],
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(
-              isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-            onPressed: onTogglePlay,
-          ),
-          Expanded(child: _buildSlider(context)),
-          Text(
-            timeStr,
-            style: const TextStyle(color: Colors.white70, fontSize: 10),
-          ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: onSpeed,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-              child: Text(
-                '${currentSpeed}x',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ),
-          if (onScale != null)
-            InkWell(
-              onTap: onScale,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
-                child: Text(
-                  scaleLabel,
-                  style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          IconButton(
-            icon: Icon(muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 18),
-            onPressed: onToggleMute,
-          ),
-          IconButton(
-            icon: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 20),
-            onPressed: onToggleFull,
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _buildCenterGroup(BuildContext context) {
@@ -316,7 +124,7 @@ class PlayerSkinView extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           // 手势提示 (快进/音量/亮度/长按倍速)
-          if (panState.kind != PlayerTipKind.none)
+          if (panState.kind != PlayerTipKind.none && castDeviceName.isEmpty)
             Container(
               margin: const EdgeInsets.only(bottom: 12),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -349,30 +157,12 @@ class PlayerSkinView extends StatelessWidget {
               ),
             ),
 
-          // 加载缓冲卡片
-          if (_isLoading)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-              decoration: BoxDecoration(
-                color: const Color(0xC7000000),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    isOpening ? '正在打开...' : '加载中...',
-                    style: const TextStyle(color: Colors.white, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
+          // 加载缓冲卡片（对齐鸿蒙：200ms 防抖、350ms 最短显示、6s 慢网提醒）
+          PlayerLoadingCard(
+            visible: _isLoading,
+            isOpening: isOpening,
+            onRetry: onRetry,
+          ),
 
           // 中心播放/重播控制器
           if (_showCenterPlay)
@@ -431,20 +221,33 @@ class PlayerSkinView extends StatelessWidget {
     );
   }
 
+  Widget _buildRoundBtn({required IconData icon, Color color = Colors.white, VoidCallback? onTap}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: const BoxDecoration(
+          color: Color(0x33000000),
+          shape: BoxShape.circle,
+        ),
+        alignment: Alignment.center,
+        child: Icon(icon, color: color, size: 18),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Stack(
       children: [
-        // 顶部栏
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: _buildTopBar(context),
-        ),
-
         // 中心交互组（提示、加载动画、中心播放键）
-        Positioned.fill(
+        Positioned(
+          top: _edge(0, topInset),
+          bottom: _edge(0, bottomInset),
+          left: _edge(0, leftInset),
+          right: _edge(0, rightInset),
           child: IgnorePointer(
             ignoring: panState.kind == PlayerTipKind.none && !_isLoading && !_showCenterPlay,
             child: _buildCenterGroup(context),
@@ -456,11 +259,34 @@ class PlayerSkinView extends StatelessWidget {
           bottom: 0,
           left: 0,
           right: 0,
-          child: _buildBottomBar(context),
+          child: PlayerBottomBar(
+            isReady: isReady,
+            isOpening: isOpening,
+            showHud: showHud,
+            errorText: errorText,
+            cinemaHud: _cinemaHud,
+            isFull: isFull,
+            isPlaying: isPlaying,
+            muted: muted,
+            currentPosition: currentPosition,
+            totalDuration: totalDuration,
+            currentSpeed: currentSpeed,
+            scaleLabel: scaleLabel,
+            leftInset: leftInset,
+            rightInset: rightInset,
+            bottomInset: bottomInset,
+            castDeviceName: castDeviceName,
+            onTogglePlay: onTogglePlay,
+            onToggleFull: onToggleFull,
+            onToggleMute: onToggleMute,
+            onSpeed: onSpeed,
+            onScale: onScale,
+            onSeekTo: onSeekTo,
+          ),
         ),
 
         // HUD 隐藏时的底部 2px 细进度条
-        if (isReady && !isOpening && !showHud && errorText.isEmpty && totalDuration.inMilliseconds > 0)
+        if (isReady && !isOpening && !showHud && errorText.isEmpty && castDeviceName.isEmpty && totalDuration.inMilliseconds > 0)
           Positioned(
             left: 0,
             right: 0,
@@ -481,37 +307,75 @@ class PlayerSkinView extends StatelessWidget {
             ),
           ),
 
-        // 竖屏常驻返回按钮（无论正在加载/初始化/报错/HUD是否隐藏，持续存在且始终置顶可点击）
-        if (!isFull && showBack)
+        // 错误提示层
+        if (errorText.isNotEmpty && castDeviceName.isEmpty)
+          PlayerErrorPad(
+            errorText: errorText,
+            topInset: topInset,
+            leftInset: leftInset,
+            rightInset: rightInset,
+            bottomInset: bottomInset,
+            onRetry: onRetry,
+            onErrorDetail: onErrorDetail,
+          ),
+
+        // 全屏 Header
+        if (isFull)
           Positioned(
-            left: _edge(6, leftInset),
-            top: _edge(6, topInset),
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onBack,
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Color(0x33000000),
-                  shape: BoxShape.circle,
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white,
-                  size: 18,
-                  shadows: [Shadow(color: Colors.black87, blurRadius: 4)],
-                ),
-              ),
+            top: 0,
+            left: 0,
+            right: 0,
+            child: PlayerTopBar(
+              isFull: isFull,
+              showHud: showHud,
+              errorText: errorText,
+              title: title,
+              topInset: topInset,
+              leftInset: leftInset,
+              rightInset: rightInset,
+              hasPrev: hasPrev,
+              hasNext: hasNext,
+              castDeviceName: castDeviceName,
+              canCast: canCast,
+              onBack: onBack,
+              onPrev: onPrev,
+              onNext: onNext,
+              onCast: onCast,
+              onStopCast: onStopCast,
+              onPip: onPip,
             ),
           ),
 
-        // 错误提示层
-        if (errorText.isNotEmpty)
-          PlayerErrorPad(errorText: errorText, onRetry: onRetry, onCopyError: onCopyError),
+        // 竖屏非全屏 Header（返回、投屏、画中画入口）
+        if (!isFull && (showBack || canCast || onPip != null))
+          Positioned(
+            left: _edge(6, leftInset),
+            right: _edge(6, rightInset),
+            top: _edge(6, topInset),
+            child: Row(
+              children: [
+                if (showBack)
+                  _buildRoundBtn(icon: Icons.arrow_back_ios_new_rounded, onTap: onBack)
+                else
+                  const SizedBox.shrink(),
+                const Spacer(),
+                if (canCast && onCast != null) ...[
+                  _buildRoundBtn(
+                    icon: castDeviceName.isNotEmpty ? Icons.power_settings_new_rounded : Icons.cast_rounded,
+                    color: castDeviceName.isNotEmpty ? AppTheme.danger : Colors.white,
+                    onTap: castDeviceName.isNotEmpty ? onStopCast : onCast,
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                if (onPip != null && castDeviceName.isEmpty)
+                  _buildRoundBtn(
+                    icon: Icons.picture_in_picture_alt_rounded,
+                    onTap: onPip,
+                  ),
+              ],
+            ),
+          ),
       ],
     );
   }
 }
-

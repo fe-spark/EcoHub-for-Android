@@ -78,108 +78,117 @@ class _NoticeDialogState extends State<NoticeDialog> with SingleTickerProviderSt
             scale: _scaleAnimation,
             child: FadeTransition(
               opacity: _opacityAnimation,
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.86,
-                constraints: const BoxConstraints(maxWidth: 380),
-                padding: const EdgeInsets.all(AppTheme.spaceLg),
-                decoration: BoxDecoration(
-                  color: AppTheme.bgElevated,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-                  border: Border.all(color: AppTheme.border),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black54,
-                      blurRadius: 24,
-                      offset: Offset(0, 8),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Header
-                    Row(
-                      children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: AppTheme.accentSoft,
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: const Icon(
-                            Icons.notifications_rounded,
-                            size: 16,
-                            color: AppTheme.accent,
-                          ),
-                        ),
-                        const SizedBox(width: AppTheme.spaceSm),
-                        Expanded(
-                          child: Text(
-                            widget.title.isNotEmpty ? widget.title : '站点公告',
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.textPrimary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.close_rounded, size: 18, color: AppTheme.textMuted),
-                          onPressed: _handleClose,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              child: Builder(
+                builder: (context) {
+                  final media = MediaQuery.of(context);
+                  final landscape = media.size.height > 0 && media.size.height < 500;
+                  final maxHeight = media.size.height * 0.88;
+
+                  return Container(
+                    width: media.size.width * 0.86,
+                    constraints: BoxConstraints(maxWidth: 380, maxHeight: maxHeight),
+                    padding: EdgeInsets.all(landscape ? AppTheme.spaceMd : AppTheme.spaceLg),
+                    decoration: BoxDecoration(
+                      color: AppTheme.bgElevated,
+                      borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                      border: Border.all(color: AppTheme.border),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Colors.black54,
+                          blurRadius: 24,
+                          offset: Offset(0, 8),
                         ),
                       ],
                     ),
-                    const SizedBox(height: AppTheme.spaceMd),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header
+                        Row(
+                          children: [
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: AppTheme.accentSoft,
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              child: const Icon(
+                                Icons.notifications_rounded,
+                                size: 16,
+                                color: AppTheme.accent,
+                              ),
+                            ),
+                            const SizedBox(width: AppTheme.spaceSm),
+                            Expanded(
+                              child: Text(
+                                widget.title.isNotEmpty ? widget.title : '站点公告',
+                                style: const TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textPrimary,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, size: 18, color: AppTheme.textMuted),
+                              onPressed: _handleClose,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: landscape ? AppTheme.spaceSm : AppTheme.spaceMd),
 
-                    // Content
-                    Container(
-                      constraints: const BoxConstraints(maxHeight: 260),
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(AppTheme.spaceMd),
-                      decoration: BoxDecoration(
-                        color: AppTheme.bgCard,
-                        borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                      ),
-                      child: SingleChildScrollView(
-                        child: Text(
-                          widget.content,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: AppTheme.textSecondary,
-                            height: 1.5,
+                        // Content
+                        Flexible(
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(AppTheme.spaceMd),
+                            decoration: BoxDecoration(
+                              color: AppTheme.bgCard,
+                              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                            ),
+                            child: SingleChildScrollView(
+                              child: Text(
+                                widget.content,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  color: AppTheme.textSecondary,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                    const SizedBox(height: AppTheme.spaceLg),
+                        SizedBox(height: landscape ? AppTheme.spaceMd : AppTheme.spaceLg),
 
-                    // Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 42,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.accent,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                        // Button
+                        SizedBox(
+                          width: double.infinity,
+                          height: landscape ? 38 : 42,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppTheme.accent,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: _handleClose,
+                            child: const Text(
+                              '我知道了',
+                              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
                           ),
-                          elevation: 0,
                         ),
-                        onPressed: _handleClose,
-                        child: const Text(
-                          '我知道了',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                        ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
             ),
           ),

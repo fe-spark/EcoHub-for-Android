@@ -281,11 +281,17 @@ class _RecommendTabState extends State<RecommendTab> {
     );
   }
 
-  Widget _scrollableState({required double topInset, required Widget child}) {
+  Widget _scrollableState({
+    required double topInset,
+    required double leftInset,
+    required double rightInset,
+    required Widget child,
+  }) {
     return _wrapRefresh(
       topInset: topInset,
       child: ListView(
         physics: _verticalPhysics,
+        padding: EdgeInsets.only(left: leftInset, right: rightInset),
         children: [
           const SizedBox(height: 80),
           child,
@@ -294,7 +300,7 @@ class _RecommendTabState extends State<RecommendTab> {
     );
   }
 
-  Widget _header(double topInset, bool wide) {
+  Widget _header(double topInset, double leftInset, double rightInset, bool wide) {
     final alpha = _effectiveHeaderAlpha(wide);
     final searchBg = Color.fromRGBO(
       (22 * alpha).round(),
@@ -305,7 +311,11 @@ class _RecommendTabState extends State<RecommendTab> {
     final searchBorder = Color.fromRGBO(255, 255, 255, 0.16 * (1 - alpha) + 0.08 * alpha);
     final bar = Container(
       height: 48 + topInset,
-      padding: EdgeInsets.only(top: topInset, left: AppTheme.spaceLg, right: AppTheme.spaceLg),
+      padding: EdgeInsets.only(
+        top: topInset,
+        left: AppTheme.spaceLg + leftInset,
+        right: AppTheme.spaceLg + rightInset,
+      ),
       decoration: BoxDecoration(
         color: AppTheme.bg.withValues(alpha: alpha),
         border: Border(
@@ -368,15 +378,22 @@ class _RecommendTabState extends State<RecommendTab> {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final topInset = media.padding.top;
+    final leftInset = media.padding.left;
+    final rightInset = media.padding.right;
     final wide = Breakpoint.isWideWidth(media.size.width);
     final sections = _visibleSections();
 
     Widget body;
     if (_loading) {
-      body = const LoadingView(label: '正在加载推荐');
+      body = Padding(
+        padding: EdgeInsets.only(top: 48 + topInset, left: leftInset, right: rightInset),
+        child: const LoadingView(label: '正在加载推荐'),
+      );
     } else if (_errorText.isNotEmpty) {
       body = _scrollableState(
         topInset: topInset,
+        leftInset: leftInset,
+        rightInset: rightInset,
         child: EmptyState(
           title: '加载失败',
           subtitle: _errorText,
@@ -391,6 +408,8 @@ class _RecommendTabState extends State<RecommendTab> {
     } else if (_banners.isEmpty && sections.isEmpty) {
       body = _scrollableState(
         topInset: topInset,
+        leftInset: leftInset,
+        rightInset: rightInset,
         child: Column(
           children: [
             const EmptyState(
@@ -418,7 +437,10 @@ class _RecommendTabState extends State<RecommendTab> {
                   padding: EdgeInsets.only(bottom: wide ? 14 : AppTheme.spaceLg),
                   child: SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
+                    padding: EdgeInsets.only(
+                      left: AppTheme.spaceLg + leftInset,
+                      right: AppTheme.spaceLg + rightInset,
+                    ),
                     child: Row(
                       children: sections.map((s) => _categoryEntry(s, wide)).toList(),
                     ),
@@ -430,6 +452,8 @@ class _RecommendTabState extends State<RecommendTab> {
                   title: section.nav.name,
                   films: movies,
                   pid: section.nav.id,
+                  leftInset: leftInset,
+                  rightInset: rightInset,
                   onMore: () => _openFilter(section.nav.id),
                 );
               }),
@@ -443,7 +467,12 @@ class _RecommendTabState extends State<RecommendTab> {
     return Stack(
       children: [
         body,
-        Positioned(top: 0, left: 0, right: 0, child: _header(topInset, wide)),
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: _header(topInset, leftInset, rightInset, wide),
+        ),
       ],
     );
   }

@@ -120,43 +120,45 @@ class _SplashPageState extends State<SplashPage> {
       backgroundColor: AppTheme.bg,
       body: Stack(
         children: [
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const StartIconImage(size: 84, radius: 20),
-                const SizedBox(height: 16),
-                const Text(
-                  'EcoHub',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+          SafeArea(
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const StartIconImage(size: 84, radius: 20),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'EcoHub',
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.textPrimary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppTheme.accent,
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppTheme.accent,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _statusText,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textMuted,
+                      const SizedBox(width: 8),
+                      Text(
+                        _statusText,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textMuted,
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
           if (_showUpdateDialog && _updateInfo != null)

@@ -15,6 +15,14 @@ class NavUtil {
     Navigator.pushNamed(context, '/tip');
   }
 
+  static void openSettings(BuildContext context) {
+    Navigator.pushNamed(context, '/settings');
+  }
+
+  static void openAbout(BuildContext context) {
+    Navigator.pushNamed(context, '/about');
+  }
+
   static void openPlay(
     BuildContext context,
     String id, {

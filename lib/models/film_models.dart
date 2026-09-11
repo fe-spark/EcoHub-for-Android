@@ -252,25 +252,6 @@ class FilterResult {
   });
 }
 
-/// 分类结果
-class ClassifyResult {
-  final String titleName;
-  final int titleId;
-  final List<CategoryItem> children;
-  final List<MovieBasicInfo> news;
-  final List<MovieBasicInfo> top;
-  final List<MovieBasicInfo> recent;
-
-  ClassifyResult({
-    required this.titleName,
-    required this.titleId,
-    this.children = const [],
-    this.news = const [],
-    this.top = const [],
-    this.recent = const [],
-  });
-}
-
 /// 影片单集播放地址
 class MovieUrlInfo {
   final String episode;

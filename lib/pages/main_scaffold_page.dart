@@ -6,6 +6,7 @@ import '../utils/server_config_manager.dart';
 import '../utils/site_heartbeat.dart';
 import '../utils/source_guard.dart';
 import '../utils/app_version_util.dart';
+import '../api/http_client.dart';
 import '../components/notice_dialog.dart';
 import '../components/version_update_dialog.dart';
 import '../components/loading_view.dart';
@@ -22,6 +23,9 @@ class MainScaffoldPage extends StatefulWidget {
 }
 
 class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBindingObserver {
+  /// 对齐 OHOS AppStorage NOTICE_DISMISSED_SESSION 会话级公告关闭标记
+  static bool _noticeDismissedSession = false;
+
   int _currentTabIndex = 0;
   String _siteName = 'EcoHub';
   bool _siteOpen = true;
@@ -39,6 +43,7 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _hasDismissedNotice = _noticeDismissedSession;
     FilmApi.onConfigChange(_onConfigChange);
     SourceGuard.onReconnect(_onReconnect);
     AppVersionUtil.hasUpdate.addListener(_onHasUpdate);
@@ -75,7 +80,12 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      SiteHeartbeat.instance.start();
+      if (ServerConfigManager.instance.getCachedServerUrl().isNotEmpty) {
+        SiteHeartbeat.instance.start();
+      }
+      if (_ready) {
+        _loadSite(false);
+      }
     } else if (state == AppLifecycleState.paused) {
       SiteHeartbeat.instance.stop();
     }
@@ -136,7 +146,9 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
       return;
     }
 
-    await _loadSite(true);
+    // 对齐 OHOS Index.aboutToAppear: 走 loadSite(false) 直接复用开屏自检探测缓存，避免二次 loading
+    await _loadSite(false);
+    HttpClient.instance.trackView('browse', '', 'IndexPage');
     SiteHeartbeat.instance.start();
   }
 
@@ -210,6 +222,7 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
               title: _noticeTitle,
               content: _noticeContent,
               onClose: () {
+                _noticeDismissedSession = true;
                 setState(() {
                   _hasDismissedNotice = true;
                   _showNotice = false;

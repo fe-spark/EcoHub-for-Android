@@ -240,20 +240,6 @@ class ApiParser {
     );
   }
 
-  static ClassifyResult parseClassify(dynamic raw) {
-    final map = asMap(raw);
-    final title = parseCategory(mapVal(map, 'title'));
-    final content = mapVal(map, 'content');
-    return ClassifyResult(
-      titleName: title.name,
-      titleId: title.id,
-      children: title.children,
-      news: parseMovies(listVal(content, 'news')),
-      top: parseMovies(listVal(content, 'top')),
-      recent: parseMovies(listVal(content, 'recent')),
-    );
-  }
-
   static String _first(Iterable<String> values) {
     for (final v in values) {
       if (v.isNotEmpty) return v;

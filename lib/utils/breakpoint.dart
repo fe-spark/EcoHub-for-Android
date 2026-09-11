@@ -40,6 +40,25 @@ class Breakpoint {
     return cardW < 104 ? 104.0 : cardW;
   }
 
+  /// FilmCard 宽高比：海报 2:3 (高=宽*1.5) + 标题/副标题高度与边距 41
+  static double filmCardAspectRatio(double cardWidth) {
+    if (cardWidth <= 0) return 0.52;
+    return cardWidth / (cardWidth * 1.5 + 41.0);
+  }
+
+  /// 网格海报宽高比计算，避免在窄屏或分屏时因固定 0.54 导致文字下溢 (RenderFlex overflow)
+  static double gridAspectRatio({
+    required double width,
+    required int columns,
+    double horizontalPadding = 24.0,
+    double crossAxisSpacing = 8.0,
+  }) {
+    final available = width - horizontalPadding;
+    if (available <= 0 || columns <= 0) return 0.52;
+    final cardW = (available - (columns - 1) * crossAxisSpacing) / columns;
+    return filmCardAspectRatio(cardW);
+  }
+
   static double bannerHeight({
     required double width,
     required double height,

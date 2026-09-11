@@ -15,6 +15,7 @@ class AppTheme {
   static const Color textSecondary = Color(0xA6FFFFFF); // rgba(255, 255, 255, 0.65)
   static const Color textMuted = Color(0x66FFFFFF); // rgba(255, 255, 255, 0.40)
   static const Color border = Color(0x14FFFFFF); // rgba(255, 255, 255, 0.08)
+  static const Color borderSolid = Color(0xFF262832); // 实色不透明边框，彻底阻断滚动漏光
   static const Color overlay = Color(0x8C0A0B10); // rgba(10, 11, 16, 0.55)
 
   // 间距规范
@@ -68,6 +69,18 @@ class AppTheme {
         unselectedItemColor: textMuted,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: bgCard,
+        contentTextStyle: const TextStyle(
+          color: textPrimary,
+          fontSize: 14,
+        ),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(radiusMd),
+          side: const BorderSide(color: border),
+        ),
       ),
     );
   }

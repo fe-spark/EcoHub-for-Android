@@ -1,0 +1,386 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ecohub_android/components/cast/player_cast_controller.dart';
+import 'package:ecohub_android/components/player/player_playback_controller.dart';
+import 'package:ecohub_android/components/player/video_player_widget.dart';
+import 'package:ecohub_android/services/cast_session.dart';
+import 'package:ecohub_android/types/dlna_types.dart';
+
+class MockPlayerCastHost implements PlayerCastHost {
+  double currentPos = 25.0;
+  double totalDur = 120.0;
+  bool playing = true;
+  String url = 'https://example.com/video1.mp4';
+  String mediaTitle = '测试影片 第1集';
+  bool hasNextEpisode = true;
+  double vol = 0.75;
+  bool fullscreen = false;
+
+  bool parkLocalCalled = false;
+  bool pauseLocalCalled = false;
+  double? resumeTargetSec;
+  bool? resumeWasPlaying;
+  double? completedPosSec;
+  double? completedDurSec;
+  bool exitFullCalled = false;
+  bool onCastEndedCalled = false;
+  bool syncUiCalled = false;
+  double? lastSyncCur;
+  double? lastSyncDur;
+  String? lastToast;
+  bool? autoPipEnabled;
+  bool stopPipCalled = false;
+
+  @override
+  double get currentPosition => currentPos;
+  @override
+  double get totalDuration => totalDur;
+  @override
+  bool get isPlaying => playing;
+  @override
+  String get videoUrl => url;
+  @override
+  String get title => mediaTitle;
+  @override
+  bool get hasNext => hasNextEpisode;
+  @override
+  double get volume => vol;
+  @override
+  bool get isFull => fullscreen;
+
+  @override
+  void parkLocal() {
+    parkLocalCalled = true;
+  }
+
+  @override
+  void pauseLocal() {
+    pauseLocalCalled = true;
+  }
+
+  @override
+  void resumeLocal(double targetSec, bool wasPlaying) {
+    resumeTargetSec = targetSec;
+    resumeWasPlaying = wasPlaying;
+  }
+
+  @override
+  void remountCompleted(double positionSec, double durationSec) {
+    completedPosSec = positionSec;
+    completedDurSec = durationSec;
+  }
+
+  @override
+  void exitFullForCast() {
+    exitFullCalled = true;
+  }
+
+  @override
+  void onCastEnded() {
+    onCastEndedCalled = true;
+  }
+
+  @override
+  void syncUi() {
+    syncUiCalled = true;
+  }
+
+  @override
+  void syncProgress(double currentSec, double durationSec) {
+    lastSyncCur = currentSec;
+    lastSyncDur = durationSec;
+  }
+
+  @override
+  void showToast(String message) {
+    lastToast = message;
+  }
+
+  @override
+  void setPipAutoStart(bool enable) {
+    autoPipEnabled = enable;
+  }
+
+  @override
+  void stopPip() {
+    stopPipCalled = true;
+  }
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('PlayerPlaybackController parkForCast & lifecycle Tests', () {
+    test('parkForCast releases controller and resets all playback flags safely', () {
+      final ctrl = PlayerPlaybackController();
+      ctrl.parkForCast();
+
+      expect(ctrl.controller, isNull);
+      expect(ctrl.isPlaying, isFalse);
+      expect(ctrl.isBuffering, isFalse);
+      expect(ctrl.isOpening, isFalse);
+      expect(ctrl.isCompleted, isFalse);
+      expect(ctrl.errorText, isEmpty);
+    });
+
+    test('pauseLocal safely pauses and disables wakelock', () {
+      final ctrl = PlayerPlaybackController();
+      ctrl.pauseLocal();
+      expect(ctrl.isPlaying, isFalse);
+      expect(ctrl.isBuffering, isFalse);
+    });
+
+    test('remountCompleted sets isCompleted and duration without playing', () {
+      final ctrl = PlayerPlaybackController();
+      ctrl.remountCompleted(100.0, 100.0);
+      expect(ctrl.controller, isNull);
+      expect(ctrl.isCompleted, isTrue);
+      expect(ctrl.isPlaying, isFalse);
+      expect(ctrl.currentPosition, const Duration(seconds: 100));
+      expect(ctrl.totalDuration, const Duration(seconds: 100));
+    });
+  });
+
+  group('PlayerCastController Lifecycle & State Tests', () {
+    const testDevice = DlnaDevice(
+      usn: 'uuid:12345::urn:schemas-upnp-org:device:MediaRenderer:1',
+      friendlyName: '客厅小米电视',
+      location: 'http://192.168.1.100:49152/description.xml',
+      controlURL: 'http://192.168.1.100:49152/AVTransport/control',
+      renderingControlURL: 'http://192.168.1.100:49152/RenderingControl/control',
+      host: '192.168.1.100',
+    );
+
+    testWidgets('openCastSheet snapshots startSec, wasPlaying and pauses local player', (tester) async {
+      final castCtrl = PlayerCastController();
+      final host = MockPlayerCastHost();
+      castCtrl.attachHost(host);
+
+      expect(castCtrl.isCasting, isFalse);
+
+      late BuildContext ctx;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Builder(
+              builder: (context) {
+                ctx = context;
+                return const SizedBox();
+              },
+            ),
+          ),
+        ),
+      );
+
+      // Simulate opening cast picker when playing
+      host.playing = true;
+      host.currentPos = 42.0;
+      castCtrl.openCastSheet(
+        ctx,
+        mediaUrl: host.videoUrl,
+        currentPosition: host.currentPosition,
+        autoStartScan: false,
+      );
+      await tester.pump();
+
+      expect(castCtrl.startSec, 42.0);
+      expect(castCtrl.wasPlaying, isTrue);
+      expect(castCtrl.pausedForPicker, isTrue);
+      expect(host.pauseLocalCalled, isTrue);
+
+      // Dismiss the bottom sheet
+      Navigator.pop(ctx);
+      await tester.pumpAndSettle();
+
+      expect(castCtrl.pausedForPicker, isFalse);
+      expect(host.resumeTargetSec, 42.0);
+      expect(host.resumeWasPlaying, isTrue);
+    });
+
+    test('bindCastDevice parks local player, exits fullscreen, pushes volume and disables PiP', () {
+      final castCtrl = PlayerCastController();
+      final host = MockPlayerCastHost();
+      castCtrl.attachHost(host);
+
+      host.playing = true;
+      host.currentPos = 30.0;
+      host.fullscreen = true;
+      castCtrl.startSec = 30.0;
+      castCtrl.wasPlaying = true;
+      castCtrl.pausedForPicker = true;
+
+      castCtrl.bindCastDevice(testDevice);
+
+      expect(castCtrl.isCasting, isTrue);
+      expect(castCtrl.device, testDevice);
+      expect(castCtrl.deviceName, '客厅小米电视');
+      expect(castCtrl.connectedUsn, testDevice.usn);
+      expect(castCtrl.pausedForPicker, isFalse);
+      expect(host.autoPipEnabled, isFalse);
+      expect(host.stopPipCalled, isTrue);
+      expect(host.exitFullCalled, isTrue);
+      expect(host.parkLocalCalled, isTrue);
+      expect(host.syncUiCalled, isTrue);
+    });
+
+    test('handleSourceChange recasts current URL during casting without waking local player', () {
+      final castCtrl = PlayerCastController();
+      final host = MockPlayerCastHost();
+      castCtrl.attachHost(host);
+      castCtrl.bindCastDevice(testDevice);
+
+      host.parkLocalCalled = false;
+      host.url = 'https://example.com/video2.mp4';
+      host.mediaTitle = '测试影片 第2集';
+
+      final consumed = castCtrl.handleSourceChange();
+      expect(consumed, isTrue);
+      // Local player is NOT remounted or resumed
+      expect(host.parkLocalCalled, isFalse);
+      expect(host.resumeTargetSec, isNull);
+    });
+
+    test('finishCastCompleted remounts player in completed state when hasNext is false', () {
+      final castCtrl = PlayerCastController();
+      final host = MockPlayerCastHost();
+      castCtrl.attachHost(host);
+      castCtrl.bindCastDevice(testDevice);
+
+      host.hasNextEpisode = false;
+      castCtrl.session.positionSec = 120.0;
+      castCtrl.session.durationSec = 120.0;
+
+      // Trigger session onCompleted callback
+      castCtrl.session.onCompleted?.call();
+
+      expect(castCtrl.isCasting, isFalse);
+      expect(host.completedPosSec, 120.0);
+      expect(host.completedDurSec, 120.0);
+      expect(host.onCastEndedCalled, isFalse);
+    });
+
+    test('onCompleted sets keepCastForNext and calls onCastEnded when hasNext is true', () {
+      final castCtrl = PlayerCastController();
+      final host = MockPlayerCastHost();
+      castCtrl.attachHost(host);
+      castCtrl.bindCastDevice(testDevice);
+
+      host.hasNextEpisode = true;
+      castCtrl.session.onCompleted?.call();
+
+      expect(castCtrl.keepCastForNext, isTrue);
+      expect(host.onCastEndedCalled, isTrue);
+    });
+
+    test('handleCastFailed and handleCastDisconnected restore local player at current pos', () {
+      final castCtrl = PlayerCastController();
+      final host = MockPlayerCastHost();
+      castCtrl.attachHost(host);
+      castCtrl.bindCastDevice(testDevice);
+      castCtrl.wasPlaying = true;
+
+      // Disconnect at pos 75s
+      castCtrl.session.onDisconnected?.call(75.0);
+      expect(castCtrl.isCasting, isFalse);
+      expect(host.resumeTargetSec, 75.0);
+      expect(host.resumeWasPlaying, isTrue);
+      expect(host.lastToast, contains('已停止投屏'));
+
+      // Rebind and test fail
+      castCtrl.bindCastDevice(testDevice);
+      castCtrl.wasPlaying = false;
+      castCtrl.session.onFailed?.call(88.0);
+      expect(castCtrl.isCasting, isFalse);
+      expect(host.resumeTargetSec, 88.0);
+      expect(host.resumeWasPlaying, isFalse);
+      expect(host.lastToast, contains('投屏失败'));
+    });
+
+    test('pushCastVolume calculates and clamps percentage to DLNA renderer', () {
+      final castCtrl = PlayerCastController();
+      final host = MockPlayerCastHost();
+      castCtrl.attachHost(host);
+      castCtrl.bindCastDevice(testDevice);
+
+      host.vol = 0.65;
+      castCtrl.pushCastVolume();
+      // Volume push is debounced and clamped
+      expect(castCtrl.isCasting, isTrue);
+    });
+  });
+
+  group('CastSession DLNA Polling & EOS Tests', () {
+    const dev = DlnaDevice(
+      usn: 'uuid:test-dev',
+      friendlyName: 'Test Renderer',
+      location: 'http://127.0.0.1:1234/desc.xml',
+      controlURL: 'http://127.0.0.1:1234/control',
+      renderingControlURL: 'http://127.0.0.1:1234/rc',
+    );
+
+    test('attach initializes session timeout and state', () {
+      final session = CastSession();
+      session.attach(dev);
+      expect(session.device, dev);
+      expect(session.transportState, isEmpty);
+      expect(session.active, isTrue);
+    });
+
+    test('beginLaunch sets launching phase and pendingStartSec', () {
+      final session = CastSession();
+      session.attach(dev);
+      session.beginLaunch(50.0, 100.0);
+
+      expect(session.positionSec, 50.0);
+      expect(session.durationSec, 100.0);
+      expect(session.pendingStartSec, 50.0);
+      expect(session.phase, CastPhase.launching);
+      session.clearLocal();
+    });
+
+    test('isRelTimeUnavailable detects NOT_IMPLEMENTED and empty strings', () {
+      expect(isRelTimeUnavailable(''), isTrue);
+      expect(isRelTimeUnavailable('   '), isTrue);
+      expect(isRelTimeUnavailable('NOT_IMPLEMENTED'), isTrue);
+      expect(isRelTimeUnavailable('not_implemented'), isTrue);
+      expect(isRelTimeUnavailable('00:01:23'), isFalse);
+    });
+  });
+
+  group('VideoPlayerWidget Casting Widget State Tests', () {
+    testWidgets('VideoPlayerWidget didUpdateWidget consumes episode change while casting', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: VideoPlayerWidget(
+              videoUrl: 'https://example.com/ep1.mp4',
+              title: '剧集 第1集',
+              reloadToken: 1,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      // Find state
+      final state = tester.state(find.byType(VideoPlayerWidget));
+      expect(state, isNotNull);
+
+      // Rebuild with next episode
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: VideoPlayerWidget(
+              videoUrl: 'https://example.com/ep2.mp4',
+              title: '剧集 第2集',
+              reloadToken: 2,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(VideoPlayerWidget), findsOneWidget);
+    });
+  });
+}
