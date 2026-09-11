@@ -15,6 +15,7 @@ class PlayerSkinView extends StatelessWidget {
   final bool isPlaying;
   final bool isBuffering;
   final bool isOpening;
+  final bool pickerOpen;
   final int loadSessionId;
   final bool isReady;
   final bool isCompleted;
@@ -63,6 +64,7 @@ class PlayerSkinView extends StatelessWidget {
     required this.isPlaying,
     required this.isBuffering,
     this.isOpening = false,
+    this.pickerOpen = false,
     this.loadSessionId = 0,
     this.isReady = false,
     this.isCompleted = false,
@@ -104,8 +106,8 @@ class PlayerSkinView extends StatelessWidget {
 
   bool get _isLoading {
     if (castDeviceName.isNotEmpty || errorText.isNotEmpty) return false;
+    if (pickerOpen) return false;
     if (isOpening) return true;
-    // 非播放中（已暂停/播放完毕）不展示加载卡片，避免暂停时持续显示“加载中”
     if (!isPlaying || isCompleted) return false;
     return isBuffering;
   }
@@ -131,7 +133,6 @@ class PlayerSkinView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // 手势提示 (快进/音量/亮度/长按倍速)
           if (panState.kind != PlayerTipKind.none && castDeviceName.isEmpty)
             IgnorePointer(
               child: Container(
@@ -166,16 +167,12 @@ class PlayerSkinView extends StatelessWidget {
                 ),
               ),
             ),
-
-          // 加载缓冲卡片（对齐鸿蒙：200ms 防抖、350ms 最短显示、6s 慢网提醒）
           PlayerLoadingCard(
             visible: _isLoading,
             isOpening: isOpening,
             resetToken: loadSessionId,
             onRetry: onRetry,
           ),
-
-          // 中心播放/重播控制器
           if (_showCenterPlay)
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -255,7 +252,6 @@ class PlayerSkinView extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
-        // 中心交互组（提示、加载动画、中心播放键）
         Positioned(
           top: _edge(0, topInset),
           bottom: _edge(0, bottomInset),
@@ -266,15 +262,13 @@ class PlayerSkinView extends StatelessWidget {
             child: _buildCenterGroup(context),
           ),
         ),
-
-        // 底部栏
         Positioned(
           bottom: 0,
           left: 0,
           right: 0,
           child: PlayerBottomBar(
             isReady: isReady,
-            isOpening: isOpening,
+            isOpening: isOpening && !pickerOpen,
             showHud: showHud,
             errorText: errorText,
             cinemaHud: _cinemaHud,
@@ -300,8 +294,6 @@ class PlayerSkinView extends StatelessWidget {
             onSeekTo: onSeekTo,
           ),
         ),
-
-        // HUD 隐藏时的底部 2px 细进度条
         if (isReady && !isOpening && !showHud && errorText.isEmpty && castDeviceName.isEmpty && totalDuration.inMilliseconds > 0)
           Positioned(
             left: 0,
@@ -322,8 +314,6 @@ class PlayerSkinView extends StatelessWidget {
               },
             ),
           ),
-
-        // 错误提示层
         if (errorText.isNotEmpty && castDeviceName.isEmpty)
           PlayerErrorPad(
             errorText: errorText,
@@ -334,8 +324,6 @@ class PlayerSkinView extends StatelessWidget {
             onRetry: onRetry,
             onErrorDetail: onErrorDetail,
           ),
-
-        // 全屏 Header
         if (isFull)
           Positioned(
             top: 0,
@@ -361,8 +349,6 @@ class PlayerSkinView extends StatelessWidget {
               onPip: onPip,
             ),
           ),
-
-        // 竖屏非全屏 Header（返回、投屏、画中画入口）
         if (!isFull && (showBack || canCast || onPip != null))
           Positioned(
             left: _edge(6, leftInset),
