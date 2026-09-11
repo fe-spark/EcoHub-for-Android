@@ -103,7 +103,6 @@ class PlayerPlaybackController extends ChangeNotifier {
   void _handleOpenTimeout(int sessionId) {
     if (sessionId != _initSessionId || !_isOpening) return;
     watcher.clearOpenWatch();
-    // 作废当前打开会话，忽略随后迟到的 initialize() 成功/失败，避免超时后再叠「视频加载失败」。
     _initSessionId++;
     _isOpening = false;
     _isBuffering = false;
@@ -130,7 +129,6 @@ class PlayerPlaybackController extends ChangeNotifier {
     onStateChanged?.call();
   }
 
-  /// 测试用：进入「正在打开」会话，不真正挂载播放器。
   @visibleForTesting
   void debugArmOpeningSession() {
     _initSessionId++;
@@ -251,12 +249,10 @@ class PlayerPlaybackController extends ChangeNotifier {
     final dur = value.duration;
     final completed = dur.inSeconds > 0 && pos >= dur && !buffering;
 
-    // 当底层已经开始播放或有播放进度时，确保打开状态已解除
     if ((playing || pos > Duration.zero) && _isOpening) {
       _isOpening = false;
     }
 
-    // 如果正在拖动或底层正在执行 seek，不要让旧 position 冲刷覆盖当前拖拽/目标进度
     if (_isDragging || _isSeeking) {
       if (dur != _totalDuration || buffering != _isBuffering) {
         _totalDuration = dur;
@@ -384,7 +380,6 @@ class PlayerPlaybackController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 投屏绑定时释放销毁本地播放器，对标 OHOS `parkPlayerForCast`
   void parkForCast() {
     _initSessionId++;
     watcher.clearOpenWatch();
@@ -413,6 +408,8 @@ class PlayerPlaybackController extends ChangeNotifier {
     _isPlaying = false;
     _playRequested = false;
     _isBuffering = false;
+    _showHud = true;
+    watcher.clearHide();
     notifyListeners();
   }
 
