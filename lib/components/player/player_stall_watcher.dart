@@ -4,7 +4,7 @@ import 'dart:async';
 class PlayerStallWatcher {
   static const int hideDelayMs = 3000;
   static const int tipDurationMs = 1000;
-  static const int openTimeoutMs = 15000;
+  static const int openTimeoutMs = 30000;
   static const int seekTimeoutMs = 8000;
   static const int progressPersistMs = 3000;
 

@@ -107,7 +107,7 @@ class PlayerPlaybackController extends ChangeNotifier {
     _isOpening = false;
     _isBuffering = false;
     _playRequested = false;
-    _errorText = '视频打开超时(15s)';
+    _errorText = '视频打开超时(${PlayerStallWatcher.openTimeoutMs ~/ 1000}s)';
     final stale = _controller;
     _controller = null;
     if (stale != null) {

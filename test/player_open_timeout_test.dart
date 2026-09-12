@@ -13,13 +13,13 @@ void main() {
       expect(ctrl.errorText, isEmpty);
 
       ctrl.debugExpireOpenWatch();
-      expect(ctrl.errorText, '视频打开超时(15s)');
+      expect(ctrl.errorText, '视频打开超时(30s)');
       expect(ctrl.isOpening, isFalse);
       expect(ctrl.isBuffering, isFalse);
       expect(ctrl.initSessionId, greaterThan(session));
 
       ctrl.debugLateInitFailure(session, 'ExoPlayer: source error');
-      expect(ctrl.errorText, '视频打开超时(15s)');
+      expect(ctrl.errorText, '视频打开超时(30s)');
       expect(ctrl.isOpening, isFalse);
     });
 
