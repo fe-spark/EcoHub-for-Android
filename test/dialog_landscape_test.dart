@@ -227,6 +227,74 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('历史软件源'), findsOneWidget);
       expect(find.text('点击任意软件源即可直接选择填入'), findsOneWidget);
+
+    testWidgets('NoticeDialog stays centered when stacked over page content', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                const ColoredBox(color: Colors.black, child: SizedBox.expand()),
+                NoticeDialog(
+                  title: '站点公告',
+                  content: '欢迎使用 EcoHub',
+                  onClose: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final screen = tester.getSize(find.byType(Scaffold));
+      final title = tester.getCenter(find.text('站点公告'));
+      expect((title.dx - screen.width / 2).abs(), lessThan(24));
+      expect(title.dy, greaterThan(screen.height * 0.2));
+      expect(title.dy, lessThan(screen.height * 0.55));
+    });
+
+    testWidgets('VersionUpdateDialog stays centered when stacked over splash', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      final updateInfo = AppUpdateInfo(
+        hasUpdate: true,
+        currentVersion: '1.0.0-preview',
+        latestVersion: '1.0.1',
+        releaseName: 'v1.0.1',
+        releaseNotes: '稳定性优化',
+        downloadUrl: 'https://example.com/update.apk',
+        releaseUrl: 'https://example.com/releases/v1.0.1',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Stack(
+              children: [
+                const ColoredBox(color: Colors.black, child: SizedBox.expand()),
+                VersionUpdateDialog(
+                  updateInfo: updateInfo,
+                  onClose: () {},
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final screen = tester.getSize(find.byType(Scaffold));
+      final title = tester.getCenter(find.text('发现新版本'));
+      expect((title.dx - screen.width / 2).abs(), lessThan(24));
+      expect(title.dy, greaterThan(screen.height * 0.15));
+      expect(title.dy, lessThan(screen.height * 0.5));
     });
   });
 }
