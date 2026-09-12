@@ -52,7 +52,7 @@ class BasicConfig {
     this.noticeShowInWeb = true,
     this.noticeShowInApp = true,
     this.noticeAppVersion = '',
-    this.noticeVersion = '1',
+    this.noticeVersion = '',
   });
 }
 
