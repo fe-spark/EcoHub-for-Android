@@ -57,9 +57,10 @@ class _NoticeDialogState extends State<NoticeDialog> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
+      child: SizedBox.expand(
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
           // 0.72 黑色遮罩
           Positioned.fill(
             child: GestureDetector(
@@ -192,7 +193,8 @@ class _NoticeDialogState extends State<NoticeDialog> with SingleTickerProviderSt
               ),
             ),
           ),
-        ],
+          ],
+        ),
       ),
     );
   }
