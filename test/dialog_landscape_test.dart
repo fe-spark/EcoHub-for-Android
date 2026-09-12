@@ -227,6 +227,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('历史软件源'), findsOneWidget);
       expect(find.text('点击任意软件源即可直接选择填入'), findsOneWidget);
+    });
 
     testWidgets('NoticeDialog stays centered when stacked over page content', (tester) async {
       tester.view.physicalSize = const Size(390, 844);
