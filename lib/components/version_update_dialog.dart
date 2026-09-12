@@ -74,8 +74,8 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
       color: Colors.transparent,
       child: SizedBox.expand(
         child: Stack(
-        alignment: Alignment.center,
-        children: [
+          alignment: Alignment.center,
+          children: [
           // 0.72 黑色遮罩
           Positioned.fill(
             child: GestureDetector(
@@ -307,7 +307,7 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
               ),
             ),
           ),
-        ],
+          ],
         ),
       ),
     );
