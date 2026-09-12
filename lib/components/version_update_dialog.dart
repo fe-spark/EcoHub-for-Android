@@ -72,7 +72,8 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
   Widget build(BuildContext context) {
     return Material(
       color: Colors.transparent,
-      child: Stack(
+      child: SizedBox.expand(
+        child: Stack(
         alignment: Alignment.center,
         children: [
           // 0.72 黑色遮罩
@@ -307,6 +308,7 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
             ),
           ),
         ],
+        ),
       ),
     );
   }
