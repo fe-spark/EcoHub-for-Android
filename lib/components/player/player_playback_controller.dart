@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -71,6 +72,7 @@ class PlayerPlaybackController extends ChangeNotifier {
 
   final PlayerStallWatcher watcher = PlayerStallWatcher();
   int _initSessionId = 0;
+  int get initSessionId => _initSessionId;
   bool _hasSeekedInitial = false;
   int _lastPersistMs = 0;
 
@@ -96,6 +98,57 @@ class PlayerPlaybackController extends ChangeNotifier {
         WakelockPlus.disable().catchError((_) {});
       }
     } catch (_) {}
+  }
+
+  void _handleOpenTimeout(int sessionId) {
+    if (sessionId != _initSessionId || !_isOpening) return;
+    watcher.clearOpenWatch();
+    _initSessionId++;
+    _isOpening = false;
+    _isBuffering = false;
+    _playRequested = false;
+    _errorText = '视频打开超时(15s)';
+    final stale = _controller;
+    _controller = null;
+    if (stale != null) {
+      stale.removeListener(_onControllerUpdate);
+      stale.dispose().catchError((_) {});
+    }
+    notifyListeners();
+    onStateChanged?.call();
+  }
+
+  void _handleInitFailure(int sessionId, Object e) {
+    if (sessionId != _initSessionId) return;
+    _isOpening = false;
+    _isBuffering = false;
+    _isPlaying = false;
+    _playRequested = false;
+    _errorText = '视频加载失败: $e';
+    notifyListeners();
+    onStateChanged?.call();
+  }
+
+  @visibleForTesting
+  void debugArmOpeningSession() {
+    _initSessionId++;
+    _isOpening = true;
+    _isBuffering = true;
+    _isPlaying = false;
+    _playRequested = true;
+    _isCompleted = false;
+    _errorText = '';
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void debugExpireOpenWatch() {
+    _handleOpenTimeout(_initSessionId);
+  }
+
+  @visibleForTesting
+  void debugLateInitFailure(int sessionId, Object error) {
+    _handleInitFailure(sessionId, error);
   }
 
   Future<void> initPlayer(String videoUrl, {double initialTime = 0, bool autoPlay = true}) async {
@@ -136,13 +189,7 @@ class PlayerPlaybackController extends ChangeNotifier {
     onStateChanged?.call();
 
     watcher.armOpenWatch(() {
-      if (sessionId != _initSessionId || !_isOpening) return;
-      _isOpening = false;
-      _isBuffering = false;
-      _playRequested = false;
-      _errorText = '视频打开超时(15s)';
-      notifyListeners();
-      onStateChanged?.call();
+      _handleOpenTimeout(sessionId);
     }, isOpening: true);
 
     VideoPlayerController? newController;
@@ -188,15 +235,7 @@ class PlayerPlaybackController extends ChangeNotifier {
       watcher.clearOpenWatch();
       newController?.dispose().catchError((_) {});
       if (_controller == newController) _controller = null;
-      if (sessionId == _initSessionId) {
-        _isOpening = false;
-        _isBuffering = false;
-        _isPlaying = false;
-        _playRequested = false;
-        _errorText = '视频加载失败: $e';
-        notifyListeners();
-        onStateChanged?.call();
-      }
+      _handleInitFailure(sessionId, e);
     }
   }
 
@@ -210,12 +249,10 @@ class PlayerPlaybackController extends ChangeNotifier {
     final dur = value.duration;
     final completed = dur.inSeconds > 0 && pos >= dur && !buffering;
 
-    // 当底层已经开始播放或有播放进度时，确保打开状态已解除
     if ((playing || pos > Duration.zero) && _isOpening) {
       _isOpening = false;
     }
 
-    // 如果正在拖动或底层正在执行 seek，不要让旧 position 冲刷覆盖当前拖拽/目标进度
     if (_isDragging || _isSeeking) {
       if (dur != _totalDuration || buffering != _isBuffering) {
         _totalDuration = dur;
@@ -343,7 +380,6 @@ class PlayerPlaybackController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 投屏绑定时释放销毁本地播放器，对标 OHOS `parkPlayerForCast`
   void parkForCast() {
     _initSessionId++;
     watcher.clearOpenWatch();
@@ -372,6 +408,8 @@ class PlayerPlaybackController extends ChangeNotifier {
     _isPlaying = false;
     _playRequested = false;
     _isBuffering = false;
+    _showHud = true;
+    watcher.clearHide();
     notifyListeners();
   }
 

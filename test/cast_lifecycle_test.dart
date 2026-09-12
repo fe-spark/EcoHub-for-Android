@@ -32,6 +32,8 @@ class MockPlayerCastHost implements PlayerCastHost {
   double currentPos = 25.0;
   double totalDur = 120.0;
   bool playing = true;
+  bool opening = false;
+  bool buffering = false;
   String url = 'https://example.com/video1.mp4';
   String mediaTitle = '测试影片 第1集';
   bool hasNextEpisode = true;
@@ -59,6 +61,10 @@ class MockPlayerCastHost implements PlayerCastHost {
   double get totalDuration => totalDur;
   @override
   bool get isPlaying => playing;
+  @override
+  bool get isOpening => opening;
+  @override
+  bool get isBuffering => buffering;
   @override
   String get videoUrl => url;
   @override
@@ -241,7 +247,6 @@ void main() {
         ),
       );
 
-      // Simulate opening cast picker when playing
       host.playing = true;
       host.currentPos = 42.0;
       castCtrl.openCastSheet(
@@ -258,14 +263,12 @@ void main() {
       expect(host.pauseLocalCalled, isTrue);
       expect(host.parkLocalCalled, isFalse);
 
-      // Dismiss the bottom sheet
       Navigator.pop(ctx);
       await tester.pumpAndSettle();
 
       expect(castCtrl.pausedForPicker, isFalse);
       expect(host.resumeTargetSec, 42.0);
       expect(host.resumeWasPlaying, isTrue);
-      // 取消选择器不得销毁本地播放器
       expect(host.parkLocalCalled, isFalse);
     });
 
@@ -307,7 +310,6 @@ void main() {
 
       final consumed = castCtrl.handleSourceChange();
       expect(consumed, isTrue);
-      // Local player is NOT remounted or resumed
       expect(host.parkLocalCalled, isFalse);
       expect(host.resumeTargetSec, isNull);
     });
@@ -322,7 +324,6 @@ void main() {
       castCtrl.session.positionSec = 120.0;
       castCtrl.session.durationSec = 120.0;
 
-      // Trigger session onCompleted callback
       castCtrl.session.onCompleted?.call();
 
       expect(castCtrl.isCasting, isFalse);
@@ -351,14 +352,12 @@ void main() {
       castCtrl.bindCastDevice(testDevice);
       castCtrl.wasPlaying = true;
 
-      // Disconnect at pos 75s
       castCtrl.session.onDisconnected?.call(75.0);
       expect(castCtrl.isCasting, isFalse);
       expect(host.resumeTargetSec, 75.0);
       expect(host.resumeWasPlaying, isTrue);
       expect(host.lastToast, contains('已停止投屏'));
 
-      // Rebind and test fail
       castCtrl.bindCastDevice(testDevice);
       castCtrl.wasPlaying = false;
       castCtrl.session.onFailed?.call(88.0);
@@ -376,7 +375,6 @@ void main() {
 
       host.vol = 0.65;
       castCtrl.pushCastVolume();
-      // Volume push is debounced and clamped
       expect(castCtrl.isCasting, isTrue);
     });
   });
@@ -434,11 +432,9 @@ void main() {
       );
       await tester.pump();
 
-      // Find state
       final state = tester.state(find.byType(VideoPlayerWidget));
       expect(state, isNotNull);
 
-      // Rebuild with next episode
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -475,7 +471,6 @@ void main() {
       );
       await tester.pump();
 
-      // 1. 扫描中状态：显示“扫描中”，带有旋转菊花，且按钮是可点击的（非 null）
       expect(find.text('扫描中'), findsWidgets);
       final textBtnFinder = find.widgetWithText(TextButton, '扫描中');
       expect(textBtnFinder, findsOneWidget);
@@ -483,7 +478,6 @@ void main() {
       expect(btn.onPressed, isNotNull);
       expect(fakeClient.discoverCalls, 1);
 
-      // 2. 点击刷新：打断上一轮扫描并重启扫描
       await tester.tap(textBtnFinder);
       await tester.pump();
 
@@ -491,7 +485,6 @@ void main() {
       expect(fakeClient.cancelCalls, greaterThanOrEqualTo(1));
       expect(find.text('扫描中'), findsWidgets);
 
-      // 3. 完成第 2 次扫描
       fakeClient.pendingCompleter?.complete([
         const DlnaDevice(
           usn: 'uuid:dev-1',
@@ -502,11 +495,9 @@ void main() {
       ]);
       await tester.pumpAndSettle();
 
-      // 4. 扫描完成后，按钮恢复为“刷新”，设备被渲染
       expect(find.text('客厅电视'), findsOneWidget);
       expect(find.text('刷新'), findsOneWidget);
 
-      // 5. 点击“刷新”，重新开始扫描并立即显示反馈
       await tester.pump(const Duration(milliseconds: 350));
       final refreshBtnFinder = find.widgetWithText(TextButton, '刷新');
       await tester.tap(refreshBtnFinder);
@@ -537,13 +528,11 @@ void main() {
       final firstCompleter = fakeClient.pendingCompleter;
       expect(fakeClient.discoverCalls, 1);
 
-      // 重新触发第 2 次扫描
       final btnFinder = find.widgetWithText(TextButton, '扫描中');
       await tester.tap(btnFinder);
       await tester.pump();
       expect(fakeClient.discoverCalls, 2);
 
-      // 第一次扫描此时才返回，不应覆盖第二次扫描的 scanning 状态
       firstCompleter?.complete([
         const DlnaDevice(
           usn: 'uuid:old-dev',
@@ -554,7 +543,6 @@ void main() {
       ]);
       await tester.pump();
 
-      // 由于第一批次的 seq 已过期，页面应依然保持在“扫描中”状态
       expect(find.text('扫描中'), findsWidgets);
       expect(find.text('旧设备'), findsNothing);
     });

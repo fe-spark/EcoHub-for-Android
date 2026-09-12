@@ -85,6 +85,10 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
       ? (_castCtrl.session.phase == CastPhase.playing)
       : _playback.isPlaying;
   @override
+  bool get isOpening => _playback.isOpening;
+  @override
+  bool get isBuffering => _playback.isBuffering;
+  @override
   String get videoUrl => widget.videoUrl;
   @override
   String get title => widget.title;
@@ -140,7 +144,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     _playback.onEnded = widget.onEnded;
     if (oldWidget.videoUrl != widget.videoUrl || oldWidget.reloadToken != widget.reloadToken) {
       if (_castCtrl.isCasting) {
-        // 投屏中切集/换源：通过 DLNA 续投给电视端，本地跳过播放器初始化挂载
         final consumed = _castCtrl.handleSourceChange();
         if (!consumed) {
           _playback.initPlayer(widget.videoUrl);
@@ -209,7 +212,6 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     );
   }
 
-  // PlayerCastHost 实现
   @override
   void parkLocal() {
     _playback.parkForCast();
@@ -232,9 +234,9 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   @override
   void resumeLocal(double targetSec, bool wasPlaying) {
     // 投屏选择器取消时本地播放器仍在：只 seek/play，避免 initPlayer 导致画面重载。
-    // parkLocal 销毁 controller 之后（真正结束投屏）才重新挂载。
+    // 仍在打开中也不要重挂，否则会打断进行中的 initialize。
     final c = _playback.controller;
-    if (c != null && c.value.isInitialized) {
+    if ((c != null && c.value.isInitialized) || _playback.isOpening) {
       _playback.resumeLocal(targetSec, wasPlaying);
     } else {
       _playback.initPlayer(widget.videoUrl, initialTime: targetSec, autoPlay: wasPlaying);
@@ -285,6 +287,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     return ListenableBuilder(
       listenable: _playback,
       builder: (context, _) {
+        final pickerOpen = _castCtrl.pausedForPicker && !_castCtrl.isCasting;
         if (_pipCoord.isPipActive) {
           return Container(
             color: Colors.black,
@@ -351,7 +354,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
               PlayerSkinView(
                 isFull: widget.isFull,
                 edgeHud: widget.edgeHud,
-                showHud: _playback.showHud,
+                showHud: _playback.showHud || pickerOpen,
                 showBack: widget.showBack,
                 title: widget.title,
                 isPlaying: _castCtrl.isCasting
@@ -361,6 +364,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                     ? (_castCtrl.session.phase == CastPhase.launching)
                     : _playback.isBuffering,
                 isOpening: _castCtrl.isCasting ? false : _playback.isOpening,
+                pickerOpen: pickerOpen,
+                loadSessionId: _playback.initSessionId,
                 isReady: _castCtrl.isCasting ? true : _playback.isReady,
                 isCompleted: _castCtrl.isCasting ? false : _playback.isCompleted,
                 muted: _playback.muted,

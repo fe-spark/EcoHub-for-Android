@@ -7,6 +7,8 @@ class PlayerLoadingCard extends StatefulWidget {
   final bool visible;
   final bool isOpening;
   final bool allowRetry;
+  /// 换集 / 重试等新加载会话。变化时清掉「网络较慢」并重开 6s 计时。
+  final int resetToken;
   final VoidCallback? onRetry;
 
   const PlayerLoadingCard({
@@ -14,6 +16,7 @@ class PlayerLoadingCard extends StatefulWidget {
     required this.visible,
     this.isOpening = false,
     this.allowRetry = true,
+    this.resetToken = 0,
     this.onRetry,
   });
 
@@ -42,9 +45,18 @@ class _PlayerLoadingCardState extends State<PlayerLoadingCard> {
   @override
   void didUpdateWidget(covariant PlayerLoadingCard oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.resetToken != widget.resetToken) {
+      _clearSlowTimer();
+      if (_slowNetwork) {
+        setState(() => _slowNetwork = false);
+      } else {
+        _slowNetwork = false;
+      }
+    }
     if (oldWidget.visible != widget.visible ||
         oldWidget.allowRetry != widget.allowRetry ||
-        oldWidget.isOpening != widget.isOpening) {
+        oldWidget.isOpening != widget.isOpening ||
+        oldWidget.resetToken != widget.resetToken) {
       _syncGates();
     }
   }
