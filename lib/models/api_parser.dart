@@ -377,7 +377,7 @@ class ApiParser {
       noticeShowInWeb: notice.containsKey('showInWeb') ? boolVal(notice, 'showInWeb', true) : true,
       noticeShowInApp: notice.containsKey('showInApp') ? boolVal(notice, 'showInApp', true) : true,
       noticeAppVersion: appVer,
-      noticeVersion: appVer.isNotEmpty ? appVer : '1',
+      noticeVersion: appVer,
     );
   }
 
