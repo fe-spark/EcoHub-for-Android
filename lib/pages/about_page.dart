@@ -30,7 +30,7 @@ class AboutPage extends StatefulWidget {
 }
 
 class _AboutPageState extends State<AboutPage> {
-  String _appVersion = '1.0.0';
+  String _appVersion = '1.0.1';
   bool _isCheckingVersion = false;
   bool _showUpdateDialog = false;
   AppUpdateInfo _updateInfo = AppUpdateInfo(

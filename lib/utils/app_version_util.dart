@@ -26,7 +26,7 @@ class AppUpdateInfo {
 
 /// 版本工具与检查器
 class AppVersionUtil {
-  static const String appVersion = '1.0.0';
+  static const String appVersion = '1.0.1';
   static String _cachedVersionName = '';
   static AppUpdateInfo? _cachedUpdateInfo;
   static int _lastCheckTime = 0;
