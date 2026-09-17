@@ -239,6 +239,10 @@ void main() {
       expect(manager.normalizeRaw('http://eco.fe-spark.cn/'), 'http://eco.fe-spark.cn');
       expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api'), 'https://eco.fe-spark.cn');
       expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api/'), 'https://eco.fe-spark.cn');
+      expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api/provide/app'), 'https://eco.fe-spark.cn');
+      expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api/provide/app/'), 'https://eco.fe-spark.cn');
+      expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api/provide/app?key=mykey'), 'https://eco.fe-spark.cn');
+      expect(ServerConfigManager.extractProvideKey('https://eco.fe-spark.cn/api/provide/app?key=mykey'), 'mykey');
       expect(ServerConfigManager.hostScope('https://eco.fe-spark.cn/api'), 'eco.fe-spark.cn');
     });
   });

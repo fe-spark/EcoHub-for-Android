@@ -164,10 +164,46 @@ class ServerConfigManager {
     return cleanUrl;
   }
 
+  String get provideKey => extractProvideKey(_cachedUrl);
+
+  static String extractProvideKey(String url) {
+    if (url.isEmpty) return '';
+    final queryIndex = url.indexOf('?');
+    if (queryIndex < 0) return '';
+    final queryStr = url.substring(queryIndex + 1);
+    final pairs = queryStr.split('&');
+    for (final part in pairs) {
+      final eq = part.indexOf('=');
+      if (eq > 0) {
+        final k = part.substring(0, eq).trim();
+        if (k == 'key') {
+          return Uri.decodeComponent(part.substring(eq + 1).trim());
+        }
+      }
+    }
+    return '';
+  }
+
   static String stripApiSuffix(String url) {
     var base = url.trim();
+    final queryIndex = base.indexOf('?');
+    if (queryIndex >= 0) {
+      base = base.substring(0, queryIndex);
+    }
     while (base.endsWith('/')) {
       base = base.substring(0, base.length - 1);
+    }
+    // 兼容剥离 /api/provide/app 或 /provide/app
+    if (base.toLowerCase().endsWith('/api/provide/app')) {
+      base = base.substring(0, base.length - 16);
+      while (base.endsWith('/')) {
+        base = base.substring(0, base.length - 1);
+      }
+    } else if (base.toLowerCase().endsWith('/provide/app')) {
+      base = base.substring(0, base.length - 12);
+      while (base.endsWith('/')) {
+        base = base.substring(0, base.length - 1);
+      }
     }
     while (base.toLowerCase().endsWith('/api')) {
       base = base.substring(0, base.length - 4);

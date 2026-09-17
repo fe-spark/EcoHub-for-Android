@@ -131,9 +131,11 @@ class HttpClient {
     final origin = ServerConfigManager.stripApiSuffix(manager.normalizeRaw(baseUrl));
     if (origin.isEmpty) return false;
 
+    final key = ServerConfigManager.extractProvideKey(baseUrl);
     SourceGuard.beginSkip();
     try {
-      final response = await _send('$origin/api/health', 5000);
+      final query = key.isNotEmpty ? '?key=${Uri.encodeComponent(key)}' : '';
+      final response = await _send('$origin/api/health$query', 5000);
       return response.code == 0;
     } catch (_) {
       return false;
@@ -144,9 +146,10 @@ class HttpClient {
 
   Future<ApiResponse> _send(String url, int timeoutMs) async {
     final userAgent = await _resolveUserAgent();
+    final manager = ServerConfigManager.instance;
     String deviceId = '';
     try {
-      deviceId = await ServerConfigManager.instance.getDeviceId();
+      deviceId = await manager.getDeviceId();
     } catch (_) {}
     try {
       final res = await http.get(
@@ -157,6 +160,7 @@ class HttpClient {
           'User-Agent': userAgent,
           if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
           if (deviceId.isNotEmpty) 'Device-Id': deviceId,
+          if (manager.provideKey.isNotEmpty) 'X-Provide-Key': manager.provideKey,
         },
       ).timeout(Duration(milliseconds: timeoutMs));
 
