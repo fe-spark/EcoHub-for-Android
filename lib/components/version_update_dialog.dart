@@ -54,9 +54,9 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
   }
 
   Future<void> _handleUpdate() async {
-    final url = widget.updateInfo.downloadUrl.isNotEmpty
-        ? widget.updateInfo.downloadUrl
-        : widget.updateInfo.releaseUrl;
+    final url = widget.updateInfo.releaseUrl.isNotEmpty
+        ? widget.updateInfo.releaseUrl
+        : AppVersionUtil.latestReleaseUrl;
     if (url.isNotEmpty) {
       try {
         final uri = Uri.parse(url);
@@ -158,7 +158,8 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
                         SizedBox(height: landscape ? 6 : AppTheme.spaceMd),
 
                         // Version comparison
-                        Row(
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
                           children: [
                             Text(
                               '当前 v${widget.updateInfo.currentVersion}',
@@ -167,9 +168,10 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
                                 color: AppTheme.textMuted,
                               ),
                             ),
-                            const SizedBox(width: 4),
-                            const Icon(Icons.arrow_forward_rounded, size: 12, color: AppTheme.textMuted),
-                            const SizedBox(width: 4),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 4),
+                              child: Icon(Icons.arrow_forward_rounded, size: 12, color: AppTheme.textMuted),
+                            ),
                             Text(
                               '最新 v${widget.updateInfo.latestVersion}',
                               style: const TextStyle(

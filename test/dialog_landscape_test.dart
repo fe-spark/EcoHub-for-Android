@@ -9,6 +9,8 @@ import 'package:ecohub_android/components/cast/player_cast_sheet.dart';
 import 'package:ecohub_android/components/server_history_dialog.dart';
 import 'package:ecohub_android/utils/app_version_util.dart';
 import 'package:ecohub_android/types/dlna_types.dart';
+import 'package:plugin_platform_interface/plugin_platform_interface.dart';
+import 'package:url_launcher_platform_interface/url_launcher_platform_interface.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -297,5 +299,92 @@ void main() {
       expect(title.dy, greaterThan(screen.height * 0.15));
       expect(title.dy, lessThan(screen.height * 0.5));
     });
+
+    testWidgets('VersionUpdateDialog jumps to releaseUrl instead of downloadUrl when clicking update', (tester) async {
+      final mockPlatform = _MockUrlLauncher();
+      UrlLauncherPlatform.instance = mockPlatform;
+
+      var closed = false;
+      final updateInfo = AppUpdateInfo(
+        hasUpdate: true,
+        currentVersion: '1.0.0',
+        latestVersion: '1.0.1',
+        releaseName: 'v1.0.1',
+        releaseNotes: '稳定性优化',
+        downloadUrl: 'https://example.com/update.apk',
+        releaseUrl: 'https://github.com/fe-spark/EcoHub-for-Android/releases/tag/v1.0.1',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VersionUpdateDialog(
+              updateInfo: updateInfo,
+              onClose: () {
+                closed = true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('前往更新'));
+      await tester.pumpAndSettle();
+
+      expect(mockPlatform.launchedUrl, 'https://github.com/fe-spark/EcoHub-for-Android/releases/tag/v1.0.1');
+      expect(closed, isTrue);
+    });
+
+    testWidgets('VersionUpdateDialog falls back to latestReleaseUrl when releaseUrl is empty', (tester) async {
+      final mockPlatform = _MockUrlLauncher();
+      UrlLauncherPlatform.instance = mockPlatform;
+
+      var closed = false;
+      final updateInfo = AppUpdateInfo(
+        hasUpdate: true,
+        currentVersion: '1.0.0',
+        latestVersion: '1.0.1',
+        releaseName: 'v1.0.1',
+        releaseNotes: '稳定性优化',
+        downloadUrl: 'https://example.com/update.apk',
+        releaseUrl: '',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: VersionUpdateDialog(
+              updateInfo: updateInfo,
+              onClose: () {
+                closed = true;
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('前往更新'));
+      await tester.pumpAndSettle();
+
+      expect(mockPlatform.launchedUrl, AppVersionUtil.latestReleaseUrl);
+      expect(closed, isTrue);
+    });
   });
+}
+
+class _MockUrlLauncher extends Fake
+    with MockPlatformInterfaceMixin
+    implements UrlLauncherPlatform {
+  String? launchedUrl;
+
+  @override
+  Future<bool> canLaunch(String url) async => true;
+
+  @override
+  Future<bool> launchUrl(String url, LaunchOptions options) async {
+    launchedUrl = url;
+    return true;
+  }
 }
