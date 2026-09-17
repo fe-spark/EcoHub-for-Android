@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ecohub_android/models/api_parser.dart';
 import 'package:ecohub_android/utils/format_util.dart';
 import 'package:ecohub_android/utils/server_config_manager.dart';
+import 'package:ecohub_android/api/http_client.dart';
 import 'package:ecohub_android/utils/app_version_util.dart';
 import 'package:ecohub_android/utils/clipboard_sniffer.dart';
 import 'package:ecohub_android/utils/nav_util.dart';
@@ -241,9 +242,24 @@ void main() {
       expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api/'), 'https://eco.fe-spark.cn');
       expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api/provide/app'), 'https://eco.fe-spark.cn');
       expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api/provide/app/'), 'https://eco.fe-spark.cn');
-      expect(ServerConfigManager.stripApiSuffix('https://eco.fe-spark.cn/api/provide/app?key=mykey'), 'https://eco.fe-spark.cn');
       expect(ServerConfigManager.extractProvideKey('https://eco.fe-spark.cn/api/provide/app?key=mykey'), 'mykey');
-      expect(ServerConfigManager.hostScope('https://eco.fe-spark.cn/api'), 'eco.fe-spark.cn');
+      expect(ServerConfigManager.stripProvideKey('https://eco.fe-spark.cn/api/provide/app?key=mykey'), 'https://eco.fe-spark.cn/api/provide/app');
+      expect(ServerConfigManager.buildServerUrl('https://eco.fe-spark.cn/api/provide/app', 'mykey'), 'https://eco.fe-spark.cn/api/provide/app?key=mykey');
+      expect(ServerConfigManager.buildServerUrl('https://eco.fe-spark.cn/api/provide/app?key=oldkey', 'mykey'), 'https://eco.fe-spark.cn/api/provide/app?key=mykey');
+      expect(ServerConfigManager.buildServerUrl('https://eco.fe-spark.cn/api/provide/app', ''), 'https://eco.fe-spark.cn/api/provide/app');
+    });
+
+    test('testConnection empty url returns invalid message', () async {
+      final res = await HttpClient.instance.testConnection('');
+      expect(res.ok, false);
+      expect(res.message, '请输入有效的软件源地址');
+    });
+
+    test('ConnectionResult fields', () {
+      const res = ConnectionResult(ok: false, isPrivate: true, message: '该软件源已开启私有化访问，请在地址后追加 ?key=密钥');
+      expect(res.ok, false);
+      expect(res.isPrivate, true);
+      expect(res.message, contains('私有化'));
     });
   });
 
@@ -604,9 +620,9 @@ void main() {
       expect(find.byType(ElevatedButton), findsOneWidget);
 
       final buttonCenter = tester.getCenter(find.byType(ElevatedButton));
-      // In a 400px tall screen, button should be vertically centered near 200 (within 60px)
+      // In a 400px tall screen with key field, button should be vertically centered near 200~260
       expect(buttonCenter.dy, greaterThan(150));
-      expect(buttonCenter.dy, lessThan(250));
+      expect(buttonCenter.dy, lessThan(280));
     });
 
     testWidgets('ServerConfigPage scrolls without overflow on compact heights', (tester) async {

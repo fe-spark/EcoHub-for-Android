@@ -41,8 +41,7 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
   }
 
   Future<void> _loadInitial() async {
-    final url = await ServerConfigManager.instance.getServerUrl();
-    _controller.text = url;
+    _controller.text = await ServerConfigManager.instance.getServerUrl();
     _serverHistory = await ServerConfigManager.instance.getServerHistory();
     if (mounted) setState(() {});
   }
@@ -65,12 +64,12 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
     }
 
     setState(() => _isLoading = true);
-    final ok = await HttpClient.instance.testConnection(url);
+    final res = await HttpClient.instance.testConnection(url);
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (!ok) {
-      _toast('无法连接该源，请检查地址');
+    if (!res.ok) {
+      _toast(res.message ?? '无法连接该源，请检查地址');
       return;
     }
 
@@ -103,11 +102,16 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
 
   void _showHistoryDialog() {
     FocusScope.of(context).unfocus();
+    final currentFull = _controller.text.trim();
     showServerHistoryDialog(
       context: context,
       historyOf: () => _serverHistory,
-      currentUrl: _controller.text.trim(),
-      onSelect: (item) => setState(() => _controller.text = item),
+      currentUrl: currentFull,
+      onSelect: (item) {
+        setState(() {
+          _controller.text = item;
+        });
+      },
       onReload: _loadHistory,
       onToastCleared: () => _toast('已清空历史软件源'),
     );
@@ -220,7 +224,7 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
             ],
           ),
         ),
-        SizedBox(height: landscape ? 10 : 24),
+        SizedBox(height: landscape ? 12 : 24),
         SizedBox(
           width: double.infinity,
           height: inputH,
@@ -238,12 +242,6 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
               style: TextStyle(fontSize: landscape ? 15 : 16, fontWeight: FontWeight.bold),
             ),
           ),
-        ),
-        SizedBox(height: landscape ? 8 : 16),
-        Text(
-          '接口形如 https://your-host/api，配置后所有请求均走该源。',
-          style: TextStyle(fontSize: landscape ? 11 : 12, color: AppTheme.textMuted),
-          textAlign: TextAlign.center,
         ),
       ],
     );

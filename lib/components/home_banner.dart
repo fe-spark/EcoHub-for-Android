@@ -414,7 +414,7 @@ class _HomeBannerState extends State<HomeBanner> {
   @override
   Widget build(BuildContext context) {
     if (widget.banners.isEmpty) {
-      return const SizedBox(height: 48);
+      return const SizedBox.shrink();
     }
     final size = MediaQuery.sizeOf(context);
     final wide = Breakpoint.isWideWidth(size.width);

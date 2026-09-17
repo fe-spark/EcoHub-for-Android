@@ -137,6 +137,7 @@ class _RecommendTabState extends State<RecommendTab> {
   }
 
   double _effectiveHeaderAlpha(bool wide) {
+    if (_banners.isEmpty) return 1.0;
     if (wide) return (0.76 + 0.16 * _headerAlpha).clamp(0.0, 0.92);
     return _headerAlpha;
   }
@@ -422,6 +423,9 @@ class _RecommendTabState extends State<RecommendTab> {
         ),
       );
     } else {
+      final topSpace = wide
+          ? (48 + topInset + 8)
+          : (_banners.isEmpty ? (48 + topInset + 12) : 0.0);
       body = _wrapRefresh(
         topInset: topInset,
         child: SingleChildScrollView(
@@ -430,7 +434,7 @@ class _RecommendTabState extends State<RecommendTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (wide) SizedBox(height: 48 + topInset + 8),
+              if (topSpace > 0) SizedBox(height: topSpace),
               HomeBanner(key: ValueKey(_reloadToken), banners: _banners),
               if (sections.isNotEmpty)
                 Padding(

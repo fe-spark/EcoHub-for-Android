@@ -184,6 +184,32 @@ class ServerConfigManager {
     return '';
   }
 
+  static String stripProvideKey(String url) {
+    if (url.isEmpty) return '';
+    final queryIndex = url.indexOf('?');
+    if (queryIndex < 0) return url;
+    final base = url.substring(0, queryIndex);
+    final queryStr = url.substring(queryIndex + 1);
+    final pairs = queryStr.split('&');
+    final kept = <String>[];
+    for (final part in pairs) {
+      final eq = part.indexOf('=');
+      final k = eq > 0 ? part.substring(0, eq).trim() : part.trim();
+      if (k != 'key') {
+        kept.add(part);
+      }
+    }
+    return kept.isNotEmpty ? '$base?${kept.join('&')}' : base;
+  }
+
+  static String buildServerUrl(String baseUrl, [String? key]) {
+    final cleanBase = stripProvideKey(baseUrl.trim());
+    final cleanKey = key?.trim() ?? '';
+    if (cleanKey.isEmpty) return cleanBase;
+    final sep = cleanBase.contains('?') ? '&' : '?';
+    return '$cleanBase${sep}key=${Uri.encodeComponent(cleanKey)}';
+  }
+
   static String stripApiSuffix(String url) {
     var base = url.trim();
     final queryIndex = base.indexOf('?');
