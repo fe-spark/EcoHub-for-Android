@@ -94,6 +94,8 @@ class MovieBasicInfo {
   final String language;
   final String classTag;
   final String mid;
+  final String sourceId;
+  final int sourceMid;
 
   MovieBasicInfo({
     required this.id,
@@ -115,6 +117,22 @@ class MovieBasicInfo {
     this.language = '',
     this.classTag = '',
     this.mid = '',
+    this.sourceId = '',
+    this.sourceMid = 0,
+  });
+}
+
+class SearchSourceTab {
+  final String id;
+  final String name;
+  final int count;
+  final bool loading;
+
+  SearchSourceTab({
+    required this.id,
+    required this.name,
+    this.count = 0,
+    this.loading = false,
   });
 }
 
@@ -482,9 +500,11 @@ class FavoriteItem {
 class SearchResult {
   final List<MovieBasicInfo> list;
   final PageInfo page;
+  final List<SearchSourceTab> sources;
 
   SearchResult({
     required this.list,
     required this.page,
+    this.sources = const [],
   });
 }

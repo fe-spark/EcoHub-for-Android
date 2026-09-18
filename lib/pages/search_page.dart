@@ -7,6 +7,8 @@ import '../utils/search_history_manager.dart';
 import '../utils/source_guard.dart';
 import '../utils/breakpoint.dart';
 import '../components/search_result_item.dart';
+import '../components/search_source_tabs.dart';
+import '../components/search_suggest_pane.dart';
 import '../components/loading_view.dart';
 import '../components/empty_state.dart';
 
@@ -29,12 +31,16 @@ class _SearchPageState extends State<SearchPage> {
   final FocusNode _focusNode = FocusNode();
   String _submitted = '';
   List<MovieBasicInfo> _list = [];
+  List<SearchSourceTab> _sources = [];
+  String _source = '';
   PageInfo _page = PageInfo(pageSize: 10, current: 1, pageCount: 0, total: 0);
   bool _loading = false;
   bool _loadingMore = false;
   List<String> _searchHistory = [];
   List<String> _hotKeywords = [];
   final ScrollController _scrollController = ScrollController();
+  final Map<String, _CachedSource> _cache = {};
+  int _searchGen = 0;
 
   @override
   void initState() {
@@ -145,7 +151,54 @@ class _SearchPageState extends State<SearchPage> {
     );
   }
 
-  Future<void> _doSearch(bool reset) async {
+  void _applySource(String id) {
+    final hit = _cache[id];
+    if (hit != null) {
+      _list = hit.list;
+      _page = hit.page;
+      _loading = false;
+      return;
+    }
+    _list = [];
+    _loading = true;
+  }
+
+  void _patchTab(String id, {int? count, bool? loading}) {
+    _sources = [
+      for (final tab in _sources)
+        if (tab.id == id)
+          SearchSourceTab(
+            id: tab.id,
+            name: tab.name,
+            count: count ?? tab.count,
+            loading: loading ?? tab.loading,
+          )
+        else
+          tab,
+    ];
+  }
+
+  Future<void> _fetchSource(int gen, String kw, String id) async {
+    var list = <MovieBasicInfo>[];
+    var page = PageInfo(pageSize: 12, current: 1, pageCount: 0, total: 0);
+    try {
+      final res = await FilmApi.searchFilm(kw, current: 1, source: id);
+      list = res.list;
+      page = res.page;
+    } catch (_) {}
+    if (!mounted || gen != _searchGen) return;
+    setState(() {
+      _cache[id] = _CachedSource(list: list, page: page);
+      _patchTab(id, count: page.total, loading: false);
+      if (_source == id) {
+        _list = list;
+        _page = page;
+        _loading = false;
+      }
+    });
+  }
+
+  Future<void> _doSearch(bool reset, {bool keepSource = false}) async {
     final kw = _inputController.text.trim();
     if (kw.isEmpty) {
       if (reset) {
@@ -161,34 +214,81 @@ class _SearchPageState extends State<SearchPage> {
 
     _focusNode.unfocus();
 
-    if (reset) {
-      HttpClient.instance.trackView('search', kw, 'SearchPage');
-      setState(() {
-        _loading = true;
-        _list = [];
-      });
-      SearchHistoryManager.add(kw).then((_) => _loadHistory());
-    } else {
+    if (!reset) {
       setState(() {
         _loadingMore = true;
       });
+      try {
+        final res = await FilmApi.searchFilm(kw, current: nextPage, source: _source);
+        if (!mounted) return;
+        setState(() {
+          _submitted = kw;
+          _page = res.page;
+          _list = [..._list, ...res.list];
+          _cache[_source] = _CachedSource(list: _list, page: res.page);
+          _loadingMore = false;
+        });
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _loadingMore = false;
+        });
+      }
+      return;
     }
 
+    if (!keepSource) {
+      _source = '';
+    }
+    final gen = ++_searchGen;
+    HttpClient.instance.trackView('search', kw, 'SearchPage');
+    setState(() {
+      _loading = true;
+      _list = [];
+      _cache.clear();
+    });
+    SearchHistoryManager.add(kw).then((_) => _loadHistory());
+
     try {
-      final res = await FilmApi.searchFilm(kw, current: nextPage);
-      if (!mounted) return;
+      final res = await FilmApi.searchFilm(kw, current: 1, source: '');
+      if (!mounted || gen != _searchGen) return;
       setState(() {
         _submitted = kw;
-        _page = res.page;
-        _list = reset ? res.list : [..._list, ...res.list];
-        _loading = false;
-        _loadingMore = false;
+        _cache[''] = _CachedSource(list: res.list, page: res.page);
+        _sources = [
+          for (final tab in res.sources)
+            SearchSourceTab(
+              id: tab.id,
+              name: tab.name,
+              count: tab.id.isEmpty
+                  ? (tab.count > 0 ? tab.count : res.page.total)
+                  : (_cache[tab.id]?.page.total ?? tab.count),
+              loading: tab.id.isNotEmpty && !_cache.containsKey(tab.id),
+            ),
+        ];
+        if (_source.isEmpty) {
+          _list = res.list;
+          _page = res.page;
+          _loading = false;
+        } else if (_cache[_source] != null) {
+          _applySource(_source);
+        }
+      });
+      await Future.wait([
+        for (final tab in res.sources)
+          if (tab.id.isNotEmpty) _fetchSource(gen, kw, tab.id),
+      ]);
+      if (!mounted || gen != _searchGen) return;
+      setState(() {
+        _sources = [
+          for (final tab in _sources)
+            SearchSourceTab(id: tab.id, name: tab.name, count: tab.count, loading: false),
+        ];
       });
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || gen != _searchGen) return;
       setState(() {
         _loading = false;
-        _loadingMore = false;
       });
     }
   }
@@ -280,152 +380,43 @@ class _SearchPageState extends State<SearchPage> {
 
             // Body Area
             Expanded(
-              child: _loading
-                  ? const LoadingView(label: '正在搜索')
-                  : _submitted.isEmpty
-                      ? _buildHistoryAndHot()
-                      : _buildResultList(),
+              child: Column(
+                children: [
+                  if (_submitted.isNotEmpty)
+                    SearchSourceTabs(
+                      sources: _sources,
+                      activeId: _source,
+                      onChange: (id) {
+                        if (id == _source) return;
+                        setState(() {
+                          _source = id;
+                          _applySource(id);
+                        });
+                      },
+                    ),
+                  Expanded(
+                    child: _loading
+                        ? const LoadingView(label: '正在搜索')
+                        : _submitted.isEmpty
+                            ? SearchSuggestPane(
+                                searchHistory: _searchHistory,
+                                hotKeywords: _hotKeywords,
+                                onSelectKeyword: (item) {
+                                  _inputController.text = item;
+                                  _doSearch(true);
+                                },
+                                onClearHistory: _confirmClearHistory,
+                                onRemoveHistory: (item) {
+                                  SearchHistoryManager.remove(item).then((_) => _loadHistory());
+                                },
+                              )
+                            : _buildResultList(),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _buildHistoryAndHot() {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceSm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Search History Section
-          if (_searchHistory.isNotEmpty) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  '搜索历史',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
-                ),
-                GestureDetector(
-                  onTap: _confirmClearHistory,
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.delete_outline_rounded, size: 14, color: AppTheme.textMuted),
-                      SizedBox(width: 2),
-                      Text('清空', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: _searchHistory.map((item) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgCard,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      InkWell(
-                        onTap: () {
-                          _inputController.text = item;
-                          _doSearch(true);
-                        },
-                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppTheme.radiusPill)),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          child: Text(
-                            item,
-                            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      GestureDetector(
-                        onTap: () {
-                          SearchHistoryManager.remove(item).then((_) => _loadHistory());
-                        },
-                        child: const Padding(
-                          padding: EdgeInsets.only(right: 8, left: 2),
-                          child: Icon(Icons.close_rounded, size: 14, color: AppTheme.textMuted),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 24),
-          ],
-
-          // Hot Search Section
-          if (_hotKeywords.isNotEmpty) ...[
-            const Row(
-              children: [
-                Icon(Icons.local_fire_department_rounded, size: 16, color: AppTheme.accent),
-                SizedBox(width: 4),
-                Text(
-                  '热门搜索',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(_hotKeywords.length, (index) {
-                final item = _hotKeywords[index];
-                final isTop3 = index < 3;
-                return InkWell(
-                  onTap: () {
-                    _inputController.text = item;
-                    _doSearch(true);
-                  },
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: isTop3 ? AppTheme.bgChip : AppTheme.bgCard,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      border: Border.all(
-                        color: isTop3 ? AppTheme.accentSoft : AppTheme.border,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isTop3 ? AppTheme.accent : AppTheme.textMuted,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          item,
-                          style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -442,7 +433,7 @@ class _SearchPageState extends State<SearchPage> {
     final lanes = Breakpoint.listLanesOf(MediaQuery.sizeOf(context).width);
 
     return RefreshIndicator(
-      onRefresh: () => _doSearch(true),
+      onRefresh: () => _doSearch(true, keepSource: true),
       color: AppTheme.accent,
       backgroundColor: AppTheme.bgCard,
       child: CustomScrollView(
@@ -491,4 +482,11 @@ class _SearchPageState extends State<SearchPage> {
       ),
     );
   }
+}
+
+class _CachedSource {
+  final List<MovieBasicInfo> list;
+  final PageInfo page;
+
+  _CachedSource({required this.list, required this.page});
 }
