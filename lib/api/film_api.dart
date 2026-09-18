@@ -86,10 +86,11 @@ class FilmApi {
     return ApiParser.parseStringList(res.data);
   }
 
-  static Future<SearchResult> searchFilm(String keyword, {int current = 1}) async {
+  static Future<SearchResult> searchFilm(String keyword, {int current = 1, String source = ''}) async {
     final params = {
       'keyword': keyword,
       'current': current,
+      if (source.isNotEmpty) 'source': source,
     };
     final res = await HttpClient.instance.get('/searchFilm', params: params);
     if (res.code != 0 || res.data == null) {
@@ -113,11 +114,13 @@ class FilmApi {
     String id, {
     String playFrom = '',
     int episode = 0,
+    String sid = '',
   }) async {
     final params = {
       'id': id,
       'playFrom': playFrom,
       'episode': episode,
+      if (sid.isNotEmpty) 'sid': sid,
     };
     final res = await HttpClient.instance.get('/filmPlayInfo', params: params, timeoutMs: 20000);
     if (res.code != 0 || res.data == null) {

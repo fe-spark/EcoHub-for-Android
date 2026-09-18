@@ -85,6 +85,8 @@ class ApiParser {
       language: str(map, 'language'),
       classTag: str(map, 'classTag'),
       mid: str(map, 'mid'),
+      sourceId: str(map, 'sourceId'),
+      sourceMid: intVal(map, 'sourceMid'),
     );
   }
 
@@ -185,7 +187,22 @@ class ApiParser {
     return SearchResult(
       list: parseMovies(listVal(map, 'list')),
       page: parsePage(mapVal(map, 'page')),
+      sources: parseSearchSources(listVal(map, 'sources')),
     );
+  }
+
+  static List<SearchSourceTab> parseSearchSources(dynamic raw) {
+    if (raw is! List) return const [];
+    final tabs = <SearchSourceTab>[];
+    for (final item in raw) {
+      final map = asMap(item);
+      tabs.add(SearchSourceTab(
+        id: str(map, 'id'),
+        name: str(map, 'name'),
+        count: intVal(map, 'count'),
+      ));
+    }
+    return tabs;
   }
 
   static FilterResult parseFilter(dynamic raw) {

@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../common/app_theme.dart';
 import '../models/film_models.dart';
 import '../utils/format_util.dart';
+import '../utils/nav_util.dart';
 import '../utils/server_config_manager.dart';
 
 /// 搜索结果横向图文卡片组件
@@ -27,7 +28,12 @@ class SearchResultItem extends StatelessWidget {
       return;
     }
     final filmId = FormatUtil.filmId(film);
-    Navigator.pushNamed(context, '/play', arguments: {'id': filmId});
+    NavUtil.openPlay(
+      context,
+      filmId,
+      sourceId: film.sourceId,
+      sourceMid: film.sourceMid > 0 ? '${film.sourceMid}' : '',
+    );
   }
 
   @override
