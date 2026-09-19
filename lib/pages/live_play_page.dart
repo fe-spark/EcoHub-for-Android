@@ -5,8 +5,7 @@ import '../api/http_client.dart';
 import '../common/app_theme.dart';
 import '../components/empty_state.dart';
 import '../components/loading_view.dart';
-import '../components/page_header.dart';
-import '../components/player/live_play_panel.dart';
+import '../components/player/play_side_tabs.dart';
 import '../components/player/video_player_widget.dart';
 import '../models/film_models.dart';
 import '../services/pip_manager.dart';
@@ -18,8 +17,9 @@ import '../utils/play_navigation.dart';
 import '../utils/play_resume.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
+import '../utils/split_cutout_insets.dart';
 
-/// 采集源现场播放页，布局对齐自定义播放页（播放器 + 线路/选集/简介）
+/// 采集源现场播放页，布局对齐自定义播放页（播放器 + 详情/选集 + 同类推荐）
 class LivePlayPage extends StatefulWidget {
   final String sourceId;
   final String sourceMid;
@@ -39,27 +39,35 @@ class LivePlayPage extends StatefulWidget {
 }
 
 class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver {
+  late String _sourceMid;
   bool _loading = true;
   String _errorText = '';
   String _name = '';
   String _picture = '';
+  String _subTitle = '';
+  String _actor = '';
   String _plot = '';
+  MovieDescriptor? _descriptor;
   List<PlaySource> _sources = [];
   String _playingSourceId = '';
+  String _viewingSourceId = '';
   int _episodeIndex = 0;
   String _playUrl = '';
   int _playToken = 0;
   String _playTitle = '';
   double _initialTime = 0;
-  bool _isFull = false;
-  bool _isPipActive = false;
+  List<MovieBasicInfo> _related = [];
+  bool _relateLoading = false;
+  int _activeTab = 0;
+  bool _playerFull = false;
   final GlobalKey _videoKey = GlobalKey();
-  String _sourceName = '采集源';
+  String _sourceName = '';
   double _lastCurrentTime = 0;
   double _lastDuration = 0;
   bool _persistEnabled = true;
+  bool _isPipActive = false;
 
-  String get _historyId => PlayNavigation.livePlayHistoryId(widget.sourceId, widget.sourceMid);
+  String get _historyId => PlayNavigation.livePlayHistoryId(widget.sourceId, _sourceMid);
 
   @override
   void initState() {
@@ -67,6 +75,7 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     WidgetsBinding.instance.addObserver(this);
     PipManager.instance.addListener(_onPipChanged);
     _isPipActive = PipManager.instance.isPipActive;
+    _sourceMid = widget.sourceMid;
     _episodeIndex = widget.episodeIndex;
     _initialTime = widget.currentTime;
     _lastCurrentTime = _initialTime;
@@ -120,7 +129,7 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   }
 
   Future<void> _loadPlay() async {
-    if (widget.sourceId.isEmpty || widget.sourceMid.isEmpty) {
+    if (widget.sourceId.isEmpty || _sourceMid.isEmpty) {
       setState(() {
         _errorText = '缺少采集源播放参数';
         _loading = false;
@@ -131,31 +140,36 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       setState(() => _loading = true);
     }
     try {
-      final info = await FilmApi.getPlayInfo(
-        '',
-        playFrom: widget.sourceId,
+      final info = await FilmApi.getLivePlayInfo(
+        widget.sourceId,
+        _sourceMid,
         episode: _episodeIndex,
-        sid: widget.sourceMid,
       );
       if (!mounted) return;
       final detail = info.detail;
       setState(() {
         _name = detail.name;
         _picture = detail.picture;
+        _descriptor = detail.descriptor;
+        _subTitle = detail.descriptor.subTitle;
+        _actor = detail.descriptor.actor;
         _plot = detail.descriptor.content.isNotEmpty ? detail.descriptor.content : detail.descriptor.blurb;
         _sources = detail.list;
         _playingSourceId = info.currentPlayFrom.isNotEmpty
             ? info.currentPlayFrom
             : (detail.list.isNotEmpty ? detail.list.first.id : '');
+        _viewingSourceId = _playingSourceId;
         _episodeIndex = info.currentEpisode;
         _playUrl = info.current.link;
         _playTitle = '${detail.name} · ${info.current.episode}';
-        _sourceName = _findSource(_playingSourceId)?.name ?? '采集源';
+        _sourceName = _findSource(_playingSourceId)?.name ?? (widget.sourceId.isNotEmpty ? widget.sourceId : '采集源');
         _errorText = '';
         _loading = false;
         _persistEnabled = true;
       });
       _persistHistory();
+      final cid = detail.rawCid > 0 ? detail.rawCid : detail.cid;
+      _loadRelate(cid);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -165,6 +179,29 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
         } else {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$e')));
         }
+      });
+    }
+  }
+
+  Future<void> _loadRelate(dynamic cid) async {
+    if (widget.sourceId.isEmpty) return;
+    setState(() => _relateLoading = true);
+    try {
+      final list = await FilmApi.getLiveRelate(
+        widget.sourceId,
+        cid: cid,
+        sid: _sourceMid,
+      );
+      if (!mounted) return;
+      setState(() {
+        _related = list;
+        _relateLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _related = [];
+        _relateLoading = false;
       });
     }
   }
@@ -183,6 +220,7 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     final episode = source.linkList[index];
     setState(() {
       _playingSourceId = sourceId;
+      _viewingSourceId = sourceId;
       _episodeIndex = index;
       _initialTime = 0;
       _lastCurrentTime = 0;
@@ -218,6 +256,35 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     _selectEpisode(_playingSourceId, _episodeIndex + 1);
   }
 
+  Future<void> _openRelated(MovieBasicInfo film) async {
+    String newSid = '';
+    if (film.sourceMid > 0) {
+      newSid = '${film.sourceMid}';
+    } else if (film.mid.isNotEmpty) {
+      newSid = film.mid;
+    } else if (film.id > 0) {
+      newSid = '${film.id}';
+    }
+    if (newSid.isEmpty || newSid == _sourceMid) return;
+
+    _sourceMid = newSid;
+    HttpClient.instance.trackView('play', _historyId, 'LivePlayPage');
+    final resume = await PlayResume.fromHistory(_historyId);
+    if (!mounted) return;
+    setState(() {
+      _name = '';
+      _sources = [];
+      _playUrl = '';
+      _loading = true;
+      _episodeIndex = resume.episodeIndex;
+      _initialTime = resume.currentTime;
+      _lastCurrentTime = resume.currentTime;
+      _lastDuration = resume.duration;
+      _activeTab = 0;
+    });
+    _loadPlay();
+  }
+
   void _persistHistory([double? currentTime, double? duration]) {
     if (!_persistEnabled || _historyId.isEmpty || _name.isEmpty) return;
     if (ServerConfigManager.instance.storageScope().isEmpty) return;
@@ -243,8 +310,8 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   }
 
   void _setFullscreen(bool full, {bool isPortrait = false}) {
-    if (_isFull == full) return;
-    setState(() => _isFull = full);
+    if (_playerFull == full) return;
+    setState(() => _playerFull = full);
     try {
       if (full) {
         SystemChrome.setPreferredOrientations(
@@ -260,24 +327,32 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     } catch (_) {}
   }
 
-  Widget _player({required bool isFull, required bool wide}) {
-    final padding = MediaQuery.paddingOf(context);
-    final player = VideoPlayerWidget(
+  Widget _buildVideoPlayer({
+    required bool isFull,
+    bool edgeHud = false,
+    double? overrideLeftInset,
+  }) {
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    final useInset = isFull || edgeHud;
+    return VideoPlayerWidget(
       key: _videoKey,
       videoUrl: _playUrl,
+      reloadToken: _playToken,
       title: _playTitle,
       poster: ServerConfigManager.instance.resolveMediaUrl(_picture),
       initialTime: _initialTime,
-      showBack: isFull,
+      showBack: true,
       isFull: isFull,
+      edgeHud: edgeHud,
+      topInset: useInset ? viewPadding.top : 0,
+      bottomInset: useInset ? viewPadding.bottom : 0,
+      leftInset: overrideLeftInset ?? (useInset ? viewPadding.left : 0),
+      rightInset: isFull
+          ? viewPadding.right
+          : (edgeHud ? AppTheme.safeEdge : 0),
       hasPrev: _hasPrev,
       hasNext: _hasNext,
-      topInset: isFull ? padding.top : 0,
-      bottomInset: isFull ? padding.bottom : 0,
-      leftInset: isFull ? padding.left : 0,
-      rightInset: isFull ? padding.right : 0,
-      reloadToken: _playToken,
-      onBack: () => _setFullscreen(false),
+      onBack: () => _playerFull ? _setFullscreen(false) : Navigator.pop(context),
       onEnded: () {
         if (AppSettingsManager.instance.autoPlayNext && _hasNext) _playNext();
       },
@@ -290,81 +365,146 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
         _persistHistory(cur, dur);
       },
     );
-    if (isFull) return Expanded(child: player);
-    final box = AspectRatio(aspectRatio: 16 / 9, child: player);
-    return wide ? Expanded(child: Center(child: box)) : box;
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isPipActive && _playUrl.isNotEmpty) {
-      return PopScope(
-        canPop: false,
-        child: Scaffold(
-          backgroundColor: Colors.black,
-          body: SizedBox.expand(
-            child: VideoPlayerWidget(
-              key: _videoKey,
-              videoUrl: _playUrl,
-              title: _playTitle,
-              showBack: false,
-              isFull: false,
-              reloadToken: _playToken,
-              onFullscreenChange: _setFullscreen,
-            ),
-          ),
+    final size = MediaQuery.sizeOf(context);
+    final split = !_playerFull && size.width >= Breakpoint.md && size.width > size.height;
+    final isFullMode = _playerFull;
+
+    return PopScope(
+      canPop: !_isPipActive && !isFullMode,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (isFullMode) {
+          _setFullscreen(false);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: (_isPipActive || isFullMode) ? Colors.black : AppTheme.bg,
+        resizeToAvoidBottomInset: false,
+        body: SafeArea(
+          top: !_isPipActive && !isFullMode && !split,
+          bottom: !_isPipActive && !isFullMode && !split,
+          left: !_isPipActive && !isFullMode && !split,
+          right: !_isPipActive && !isFullMode && !split,
+          child: _buildPlayBody(isFullMode: isFullMode, split: split),
         ),
+      ),
+    );
+  }
+
+  Widget _buildPlayBody({required bool isFullMode, required bool split}) {
+    if (_loading && _name.isEmpty) {
+      return const LoadingView(label: '正在打开播放页');
+    }
+    if (_errorText.isNotEmpty && _name.isEmpty) {
+      return EmptyState(
+        title: '当前内容无法播放',
+        subtitle: _errorText,
+        icon: Icons.play_disabled_rounded,
       );
     }
 
-    final isFullMode = _isFull;
-    final wide = Breakpoint.isWideWidth(MediaQuery.sizeOf(context).width);
+    if (_isPipActive) {
+      return SizedBox.expand(
+        child: _buildVideoPlayer(isFull: false),
+      );
+    }
 
-    return PopScope(
-      canPop: !isFullMode,
-      onPopInvokedWithResult: (didPop, result) {
-        if (didPop) return;
-        if (isFullMode) _setFullscreen(false);
-      },
-      child: Scaffold(
-        backgroundColor: isFullMode ? Colors.black : AppTheme.bg,
-        body: SafeArea(
-          top: !isFullMode,
-          bottom: !isFullMode,
-          left: false,
-          right: false,
-          child: Column(
-            children: [
-              if (!isFullMode) PageHeader(title: _name.isNotEmpty ? _name : '现场播放'),
-              if (_loading && _name.isEmpty)
-                const Expanded(child: LoadingView(label: '正在打开播放页'))
-              else if (_errorText.isNotEmpty && _name.isEmpty)
-                Expanded(
-                  child: EmptyState(
-                    title: '当前内容无法播放',
-                    subtitle: _errorText,
-                    icon: Icons.play_disabled_rounded,
-                  ),
-                )
-              else ...[
-                if (_playUrl.isNotEmpty) _player(isFull: isFullMode, wide: wide),
-                if (!isFullMode)
-                  Expanded(
-                    child: SingleChildScrollView(
-                      child: LivePlayPanel(
-                        sources: _sources,
-                        playingSourceId: _playingSourceId,
-                        episodeIndex: _episodeIndex,
-                        plot: _plot,
-                        onSelectEpisode: _selectEpisode,
-                      ),
-                    ),
-                  ),
-              ],
-            ],
+    if (isFullMode) {
+      return SizedBox.expand(
+        child: _buildVideoPlayer(isFull: true),
+      );
+    }
+
+    if (split) {
+      final media = MediaQuery.of(context);
+      final cutout = SplitCutoutInsets.resolve(
+        media.viewPadding,
+        padding: media.padding,
+        displayFeatures: media.displayFeatures,
+        size: media.size,
+      );
+
+      return Row(
+        children: [
+          Expanded(
+            flex: 7,
+            child: _buildVideoPlayer(
+              isFull: false,
+              edgeHud: true,
+              overrideLeftInset: cutout.left,
+            ),
+          ),
+          Container(width: 1, color: const Color(0x24FFFFFF)),
+          Expanded(
+            flex: 5,
+            child: Container(
+              color: AppTheme.bgElevated,
+              child: SafeArea(
+                top: true,
+                bottom: true,
+                left: false,
+                right: false,
+                child: _sideTabs(
+                  columns: 3,
+                  isSplit: true,
+                  rightInset: cutout.right,
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return Column(
+      children: [
+        AspectRatio(
+          aspectRatio: 16 / 9,
+          child: _buildVideoPlayer(isFull: false),
+        ),
+        Container(height: 8, color: AppTheme.bgElevated),
+        Expanded(
+          child: _sideTabs(
+            columns: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width),
+            isSplit: false,
           ),
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _sideTabs({
+    required int columns,
+    bool isSplit = false,
+    double rightInset = 0,
+  }) {
+    return PlaySideTabs(
+      activeTab: _activeTab,
+      onTabChange: (tab) => setState(() => _activeTab = tab),
+      filmId: _historyId,
+      picture: _picture,
+      name: _name,
+      subTitle: _subTitle,
+      actor: _actor,
+      plot: _plot,
+      descriptor: _descriptor,
+      sources: _sources,
+      playingSourceId: _playingSourceId,
+      viewingSourceId: _viewingSourceId,
+      episodeIndex: _episodeIndex,
+      isSplit: isSplit,
+      rightInset: rightInset,
+      onViewSource: (id) => setState(() => _viewingSourceId = id),
+      onSelectEpisode: (sourceId, index) => _selectEpisode(sourceId, index),
+      relateLoading: _relateLoading,
+      related: _related,
+      columns: columns,
+      onOpenRelated: _openRelated,
+      sourceName: _sourceName,
     );
   }
 }

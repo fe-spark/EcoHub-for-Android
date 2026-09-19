@@ -41,6 +41,7 @@ class _SearchPageState extends State<SearchPage> {
   final ScrollController _scrollController = ScrollController();
   final Map<String, _CachedSource> _cache = {};
   int _searchGen = 0;
+  String _sourceError = '';
 
   @override
   void initState() {
@@ -156,10 +157,12 @@ class _SearchPageState extends State<SearchPage> {
     if (hit != null) {
       _list = hit.list;
       _page = hit.page;
+      _sourceError = hit.error;
       _loading = false;
       return;
     }
     _list = [];
+    _sourceError = '';
     _loading = true;
   }
 
@@ -181,18 +184,23 @@ class _SearchPageState extends State<SearchPage> {
   Future<void> _fetchSource(int gen, String kw, String id) async {
     var list = <MovieBasicInfo>[];
     var page = PageInfo(pageSize: 12, current: 1, pageCount: 0, total: 0);
+    var error = '';
     try {
       final res = await FilmApi.searchFilm(kw, current: 1, source: id);
       list = res.list;
       page = res.page;
-    } catch (_) {}
+      error = res.error;
+    } catch (_) {
+      error = '搜索失败';
+    }
     if (!mounted || gen != _searchGen) return;
     setState(() {
-      _cache[id] = _CachedSource(list: list, page: page);
+      _cache[id] = _CachedSource(list: list, page: page, error: error);
       _patchTab(id, count: page.total, loading: false);
       if (_source == id) {
         _list = list;
         _page = page;
+        _sourceError = error;
         _loading = false;
       }
     });
@@ -225,7 +233,8 @@ class _SearchPageState extends State<SearchPage> {
           _submitted = kw;
           _page = res.page;
           _list = [..._list, ...res.list];
-          _cache[_source] = _CachedSource(list: _list, page: res.page);
+          _cache[_source] = _CachedSource(list: _list, page: res.page, error: res.error);
+          _sourceError = res.error;
           _loadingMore = false;
         });
       } catch (_) {
@@ -254,7 +263,8 @@ class _SearchPageState extends State<SearchPage> {
       if (!mounted || gen != _searchGen) return;
       setState(() {
         _submitted = kw;
-        _cache[''] = _CachedSource(list: res.list, page: res.page);
+        _cache[''] = _CachedSource(list: res.list, page: res.page, error: '');
+        _sourceError = '';
         _sources = [
           for (final tab in res.sources)
             SearchSourceTab(
@@ -423,10 +433,11 @@ class _SearchPageState extends State<SearchPage> {
 
   Widget _buildResultList() {
     if (_list.isEmpty) {
+      final failed = _sourceError.isNotEmpty;
       return EmptyState(
-        title: '没有结果',
-        subtitle: '未找到与「$_submitted」相关的影片',
-        icon: Icons.search_off_rounded,
+        title: failed ? '该采集源搜索失败' : '没有结果',
+        subtitle: failed ? _sourceError : '未找到与「$_submitted」相关的影片',
+        icon: failed ? Icons.error_outline_rounded : Icons.search_off_rounded,
       );
     }
 
@@ -487,6 +498,7 @@ class _SearchPageState extends State<SearchPage> {
 class _CachedSource {
   final List<MovieBasicInfo> list;
   final PageInfo page;
+  final String error;
 
-  _CachedSource({required this.list, required this.page});
+  _CachedSource({required this.list, required this.page, this.error = ''});
 }

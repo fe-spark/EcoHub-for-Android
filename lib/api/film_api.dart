@@ -97,6 +97,7 @@ class FilmApi {
       return SearchResult(
         list: [],
         page: PageInfo(pageSize: 10, current: current, pageCount: 0, total: 0),
+        error: '搜索失败',
       );
     }
     return ApiParser.parseSearch(res.data);
@@ -129,8 +130,43 @@ class FilmApi {
     return ApiParser.parsePlay(res.data);
   }
 
+  static Future<PlayInfo> getLivePlayInfo(
+    String source,
+    String sid, {
+    int episode = 0,
+  }) async {
+    final params = {
+      'source': source,
+      'sid': sid,
+      'episode': episode,
+    };
+    final res = await HttpClient.instance.get('/liveFilmPlayInfo', params: params, timeoutMs: 20000);
+    if (res.code != 0 || res.data == null) {
+      throw Exception(res.msg.isNotEmpty ? res.msg : '现场播放数据获取失败');
+    }
+    return ApiParser.parsePlay(res.data);
+  }
+
   static Future<List<MovieBasicInfo>> getRelate(String id) async {
     final res = await HttpClient.instance.get('/filmRelate', params: {'id': id});
+    if (res.code != 0 || res.data == null) return [];
+    if (res.data is List) {
+      return ApiParser.parseMovies(res.data);
+    }
+    return [];
+  }
+
+  static Future<List<MovieBasicInfo>> getLiveRelate(
+    String source, {
+    dynamic cid = 0,
+    dynamic sid = 0,
+  }) async {
+    final params = {
+      'source': source,
+      'cid': cid ?? 0,
+      'sid': sid ?? 0,
+    };
+    final res = await HttpClient.instance.get('/liveFilmRelate', params: params);
     if (res.code != 0 || res.data == null) return [];
     if (res.data is List) {
       return ApiParser.parseMovies(res.data);

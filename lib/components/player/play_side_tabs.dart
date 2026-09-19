@@ -16,6 +16,7 @@ class PlaySideTabs extends StatelessWidget {
   final String subTitle;
   final String actor;
   final String plot;
+  final String sourceName;
   final MovieDescriptor? descriptor;
   final List<PlaySource> sources;
   final String playingSourceId;
@@ -37,9 +38,10 @@ class PlaySideTabs extends StatelessWidget {
     required this.filmId,
     required this.picture,
     required this.name,
-    required this.subTitle,
-    required this.actor,
-    required this.plot,
+    this.subTitle = '',
+    this.actor = '',
+    this.plot = '',
+    this.sourceName = '',
     this.descriptor,
     required this.sources,
     required this.playingSourceId,
@@ -94,9 +96,9 @@ class PlaySideTabs extends StatelessWidget {
       return const LoadingView(label: '加载相关推荐');
     }
     if (related.isEmpty) {
-      return const EmptyState(
+      return EmptyState(
         title: '暂无相关推荐',
-        subtitle: '换一部片子再看看',
+        subtitle: sourceName.isNotEmpty ? '当前采集源该分类下暂无其它片源' : '换一部片子再看看',
         icon: Icons.movie_outlined,
       );
     }
@@ -120,7 +122,7 @@ class PlaySideTabs extends StatelessWidget {
           child: Row(
             children: [
               _buildTabItem('详情', 0),
-              _buildTabItem('相关推荐', 1),
+              _buildTabItem(sourceName.isNotEmpty ? '同类推荐' : '相关推荐', 1),
             ],
           ),
         ),
@@ -134,6 +136,7 @@ class PlaySideTabs extends StatelessWidget {
                   subTitle: subTitle,
                   actor: actor,
                   plot: plot,
+                  sourceName: sourceName,
                   descriptor: descriptor,
                   sources: sources,
                   playingSourceId: playingSourceId,

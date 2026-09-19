@@ -188,6 +188,7 @@ class ApiParser {
       list: parseMovies(listVal(map, 'list')),
       page: parsePage(mapVal(map, 'page')),
       sources: parseSearchSources(listVal(map, 'sources')),
+      error: str(map, 'error'),
     );
   }
 
@@ -342,6 +343,7 @@ class ApiParser {
       descriptor: descriptor,
       list: sources,
       localUpdateTime: intVal(detailObj, 'localUpdateTime'),
+      rawCid: intVal(detailObj, 'rawCid') > 0 ? intVal(detailObj, 'rawCid') : intVal(detailObj, 'cid'),
     );
 
     final currentObj = mapVal(map, 'current');
