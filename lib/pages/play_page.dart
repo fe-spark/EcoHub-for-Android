@@ -77,7 +77,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     _episodeIndex = widget.episodeIndex;
     _initialTime = widget.currentTime;
     _lastCurrentTime = _initialTime;
-    HttpClient.instance.trackView('play', _filmId, 'PlayPage');
     SourceGuard.onReconnect(_onReconnect);
 
     _initPlay();
@@ -153,6 +152,16 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       if (!mounted) return;
 
       final detail = info.detail;
+      if (_name.isEmpty) {
+        HttpClient.instance.trackView(
+          'play',
+          _filmId,
+          'PlayPage',
+          '',
+          detail.descriptor.cName,
+          detail.name,
+        );
+      }
       setState(() {
         _name = detail.name;
         _picture = detail.picture;
@@ -295,7 +304,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     if (id.isEmpty || id == _filmId) return;
 
     _filmId = id;
-    HttpClient.instance.trackView('play', _filmId, 'PlayPage');
     final resume = await PlayResume.fromHistory(_filmId);
     if (!mounted) return;
     setState(() {

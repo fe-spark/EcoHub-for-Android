@@ -4,6 +4,7 @@ import '../common/app_theme.dart';
 import '../models/film_models.dart';
 import '../utils/format_util.dart';
 import '../utils/server_config_manager.dart';
+import '../utils/favorite_manager.dart';
 
 /// 搜索结果横向图文卡片组件
 class SearchResultItem extends StatelessWidget {
@@ -28,6 +29,37 @@ class SearchResultItem extends StatelessWidget {
     }
     final filmId = FormatUtil.filmId(film);
     Navigator.pushNamed(context, '/play', arguments: {'id': filmId});
+  }
+
+  Widget _buildFavoriteTag() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xE60A0B10),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0x66FA8C16), width: 0.5),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.star_rounded,
+            size: 10,
+            color: Color(0xFFFA8C16),
+          ),
+          SizedBox(width: 2),
+          Text(
+            '已收藏',
+            style: TextStyle(
+              fontSize: 9,
+              color: Color(0xFFFA8C16),
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -73,6 +105,18 @@ class SearchResultItem extends StatelessWidget {
                           size: 16,
                           color: Colors.white,
                         ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 4,
+                      left: 4,
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: FavoriteManager.favoriteVersion,
+                        builder: (context, _, child) {
+                          final isFav = FavoriteManager.isFavoriteSync(FormatUtil.filmId(film));
+                          if (!isFav) return const SizedBox.shrink();
+                          return _buildFavoriteTag();
+                        },
                       ),
                     ),
                   ],

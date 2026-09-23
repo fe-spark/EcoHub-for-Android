@@ -9,6 +9,9 @@ const int _maxFavorite = 300;
 /// 收藏管理器（按源隔离），对齐 OHOS `FavoriteManager`
 class FavoriteManager {
   static final List<VoidCallback> _listeners = [];
+  static Map<String, FavoriteItem>? _cachedMap;
+  static String _cachedKey = '';
+  static final ValueNotifier<int> favoriteVersion = ValueNotifier<int>(0);
 
   static void onFavoriteChange(VoidCallback cb) {
     if (!_listeners.contains(cb)) {
@@ -21,11 +24,24 @@ class FavoriteManager {
   }
 
   static void _notify() {
+    favoriteVersion.value++;
     for (final cb in List<VoidCallback>.from(_listeners)) {
       try {
         cb();
       } catch (_) {}
     }
+  }
+
+  static bool isFavoriteSync(String id) {
+    if (id.isEmpty || _cachedMap == null) return false;
+    final currentKey = _dataKey();
+    if (_cachedKey != currentKey) return false;
+    return _cachedMap!.containsKey(id);
+  }
+
+  static Future<void> preload() async {
+    await _readMap();
+    favoriteVersion.value++;
   }
 
   static String _dataKey() {
@@ -92,6 +108,9 @@ class FavoriteManager {
   static Future<Map<String, FavoriteItem>> _readMap() async {
     final key = _dataKey();
     if (key.isEmpty) return {};
+    if (_cachedMap != null && _cachedKey == key) {
+      return _cachedMap!;
+    }
     if (ServerConfigManager.instance.preferences == null) {
       await ServerConfigManager.instance.init();
     }
@@ -106,6 +125,8 @@ class FavoriteManager {
           result[k] = FavoriteItem.fromJson(v.map((ik, iv) => MapEntry('$ik', iv)));
         }
       });
+      _cachedMap = result;
+      _cachedKey = key;
       return result;
     } catch (_) {
       return {};
@@ -114,6 +135,8 @@ class FavoriteManager {
 
   static Future<void> _writeMap(Map<String, FavoriteItem> map) async {
     final key = _dataKey();
+    _cachedMap = map;
+    _cachedKey = key;
     if (key.isEmpty) return;
     if (ServerConfigManager.instance.preferences == null) {
       await ServerConfigManager.instance.init();

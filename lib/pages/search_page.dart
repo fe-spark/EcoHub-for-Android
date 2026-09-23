@@ -5,6 +5,7 @@ import '../api/film_api.dart';
 import '../api/http_client.dart';
 import '../utils/search_history_manager.dart';
 import '../utils/source_guard.dart';
+import '../utils/favorite_manager.dart';
 import '../utils/breakpoint.dart';
 import '../components/search_result_item.dart';
 import '../components/loading_view.dart';
@@ -39,6 +40,7 @@ class _SearchPageState extends State<SearchPage> {
   @override
   void initState() {
     super.initState();
+    FavoriteManager.preload();
     _loadHistory();
     _loadHotKeywords();
     SourceGuard.onReconnect(_onReconnect);
@@ -67,6 +69,7 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _onReconnect() {
+    FavoriteManager.preload();
     _loadHistory();
     _loadHotKeywords();
     if (_submitted.isNotEmpty) {

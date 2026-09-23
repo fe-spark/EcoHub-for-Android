@@ -211,7 +211,7 @@ void main() {
       host.playing = true;
       host.currentPos = 18.0;
       host.pauseLocalCalled = false;
-      castCtrl.openCastDialog(ctx);
+      castCtrl.openCastDialog(ctx, autoStartScan: false);
       await tester.pump();
 
       expect(castCtrl.startSec, 18.0);
