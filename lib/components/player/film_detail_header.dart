@@ -13,6 +13,7 @@ class FilmDetailHeader extends StatefulWidget {
   final String subTitle;
   final String actor;
   final String plot;
+  final String sourceName;
   final MovieDescriptor? descriptor;
   final double rightInset;
 
@@ -24,6 +25,7 @@ class FilmDetailHeader extends StatefulWidget {
     this.subTitle = '',
     this.actor = '',
     this.plot = '',
+    this.sourceName = '',
     this.descriptor,
     this.rightInset = 0,
   });
@@ -216,6 +218,40 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
+              if (widget.sourceName.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  height: 26,
+                  padding: const EdgeInsets.symmetric(horizontal: 9),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1FFA8C16),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                    border: Border.all(
+                      width: 0.5,
+                      color: const Color(0x59FA8C16),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.link_rounded,
+                        size: 13,
+                        color: Color(0xFFFA8C16),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        widget.sourceName,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFFA8C16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(width: 10),
               // 收藏按钮（右上角唯一的实体胶囊，26vp 精致尺寸，顶部对齐）
               InkWell(

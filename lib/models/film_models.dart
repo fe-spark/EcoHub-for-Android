@@ -353,6 +353,7 @@ class MovieDetail {
   final MovieDescriptor descriptor;
   final List<PlaySource> list;
   final int localUpdateTime;
+  final int rawCid;
 
   MovieDetail({
     required this.id,
@@ -364,6 +365,7 @@ class MovieDetail {
     required this.descriptor,
     this.list = const [],
     this.localUpdateTime = 0,
+    this.rawCid = 0,
   });
 }
 

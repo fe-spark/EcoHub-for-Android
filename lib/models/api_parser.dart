@@ -343,6 +343,7 @@ class ApiParser {
       descriptor: descriptor,
       list: sources,
       localUpdateTime: intVal(detailObj, 'localUpdateTime'),
+      rawCid: intVal(detailObj, 'rawCid') > 0 ? intVal(detailObj, 'rawCid') : intVal(detailObj, 'cid'),
     );
 
     final currentObj = mapVal(map, 'current');

@@ -58,16 +58,21 @@ class SearchSuggestPane extends StatelessWidget {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      InkWell(
-                        onTap: () => onSelectKeyword(item),
-                        borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppTheme.radiusPill)),
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          child: Text(
-                            item,
-                            style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                      Flexible(
+                        child: InkWell(
+                          onTap: () => onSelectKeyword(item),
+                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppTheme.radiusPill)),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 200),
+                              child: Text(
+                                item,
+                                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -127,11 +132,16 @@ class SearchSuggestPane extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 6),
-                        Text(
-                          item,
-                          style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        Flexible(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 200),
+                            child: Text(
+                              item,
+                              style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
                         ),
                       ],
                     ),
