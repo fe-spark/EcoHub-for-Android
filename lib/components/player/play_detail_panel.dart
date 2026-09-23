@@ -523,7 +523,7 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     final rowCount = (visibleEps.length / cols).ceil();
 
     final groupBarHeight = PlayGroupBar.calculateHeight(
-      hasSources: widget.sources.isNotEmpty,
+      hasSources: widget.sources.length > 1,
       needsGrouping: _needsGrouping(),
     );
 
@@ -549,11 +549,12 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
         ),
 
         // 吸顶播放源与分组控制栏
-        SliverPersistentHeader(
-          pinned: true,
-          delegate: StickyGroupBarDelegate(
-            height: groupBarHeight,
-            child: PlayGroupBar(
+        if (groupBarHeight > 0)
+          SliverPersistentHeader(
+            pinned: true,
+            delegate: StickyGroupBarDelegate(
+              height: groupBarHeight,
+              child: PlayGroupBar(
               sources: widget.sources,
               viewingSourceId: widget.viewingSourceId,
               onViewSource: widget.onViewSource,

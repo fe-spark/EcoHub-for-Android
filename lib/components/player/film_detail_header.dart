@@ -218,40 +218,6 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              if (widget.sourceName.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Container(
-                  height: 26,
-                  padding: const EdgeInsets.symmetric(horizontal: 9),
-                  decoration: BoxDecoration(
-                    color: const Color(0x1FFA8C16),
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                    border: Border.all(
-                      width: 0.5,
-                      color: const Color(0x59FA8C16),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.link_rounded,
-                        size: 13,
-                        color: Color(0xFFFA8C16),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        widget.sourceName,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFFFA8C16),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
               const SizedBox(width: 10),
               // 收藏按钮（右上角唯一的实体胶囊，26vp 精致尺寸，顶部对齐）
               InkWell(
@@ -293,80 +259,120 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
           ),
         ),
 
-        // 2. 元数据与详情行（纯信息展示，全靠左自然流式排布，整行点击直达详情弹窗）
+        // 2. 元数据与详情行（左侧信息摘要与更多入口，右侧为现场采集源微标）
         Padding(
           padding: EdgeInsets.fromLTRB(12, 2, 12 + widget.rightInset, 8),
-          child: InkWell(
-            onTap: _openDialog,
-            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-            child: Row(
-              children: [
-                // 评分微标（如有）
-                if (score.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
-                    decoration: BoxDecoration(
-                       color: AppTheme.accentSoft,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text('★', style: TextStyle(fontSize: 10, color: AppTheme.accent)),
-                        const SizedBox(width: 2),
-                        Text(
-                          score,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.accent,
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: _openDialog,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                  child: Row(
+                    children: [
+                      // 评分微标（如有）
+                      if (score.isNotEmpty)
+                        Container(
+                          margin: const EdgeInsets.only(right: 6),
+                          padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
+                          decoration: BoxDecoration(
+                            color: AppTheme.accentSoft,
+                            borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('★', style: TextStyle(fontSize: 10, color: AppTheme.accent)),
+                              const SizedBox(width: 2),
+                              Text(
+                                score,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.accent,
+                                ),
+                              ),
+                              const SizedBox(width: 1),
+                              const Text('分', style: TextStyle(fontSize: 9, color: AppTheme.accent)),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 1),
-                        const Text('分', style: TextStyle(fontSize: 9, color: AppTheme.accent)),
-                      ],
+
+                      // 核心信息摘要（年份 · 分类 · 地区）
+                      if (metaText.isNotEmpty)
+                        Flexible(
+                          child: Text(
+                            metaText,
+                            style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+
+                      // 紧贴左侧的纯文字更多入口（主题高亮色链接，无按钮底色）
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (metaText.isNotEmpty)
+                            const Text(
+                              ' · ',
+                              style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
+                            ),
+                          const Text(
+                            '更多',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: AppTheme.accent,
+                            ),
+                          ),
+                          const SizedBox(width: 1),
+                          const Icon(
+                            Icons.chevron_right_rounded,
+                            size: 10,
+                            color: AppTheme.accent,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (widget.sourceName.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  height: 24,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0x1FFA8C16),
+                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                    border: Border.all(
+                      width: 0.5,
+                      color: const Color(0x59FA8C16),
                     ),
                   ),
-
-                // 核心信息摘要（年份 · 分类 · 地区）
-                if (metaText.isNotEmpty)
-                  Flexible(
-                    child: Text(
-                      metaText,
-                      style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.link_rounded,
+                        size: 12,
+                        color: Color(0xFFFA8C16),
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        widget.sourceName,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFFFA8C16),
+                        ),
+                      ),
+                    ],
                   ),
-
-                // 紧贴左侧的纯文字更多入口（主题高亮色链接，无按钮底色）
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (metaText.isNotEmpty)
-                      const Text(
-                        ' · ',
-                        style: TextStyle(fontSize: 12, color: AppTheme.textMuted),
-                      ),
-                    const Text(
-                      '更多',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AppTheme.accent,
-                      ),
-                    ),
-                    const SizedBox(width: 1),
-                    const Icon(
-                      Icons.chevron_right_rounded,
-                      size: 10,
-                      color: AppTheme.accent,
-                    ),
-                  ],
                 ),
               ],
-            ),
+            ],
           ),
         ),
       ],
