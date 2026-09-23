@@ -141,7 +141,7 @@ class SearchResultItem extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: AppTheme.textPrimary,
                     ),
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
@@ -175,14 +175,17 @@ class SearchResultItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 6),
-                  Text(
-                    film.blurb.isNotEmpty ? film.blurb : '暂无简介',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: Text(
+                      film.blurb.isNotEmpty ? film.blurb : '暂无简介',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
