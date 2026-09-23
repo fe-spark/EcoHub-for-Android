@@ -184,6 +184,7 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
       context,
       name: widget.name,
       scoreText: _scoreText(),
+      sourceName: widget.sourceName,
       tags: _metaTags(),
       director: _directorText(),
       actor: _actorText(),
@@ -267,47 +268,6 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
             borderRadius: BorderRadius.circular(AppTheme.radiusSm),
             child: Row(
               children: [
-                // 采集源微标（如有）
-                if (widget.sourceName.isNotEmpty)
-                  Container(
-                    margin: const EdgeInsets.only(right: 6),
-                    height: 20,
-                    padding: const EdgeInsets.symmetric(horizontal: 7),
-                    constraints: const BoxConstraints(maxWidth: 120),
-                    decoration: BoxDecoration(
-                      color: const Color(0x1FFA8C16),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      border: Border.all(
-                        width: 0.5,
-                        color: const Color(0x59FA8C16),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.link_rounded,
-                          size: 11,
-                          color: Color(0xFFFA8C16),
-                        ),
-                        const SizedBox(width: 3),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 80),
-                          child: Text(
-                            widget.sourceName,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFFFA8C16),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
                 // 评分微标（如有）
                 if (score.isNotEmpty)
                   Container(
