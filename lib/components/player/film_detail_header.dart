@@ -291,7 +291,8 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
                           color: Color(0xFFFA8C16),
                         ),
                         const SizedBox(width: 3),
-                        Flexible(
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 80),
                           child: Text(
                             widget.sourceName,
                             style: const TextStyle(

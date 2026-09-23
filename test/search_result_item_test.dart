@@ -58,7 +58,7 @@ void main() {
                 SliverGrid(
                   gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 2,
-                    mainAxisExtent: 156,
+                    mainAxisExtent: 168,
                     crossAxisSpacing: 12,
                     mainAxisSpacing: 8,
                   ),
@@ -75,5 +75,39 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('SearchResultItem in SliverList with semantics', (tester) async {
+    final handle = tester.ensureSemantics();
+    final film = MovieBasicInfo(
+      id: 103,
+      name: '测试影片标题',
+      cName: '动作片',
+      remarks: '超清',
+      director: '张三',
+      actor: '李四',
+      blurb: '简介文字',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: CustomScrollView(
+            slivers: [
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) => SearchResultItem(film: film),
+                  childCount: 5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    handle.dispose();
   });
 }

@@ -131,53 +131,53 @@ class SearchResultItem extends StatelessWidget {
             ),
             const SizedBox(width: AppTheme.spaceMd),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    film.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
+              child: ClipRect(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      film.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    FormatUtil.joinMeta([film.cName, film.year, film.area, film.remarks]),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
+                    const SizedBox(height: 6),
+                    Text(
+                      FormatUtil.joinMeta([film.cName, film.year, film.area, film.remarks]),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '导演 ${film.director.isNotEmpty ? film.director : '未知'}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textMuted,
+                    const SizedBox(height: 4),
+                    Text(
+                      '导演 ${film.director.isNotEmpty ? film.director : '未知'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '主演 ${film.actor.isNotEmpty ? film.actor : '未知'}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textMuted,
+                    const SizedBox(height: 2),
+                    Text(
+                      '主演 ${film.actor.isNotEmpty ? film.actor : '未知'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: Text(
+                    const SizedBox(height: 6),
+                    Text(
                       film.blurb.isNotEmpty ? film.blurb : '暂无简介',
                       style: const TextStyle(
                         fontSize: 12,
@@ -186,8 +186,8 @@ class SearchResultItem extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

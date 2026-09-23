@@ -19,139 +19,143 @@ class SearchSuggestPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceSm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (searchHistory.isNotEmpty) ...[
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text(
-                  '搜索历史',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth - AppTheme.spaceLg * 2;
+        final maxHotTextWidth = (availableWidth - 52).clamp(60.0, 720.0);
+        final maxHistoryTextWidth = (availableWidth - 64).clamp(60.0, 720.0);
+
+        return SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceSm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (searchHistory.isNotEmpty) ...[
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      '搜索历史',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    ),
+                    GestureDetector(
+                      onTap: onClearHistory,
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.delete_outline_rounded, size: 14, color: AppTheme.textMuted),
+                          SizedBox(width: 2),
+                          Text('清空', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                GestureDetector(
-                  onTap: onClearHistory,
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.delete_outline_rounded, size: 14, color: AppTheme.textMuted),
-                      SizedBox(width: 2),
-                      Text('清空', style: TextStyle(fontSize: 12, color: AppTheme.textMuted)),
-                    ],
-                  ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: searchHistory.map((item) {
+                    return Container(
+                      decoration: BoxDecoration(
+                        color: AppTheme.bgCard,
+                        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          InkWell(
+                            onTap: () => onSelectKeyword(item),
+                            borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppTheme.radiusPill)),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(maxWidth: maxHistoryTextWidth),
+                                child: Text(
+                                  item,
+                                  style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => onRemoveHistory(item),
+                            child: const Padding(
+                              padding: EdgeInsets.only(right: 8, left: 2),
+                              child: Icon(Icons.close_rounded, size: 14, color: AppTheme.textMuted),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
+                const SizedBox(height: 24),
               ],
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: searchHistory.map((item) {
-                return Container(
-                  decoration: BoxDecoration(
-                    color: AppTheme.bgCard,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Flexible(
-                        child: InkWell(
-                          onTap: () => onSelectKeyword(item),
-                          borderRadius: const BorderRadius.horizontal(left: Radius.circular(AppTheme.radiusPill)),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                            child: ConstrainedBox(
-                              constraints: const BoxConstraints(maxWidth: 200),
+              if (hotKeywords.isNotEmpty) ...[
+                const Row(
+                  children: [
+                    Icon(Icons.local_fire_department_rounded, size: 16, color: AppTheme.accent),
+                    SizedBox(width: 4),
+                    Text(
+                      '热门搜索',
+                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: List.generate(hotKeywords.length, (index) {
+                    final item = hotKeywords[index];
+                    final isTop3 = index < 3;
+                    return InkWell(
+                      onTap: () => onSelectKeyword(item),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                        decoration: BoxDecoration(
+                          color: isTop3 ? AppTheme.bgChip : AppTheme.bgCard,
+                          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                          border: Border.all(
+                            color: isTop3 ? AppTheme.accentSoft : AppTheme.border,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '${index + 1}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isTop3 ? AppTheme.accent : AppTheme.textMuted,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            ConstrainedBox(
+                              constraints: BoxConstraints(maxWidth: maxHotTextWidth),
                               child: Text(
                                 item,
-                                style: const TextStyle(fontSize: 13, color: AppTheme.textSecondary),
+                                style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => onRemoveHistory(item),
-                        child: const Padding(
-                          padding: EdgeInsets.only(right: 8, left: 2),
-                          child: Icon(Icons.close_rounded, size: 14, color: AppTheme.textMuted),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-            const SizedBox(height: 24),
-          ],
-          if (hotKeywords.isNotEmpty) ...[
-            const Row(
-              children: [
-                Icon(Icons.local_fire_department_rounded, size: 16, color: AppTheme.accent),
-                SizedBox(width: 4),
-                Text(
-                  '热门搜索',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppTheme.textPrimary),
+                    );
+                  }),
                 ),
               ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: List.generate(hotKeywords.length, (index) {
-                final item = hotKeywords[index];
-                final isTop3 = index < 3;
-                return InkWell(
-                  onTap: () => onSelectKeyword(item),
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-                    decoration: BoxDecoration(
-                      color: isTop3 ? AppTheme.bgChip : AppTheme.bgCard,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      border: Border.all(
-                        color: isTop3 ? AppTheme.accentSoft : AppTheme.border,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '${index + 1}',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: isTop3 ? AppTheme.accent : AppTheme.textMuted,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Flexible(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 200),
-                            child: Text(
-                              item,
-                              style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                );
-              }),
-            ),
-          ],
-        ],
-      ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
