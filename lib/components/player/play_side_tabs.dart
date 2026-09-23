@@ -57,7 +57,7 @@ class PlaySideTabs extends StatelessWidget {
     required this.onOpenRelated,
   });
 
-  Widget _buildTabItem(String title, int index) {
+  Widget _buildTabItem(String title, int index, {String badge = ''}) {
     final active = activeTab == index;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -68,13 +68,50 @@ class PlaySideTabs extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: active ? AppTheme.textPrimary : AppTheme.textMuted,
-              ),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: active ? AppTheme.textPrimary : AppTheme.textMuted,
+                  ),
+                ),
+                if (badge.isNotEmpty) ...[
+                  const SizedBox(width: 5),
+                  Container(
+                    height: 18,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0x1FFA8C16),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                      border: Border.all(width: 0.5, color: const Color(0x59FA8C16)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.link_rounded, size: 10, color: Color(0xFFFA8C16)),
+                        const SizedBox(width: 2),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 80),
+                          child: Text(
+                            badge,
+                            style: const TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFFFA8C16),
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
             ),
             Container(
               width: 18,
@@ -121,7 +158,7 @@ class PlaySideTabs extends StatelessWidget {
           padding: EdgeInsets.only(left: 12, right: 12 + rightInset),
           child: Row(
             children: [
-              _buildTabItem('详情', 0),
+              _buildTabItem('详情', 0, badge: sourceName),
               _buildTabItem(sourceName.isNotEmpty ? '同类推荐' : '相关推荐', 1),
             ],
           ),
@@ -136,7 +173,7 @@ class PlaySideTabs extends StatelessWidget {
                   subTitle: subTitle,
                   actor: actor,
                   plot: plot,
-                  sourceName: sourceName,
+                  sourceName: '',
                   descriptor: descriptor,
                   sources: sources,
                   playingSourceId: playingSourceId,
