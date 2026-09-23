@@ -116,6 +116,9 @@ class FilmApi {
     int episode = 0,
     String sid = '',
   }) async {
+    if ((id.isEmpty || id == '0') && sid.isNotEmpty) {
+      return getLivePlayInfo(playFrom, sid, episode: episode);
+    }
     final params = {
       'id': id,
       'playFrom': playFrom,
@@ -125,6 +128,23 @@ class FilmApi {
     final res = await HttpClient.instance.get('/filmPlayInfo', params: params, timeoutMs: 20000);
     if (res.code != 0 || res.data == null) {
       throw Exception(res.msg.isNotEmpty ? res.msg : '播放数据获取失败');
+    }
+    return ApiParser.parsePlay(res.data);
+  }
+
+  static Future<PlayInfo> getLivePlayInfo(
+    String sourceId,
+    String sid, {
+    int episode = 0,
+  }) async {
+    final params = {
+      'source': sourceId,
+      'sid': sid,
+      'episode': episode,
+    };
+    final res = await HttpClient.instance.get('/liveFilmPlayInfo', params: params, timeoutMs: 20000);
+    if (res.code != 0 || res.data == null) {
+      throw Exception(res.msg.isNotEmpty ? res.msg : '现场播放数据获取失败');
     }
     return ApiParser.parsePlay(res.data);
   }

@@ -188,6 +188,7 @@ class ApiParser {
       list: parseMovies(listVal(map, 'list')),
       page: parsePage(mapVal(map, 'page')),
       sources: parseSearchSources(listVal(map, 'sources')),
+      error: str(map, 'error'),
     );
   }
 

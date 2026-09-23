@@ -501,10 +501,12 @@ class SearchResult {
   final List<MovieBasicInfo> list;
   final PageInfo page;
   final List<SearchSourceTab> sources;
+  final String error;
 
   SearchResult({
     required this.list,
     required this.page,
     this.sources = const [],
+    this.error = '',
   });
 }

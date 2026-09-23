@@ -131,11 +131,10 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       setState(() => _loading = true);
     }
     try {
-      final info = await FilmApi.getPlayInfo(
-        '',
-        playFrom: widget.sourceId,
+      final info = await FilmApi.getLivePlayInfo(
+        widget.sourceId,
+        widget.sourceMid,
         episode: _episodeIndex,
-        sid: widget.sourceMid,
       );
       if (!mounted) return;
       final detail = info.detail;
