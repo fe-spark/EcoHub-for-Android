@@ -13,6 +13,7 @@ import 'pages/favorite_page.dart';
 import 'pages/tip_page.dart';
 import 'pages/custom_player_page.dart';
 import 'pages/play_page.dart';
+import 'pages/live_play_page.dart';
 import 'pages/about_page.dart';
 import 'pages/settings_page.dart';
 import 'services/route_observer.dart';
@@ -157,6 +158,14 @@ class _EcoHubAppState extends State<EcoHubApp> with WidgetsBindingObserver {
               page = PlayPage(
                 id: args['id'] ?? '',
                 sourceId: args['sourceId'] ?? '',
+                episodeIndex: int.tryParse('${args['episodeIndex']}') ?? 0,
+                currentTime: double.tryParse('${args['currentTime']}') ?? 0,
+              );
+              break;
+            case '/play/live':
+              page = LivePlayPage(
+                sourceId: args['sourceId'] ?? '',
+                sourceMid: args['sourceMid'] ?? '',
                 episodeIndex: int.tryParse('${args['episodeIndex']}') ?? 0,
                 currentTime: double.tryParse('${args['currentTime']}') ?? 0,
               );

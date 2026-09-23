@@ -7,6 +7,7 @@ import '../utils/format_util.dart';
 import '../utils/favorite_manager.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
+import '../utils/nav_util.dart';
 import '../components/page_header.dart';
 import '../components/empty_state.dart';
 
@@ -136,7 +137,7 @@ class _FavoritePageState extends State<FavoritePage> {
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         child: InkWell(
           onTap: () {
-            Navigator.pushNamed(context, '/play', arguments: {'id': item.id}).then((_) => _reload());
+            NavUtil.openPlay(context, item.id).then((_) => _reload());
           },
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           child: Padding(

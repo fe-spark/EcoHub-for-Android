@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'play_navigation.dart';
 
 /// 路由封装，对齐 OHOS `NavUtil`
 class NavUtil {
@@ -23,23 +24,47 @@ class NavUtil {
     Navigator.pushNamed(context, '/about');
   }
 
-  static void openPlay(
+  static Future<dynamic> openPlay(
     BuildContext context,
     String id, {
     String sourceId = '',
+    String sourceMid = '',
     int? episodeIndex,
     double? currentTime,
   }) {
-    if (id.isEmpty) return;
-    final params = <String, dynamic>{'id': id};
-    if (sourceId.isNotEmpty) params['sourceId'] = sourceId;
+    if (PlayNavigation.isLocalFilmId(id)) {
+      final params = <String, dynamic>{'id': id};
+      if (sourceId.isNotEmpty) params['sourceId'] = sourceId;
+      if (episodeIndex != null && episodeIndex >= 0) {
+        params['episodeIndex'] = '$episodeIndex';
+      }
+      if (currentTime != null && currentTime >= 0) {
+        params['currentTime'] = '$currentTime';
+      }
+      return Navigator.pushNamed(context, '/play', arguments: params);
+    }
+
+    var liveSource = sourceId;
+    var liveSid = sourceMid;
+    final split = PlayNavigation.splitLivePlayId(id);
+    if (split != null) {
+      liveSource = split.sourceId;
+      liveSid = split.sid;
+    }
+    if (liveSource.isEmpty || liveSid.isEmpty) {
+      return Future<void>.value();
+    }
+    final params = <String, dynamic>{
+      'sourceId': liveSource,
+      'sourceMid': liveSid,
+    };
     if (episodeIndex != null && episodeIndex >= 0) {
       params['episodeIndex'] = '$episodeIndex';
     }
     if (currentTime != null && currentTime >= 0) {
       params['currentTime'] = '$currentTime';
     }
-    Navigator.pushNamed(context, '/play', arguments: params);
+    return Navigator.pushNamed(context, '/play/live', arguments: params);
   }
 
   static void openFilter(
