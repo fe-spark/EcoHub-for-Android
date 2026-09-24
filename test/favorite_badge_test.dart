@@ -6,6 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecohub_android/api/http_client.dart';
 import 'package:ecohub_android/models/film_models.dart';
 import 'package:ecohub_android/utils/favorite_manager.dart';
+import 'package:ecohub_android/utils/format_util.dart';
+import 'package:ecohub_android/utils/history_manager.dart';
+import 'package:ecohub_android/utils/play_resume.dart';
 import 'package:ecohub_android/utils/server_config_manager.dart';
 import 'package:ecohub_android/components/film_card.dart';
 import 'package:ecohub_android/components/search_result_item.dart';
@@ -151,5 +154,63 @@ void main() {
     expect(receivedBody?['resource_cat'], '电影');
     expect(receivedBody?['resource_title'], '测试片');
     await server.close(force: true);
+  });
+
+  testWidgets('Live source collection badge displays correctly via FormatUtil.filmId', (tester) async {
+    final liveFilm = MovieBasicInfo(
+      id: 0,
+      name: '采集源电影',
+      sourceId: 'ffm',
+      sourceMid: 8888,
+    );
+
+    expect(FormatUtil.filmId(liveFilm), 'ffm:8888');
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                FilmCard(film: liveFilm),
+                SearchResultItem(film: liveFilm),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('已收藏'), findsNothing);
+
+    await FavoriteManager.save(FavoriteItem(
+      id: 'ffm:8888',
+      name: '采集源电影',
+      picture: '',
+      createdAt: DateTime.now().millisecondsSinceEpoch,
+    ));
+
+    await tester.pump();
+    expect(find.text('已收藏'), findsNWidgets(2));
+  });
+
+  test('History resume retains episodeIndex even when sourceId is provided', () async {
+    await HistoryManager.save(HistoryItem(
+      id: '5005',
+      name: '多集连续剧',
+      picture: '',
+      sourceId: 'ty',
+      sourceName: '通用源',
+      episodeIndex: 9,
+      episode: '第10集',
+      currentTime: 120.0,
+      duration: 2400.0,
+      timeStamp: DateTime.now().millisecondsSinceEpoch,
+    ));
+
+    final resume = await PlayResume.fromHistory('5005');
+    expect(resume.sourceId, 'ty');
+    expect(resume.episodeIndex, 9);
+    expect(resume.currentTime, 120.0);
   });
 }

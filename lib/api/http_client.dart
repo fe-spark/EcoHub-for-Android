@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
@@ -156,6 +157,45 @@ class HttpClient {
     } catch (_) {}
   }
 
+  @visibleForTesting
+  String formatConnectionError(dynamic error) => _formatConnectionError(error);
+
+  String _formatConnectionError(dynamic error) {
+    final msg = error.toString().replaceFirst('Exception: ', '').trim();
+    final lower = msg.toLowerCase();
+
+    // 1. 服务未启动、网关异常或拒绝连接，统一归为服务错误
+    if (lower.contains('502') ||
+        lower.contains('503') ||
+        lower.contains('504') ||
+        lower.contains('bad gateway') ||
+        lower.contains('gateway timeout') ||
+        lower.contains('service unavailable') ||
+        lower.contains('connection refused') ||
+        lower.contains('connection reset') ||
+        lower.contains('failed to connect') ||
+        lower.contains('connection failed') ||
+        lower.contains('socketexception') ||
+        lower.contains('errno = 111') ||
+        lower.contains('errno = 61')) {
+      return '服务未启动或网关异常 (服务错误)';
+    }
+
+    // 2. 超时
+    if (lower.contains('timeout') || lower.contains('timed out')) {
+      return '连接超时，服务可能未启动或网络不可达';
+    }
+
+    // 3. 域名/地址解析失败
+    if (lower.contains('nodename nor servname') ||
+        lower.contains('host lookup') ||
+        lower.contains('failed host lookup')) {
+      return '无法解析软件源地址，请检查域名或网络';
+    }
+
+    return msg.isNotEmpty ? msg : '服务未启动或网关异常 (服务错误)';
+  }
+
   Future<ConnectionResult> testConnection(String baseUrl) async {
     final raw = baseUrl.trim();
     if (raw.isEmpty) {
@@ -179,12 +219,26 @@ class HttpClient {
         }
       } catch (appErr) {
         final msg = appErr.toString().replaceFirst('Exception: ', '');
+        final lower = msg.toLowerCase();
+
+        // 优先拦截 502/503/504 与拒绝连接等服务错误，防止误判为私有化
+        if (lower.contains('502') ||
+            lower.contains('503') ||
+            lower.contains('504') ||
+            lower.contains('bad gateway') ||
+            lower.contains('gateway timeout') ||
+            lower.contains('service unavailable') ||
+            lower.contains('connection refused') ||
+            lower.contains('connection reset') ||
+            lower.contains('socketexception')) {
+          return ConnectionResult(ok: false, message: _formatConnectionError(appErr));
+        }
+
+        // 明确包含私有化或订阅密钥提示
         if (msg.contains('私有化') || msg.contains('订阅密钥')) {
           return ConnectionResult(ok: false, isPrivate: true, message: msg);
         }
-        if (msg.contains('401') || msg.contains('403')) {
-          return const ConnectionResult(ok: false, isPrivate: true, message: '该软件源已开启私有化访问，请在地址后追加 ?key=密钥');
-        }
+
         // 过渡兼容逻辑：若 404 说明为早期未支持 /api/provide/app 的旧版服务端，尝试兜底探测 /api/health。
         // 注意：服务端 /api/health 未来大版本将废弃移除，届时将仅支持 /api/provide/app 探测。
         if (msg.contains('404')) {
@@ -197,8 +251,7 @@ class HttpClient {
       }
       return const ConnectionResult(ok: true);
     } catch (e) {
-      final msg = e.toString().replaceFirst('Exception: ', '');
-      return ConnectionResult(ok: false, message: msg.isNotEmpty ? msg : '无法连接该源，请检查地址或网络');
+      return ConnectionResult(ok: false, message: _formatConnectionError(e));
     } finally {
       SourceGuard.endSkip();
     }

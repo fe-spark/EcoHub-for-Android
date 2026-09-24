@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../models/film_models.dart';
+import 'play_navigation.dart';
 import 'server_config_manager.dart';
 
 const String _keyFavorite = 'film_favorite';
@@ -33,10 +34,21 @@ class FavoriteManager {
   }
 
   static bool isFavoriteSync(String id) {
-    if (id.isEmpty || _cachedMap == null) return false;
-    final currentKey = _dataKey();
-    if (_cachedKey != currentKey) return false;
-    return _cachedMap!.containsKey(id);
+    if (id.isEmpty) return false;
+    final map = _cachedMap;
+    if (map != null) {
+      final currentKey = _dataKey();
+      if (_cachedKey == currentKey) {
+        if (map.containsKey(id)) return true;
+        final split = PlayNavigation.splitLivePlayId(id);
+        if (split != null && map.containsKey(split.sid)) return true;
+        for (final entry in map.entries) {
+          final entrySplit = PlayNavigation.splitLivePlayId(entry.key);
+          if (entrySplit != null && entrySplit.sid == id) return true;
+        }
+      }
+    }
+    return false;
   }
 
   static Future<void> preload() async {

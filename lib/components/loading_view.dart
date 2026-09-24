@@ -13,14 +13,15 @@ class LoadingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 80),
+      child: SingleChildScrollView(
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               child: CircularProgressIndicator(
                 strokeWidth: 2.5,
                 color: AppTheme.accent,

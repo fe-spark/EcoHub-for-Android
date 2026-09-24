@@ -1,42 +1,31 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 import 'player_gesture_handler.dart';
 import 'player_speed.dart';
 import 'player_scale.dart';
 import 'player_stall_watcher.dart';
-import 'player_window.dart';
+import 'player_device_control_mixin.dart';
 
 /// 播放器会话与播放状态控制器，管理生命周期、缓冲检测与控制指令
-class PlayerPlaybackController extends ChangeNotifier {
+class PlayerPlaybackController extends ChangeNotifier with PlayerDeviceControlMixin {
   VideoPlayerController? _controller;
   VideoPlayerController? get controller => _controller;
 
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
-
   bool _isBuffering = false;
   bool get isBuffering => _isBuffering;
-
   bool _isOpening = true;
   bool get isOpening => _isOpening;
-
   bool _isCompleted = false;
   bool get isCompleted => _isCompleted;
-
   bool _isDragging = false;
   bool get isDragging => _isDragging;
-
   bool _isSeeking = false;
   bool get isSeeking => _isSeeking;
-
   bool _playRequested = false;
   bool get playRequested => _playRequested;
-
-  bool _muted = false;
-  bool get muted => _muted;
-
   String _errorText = '';
   String get errorText => _errorText;
 
@@ -54,21 +43,12 @@ class PlayerPlaybackController extends ChangeNotifier {
 
   double _currentSpeed = PlayerSpeed.defaultRate;
   double get currentSpeed => _currentSpeed;
-
   bool _showHud = true;
   bool get showHud => _showHud;
-
   PlayerPanState _panState = const PlayerPanState();
   PlayerPanState get panState => _panState;
-
   PlayerScaleMode _scaleMode = PlayerScale.defaultMode;
   PlayerScaleMode get scaleMode => _scaleMode;
-
-  double _brightness = 0.5;
-  double get brightness => _brightness;
-
-  double _volume = 0.8;
-  double get volume => _volume;
 
   final PlayerStallWatcher watcher = PlayerStallWatcher();
   int _initSessionId = 0;
@@ -82,23 +62,7 @@ class PlayerPlaybackController extends ChangeNotifier {
 
   bool get isReady => _controller != null && _controller!.value.isInitialized && !_isOpening;
 
-  Future<void> loadWindowLevels() async {
-    final b = await PlayerWindow.getBrightness();
-    final v = await PlayerWindow.getVolume();
-    _brightness = b;
-    _volume = v;
-    notifyListeners();
-  }
-
-  void _safeSetWakelock(bool enable) {
-    try {
-      if (enable) {
-        WakelockPlus.enable().catchError((_) {});
-      } else {
-        WakelockPlus.disable().catchError((_) {});
-      }
-    } catch (_) {}
-  }
+  void _safeSetWakelock(bool enable) => safeSetWakelock(enable);
 
   void _handleOpenTimeout(int sessionId) {
     if (sessionId != _initSessionId || !_isOpening) return;
@@ -110,10 +74,8 @@ class PlayerPlaybackController extends ChangeNotifier {
     _errorText = '视频打开超时(${PlayerStallWatcher.openTimeoutMs ~/ 1000}s)';
     final stale = _controller;
     _controller = null;
-    if (stale != null) {
-      stale.removeListener(_onControllerUpdate);
-      stale.dispose().catchError((_) {});
-    }
+    stale?.removeListener(_onControllerUpdate);
+    stale?.dispose().catchError((_) {});
     notifyListeners();
     onStateChanged?.call();
   }
@@ -157,22 +119,21 @@ class PlayerPlaybackController extends ChangeNotifier {
 
     final oldController = _controller;
     _controller = null;
-    if (oldController != null) {
-      oldController.removeListener(_onControllerUpdate);
-      try { await oldController.pause(); } catch (_) {}
-      try { await oldController.dispose(); } catch (_) {}
-    }
+    oldController?.removeListener(_onControllerUpdate);
+    try { await oldController?.pause(); } catch (_) {}
+    try { await oldController?.dispose(); } catch (_) {}
 
     if (sessionId != _initSessionId) return;
     _hasSeekedInitial = false;
 
     final url = videoUrl.trim();
     if (url.isEmpty) {
+      watcher.clearOpenWatch();
       _isOpening = false;
       _isBuffering = false;
       _isPlaying = false;
       _playRequested = false;
-      _errorText = '未提供播放地址';
+      _errorText = '';
       notifyListeners();
       onStateChanged?.call();
       return;
@@ -211,13 +172,13 @@ class PlayerPlaybackController extends ChangeNotifier {
       }
 
       await newController.setPlaybackSpeed(_currentSpeed);
-      await newController.setVolume(_muted ? 0.0 : 1.0);
+      await newController.setVolume(muted ? 0.0 : 1.0);
       if (autoPlay) {
         await newController.play();
-        _safeSetWakelock(true);
+        safeSetWakelock(true);
       } else {
         await newController.pause();
-        _safeSetWakelock(false);
+        safeSetWakelock(false);
       }
 
       if (sessionId == _initSessionId) {
@@ -249,10 +210,7 @@ class PlayerPlaybackController extends ChangeNotifier {
     final dur = value.duration;
     final completed = dur.inSeconds > 0 && pos >= dur && !buffering;
 
-    if ((playing || pos > Duration.zero) && _isOpening) {
-      _isOpening = false;
-    }
-
+    if ((playing || pos > Duration.zero) && _isOpening) _isOpening = false;
     if (_isDragging || _isSeeking) {
       if (dur != _totalDuration || buffering != _isBuffering) {
         _totalDuration = dur;
@@ -262,13 +220,8 @@ class PlayerPlaybackController extends ChangeNotifier {
       return;
     }
 
-    if (playing != _isPlaying ||
-        buffering != _isBuffering ||
-        pos != _currentPosition ||
-        dur != _totalDuration ||
-        completed != _isCompleted) {
+    if (playing != _isPlaying || buffering != _isBuffering || pos != _currentPosition || dur != _totalDuration || completed != _isCompleted) {
       final justCompleted = completed && !_isCompleted;
-
       if (!playing && !buffering && !_isOpening) {
         _isPlaying = false;
         _playRequested = false;
@@ -276,7 +229,6 @@ class PlayerPlaybackController extends ChangeNotifier {
         _isPlaying = true;
         _playRequested = true;
       }
-
       _isBuffering = buffering;
       _currentPosition = pos;
       _totalDuration = dur;
@@ -294,7 +246,6 @@ class PlayerPlaybackController extends ChangeNotifier {
           onProgress!(pos.inSeconds.toDouble(), dur.inSeconds.toDouble());
         }
       }
-
       notifyListeners();
       onStateChanged?.call();
       if (justCompleted) onEnded?.call();
@@ -313,11 +264,7 @@ class PlayerPlaybackController extends ChangeNotifier {
   void toggleHud() {
     if (_panState.kind != PlayerTipKind.none) return;
     _showHud = !_showHud;
-    if (_showHud) {
-      armHideHud();
-    } else {
-      watcher.clearHide();
-    }
+    _showHud ? armHideHud() : watcher.clearHide();
     notifyListeners();
   }
 
@@ -394,11 +341,9 @@ class PlayerPlaybackController extends ChangeNotifier {
     _errorText = '';
     final old = _controller;
     _controller = null;
-    if (old != null) {
-      old.removeListener(_onControllerUpdate);
-      old.pause().catchError((_) {});
-      old.dispose().catchError((_) {});
-    }
+    old?.removeListener(_onControllerUpdate);
+    old?.pause().catchError((_) {});
+    old?.dispose().catchError((_) {});
     notifyListeners();
   }
 
@@ -421,13 +366,12 @@ class PlayerPlaybackController extends ChangeNotifier {
       _controller?.play().catchError((_) {});
       _safeSetWakelock(true);
       _isPlaying = true;
-      notifyListeners();
     } else {
       _controller?.pause().catchError((_) {});
       _safeSetWakelock(false);
       _isPlaying = false;
-      notifyListeners();
     }
+    notifyListeners();
   }
 
   void remountCompleted(double positionSec, double durationSec) {
@@ -438,11 +382,9 @@ class PlayerPlaybackController extends ChangeNotifier {
     _safeSetWakelock(false);
     final old = _controller;
     _controller = null;
-    if (old != null) {
-      old.removeListener(_onControllerUpdate);
-      old.pause().catchError((_) {});
-      old.dispose().catchError((_) {});
-    }
+    old?.removeListener(_onControllerUpdate);
+    old?.pause().catchError((_) {});
+    old?.dispose().catchError((_) {});
     _isPlaying = false;
     _playRequested = false;
     _isBuffering = false;
@@ -450,9 +392,7 @@ class PlayerPlaybackController extends ChangeNotifier {
     _isCompleted = true;
     _errorText = '';
     _currentPosition = Duration(seconds: positionSec.toInt());
-    if (durationSec > 0) {
-      _totalDuration = Duration(seconds: durationSec.toInt());
-    }
+    if (durationSec > 0) _totalDuration = Duration(seconds: durationSec.toInt());
     notifyListeners();
   }
 
@@ -511,22 +451,10 @@ class PlayerPlaybackController extends ChangeNotifier {
   }
 
   void toggleMute() {
-    _muted = !_muted;
-    _controller?.setVolume(_muted ? 0.0 : 1.0);
-    showTransient(PlayerPanState(kind: PlayerTipKind.volume, text: _muted ? '静音' : '音量 100%'));
-    notifyListeners();
-  }
-
-  void setBrightness(double v) {
-    _brightness = v;
-    PlayerWindow.setBrightness(v);
-    notifyListeners();
-  }
-
-  void setVolume(double v) {
-    _volume = v;
-    if (!_muted) PlayerWindow.setVolume(v);
-    notifyListeners();
+    final next = !muted;
+    setMutedInternal(next);
+    _controller?.setVolume(next ? 0.0 : 1.0);
+    showTransient(PlayerPanState(kind: PlayerTipKind.volume, text: next ? '静音' : '音量 100%'));
   }
 
   void setDragPreview(Duration? preview) {
@@ -539,11 +467,7 @@ class PlayerPlaybackController extends ChangeNotifier {
 
   void setPanState(PlayerPanState state) {
     _panState = state;
-    if (state.kind != PlayerTipKind.none) {
-      watcher.clearHide();
-    } else {
-      armHideHud();
-    }
+    state.kind != PlayerTipKind.none ? watcher.clearHide() : armHideHud();
     notifyListeners();
   }
 
@@ -564,8 +488,7 @@ class PlayerPlaybackController extends ChangeNotifier {
   void dispose() {
     _initSessionId++;
     watcher.dispose();
-    PlayerWindow.resetBrightness();
-    _safeSetWakelock(false);
+    resetDeviceControl();
     final c = _controller;
     _controller = null;
     c?.removeListener(_onControllerUpdate);

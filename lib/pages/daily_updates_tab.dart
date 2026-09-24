@@ -190,9 +190,9 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with TickerProviderSt
     if (scrollable == null || renderObject == null) return;
     scrollable.position.ensureVisible(
       renderObject,
-      alignment: 0,
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOut,
+      alignment: 0.5,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
     );
   }
 

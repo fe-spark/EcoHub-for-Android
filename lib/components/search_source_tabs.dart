@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
 import '../models/film_models.dart';
 
-class SearchSourceTabs extends StatelessWidget {
+class SearchSourceTabs extends StatefulWidget {
   final List<SearchSourceTab> sources;
   final String activeId;
   final ValueChanged<String> onChange;
@@ -15,21 +15,72 @@ class SearchSourceTabs extends StatelessWidget {
   });
 
   @override
+  State<SearchSourceTabs> createState() => _SearchSourceTabsState();
+}
+
+class _SearchSourceTabsState extends State<SearchSourceTabs> {
+  final ScrollController _scrollController = ScrollController();
+  final Map<String, GlobalKey> _chipKeys = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollToActive(false);
+  }
+
+  @override
+  void didUpdateWidget(SearchSourceTabs oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.activeId != widget.activeId ||
+        oldWidget.sources.length != widget.sources.length) {
+      _scrollToActive(true);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToActive(bool smooth) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final key = _chipKeys[widget.activeId];
+      final ctx = key?.currentContext;
+      if (ctx == null) return;
+      final renderObject = ctx.findRenderObject();
+      final scrollable = Scrollable.maybeOf(ctx);
+      if (scrollable == null || renderObject == null) return;
+
+      scrollable.position.ensureVisible(
+        renderObject,
+        alignment: 0.5,
+        duration: smooth ? const Duration(milliseconds: 260) : Duration.zero,
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (sources.length <= 1) {
+    if (widget.sources.length <= 1) {
       return const SizedBox.shrink();
     }
     return SizedBox(
       height: 40,
       child: ListView.separated(
+        controller: _scrollController,
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
         itemBuilder: (context, index) {
-          final tab = sources[index];
-          final active = tab.id == activeId;
+          final tab = widget.sources[index];
+          final active = tab.id == widget.activeId;
           final metaColor = active ? Colors.white : AppTheme.textSecondary;
+          final itemKey = _chipKeys.putIfAbsent(tab.id, () => GlobalKey());
+
           return ChoiceChip(
-            key: ValueKey('${tab.id}_${tab.loading}_${tab.count}'),
+            key: itemKey,
             label: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -49,7 +100,7 @@ class SearchSourceTabs extends StatelessWidget {
               ],
             ),
             selected: active,
-            onSelected: (_) => onChange(tab.id),
+            onSelected: (_) => widget.onChange(tab.id),
             selectedColor: AppTheme.accent,
             labelStyle: TextStyle(
               fontSize: 12,
@@ -63,7 +114,7 @@ class SearchSourceTabs extends StatelessWidget {
           );
         },
         separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemCount: sources.length,
+        itemCount: widget.sources.length,
       ),
     );
   }

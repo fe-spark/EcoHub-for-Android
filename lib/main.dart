@@ -158,16 +158,17 @@ class _EcoHubAppState extends State<EcoHubApp> with WidgetsBindingObserver {
               page = PlayPage(
                 id: args['id'] ?? '',
                 sourceId: args['sourceId'] ?? '',
-                episodeIndex: int.tryParse('${args['episodeIndex']}') ?? 0,
-                currentTime: double.tryParse('${args['currentTime']}') ?? 0,
+                episodeIndex: args['episodeIndex'] != null ? int.tryParse('${args['episodeIndex']}') : null,
+                currentTime: args['currentTime'] != null ? double.tryParse('${args['currentTime']}') : null,
               );
               break;
             case '/play/live':
               page = LivePlayPage(
                 sourceId: args['sourceId'] ?? '',
                 sourceMid: args['sourceMid'] ?? '',
-                episodeIndex: int.tryParse('${args['episodeIndex']}') ?? 0,
-                currentTime: double.tryParse('${args['currentTime']}') ?? 0,
+                episodeIndex: args['episodeIndex'] != null ? int.tryParse('${args['episodeIndex']}') : null,
+                currentTime: args['currentTime'] != null ? double.tryParse('${args['currentTime']}') : null,
+                title: args['title'] ?? '',
               );
               break;
             case '/about':

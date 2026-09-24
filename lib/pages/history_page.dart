@@ -110,6 +110,7 @@ class _HistoryPageState extends State<HistoryPage> {
       sourceId: item.sourceId,
       episodeIndex: item.episodeIndex,
       currentTime: item.currentTime,
+      title: item.name,
     ).then((_) => _reload());
   }
 

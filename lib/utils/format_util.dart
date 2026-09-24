@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/film_models.dart';
+import 'play_navigation.dart';
 import 'server_config_manager.dart';
 
 /// 统一格式化工具类
@@ -96,7 +97,13 @@ class FormatUtil {
 
   static String filmId(MovieBasicInfo film) {
     if (film.id > 0) return '${film.id}';
-    return text(film.mid);
+    final midText = text(film.mid);
+    if (midText.contains(':')) return midText;
+    final sid = film.sourceMid > 0 ? '${film.sourceMid}' : midText;
+    if (film.sourceId.isNotEmpty && sid.isNotEmpty && sid != '0') {
+      return PlayNavigation.livePlayHistoryId(film.sourceId, sid);
+    }
+    return sid;
   }
 
   /// 根据图片 URL 动态生成防盗链与兼容性请求头（如 Bilibili、豆瓣等）

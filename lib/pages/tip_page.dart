@@ -72,14 +72,17 @@ class _TipPageState extends State<TipPage> {
       backgroundColor: AppTheme.bg,
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             PageHeader(title: _config.tipTitle.isNotEmpty ? _config.tipTitle : '赞赏支持'),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg, vertical: AppTheme.spaceSm),
-              child: Text(
-                _config.tipMessage.isNotEmpty ? _config.tipMessage : '如果这个站对你有帮助，欢迎请作者喝杯咖啡',
-                style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.4),
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 8, bottom: 16),
+              child: Center(
+                child: Text(
+                  _config.tipMessage.isNotEmpty ? _config.tipMessage : '如果这个站对你有帮助，欢迎请作者喝杯咖啡',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: 14, color: AppTheme.textSecondary, height: 1.4),
+                ),
               ),
             ),
             Expanded(
@@ -90,52 +93,57 @@ class _TipPageState extends State<TipPage> {
                           title: '暂未配置赞赏渠道',
                           icon: Icons.card_giftcard_rounded,
                         )
-                      : ListView.separated(
-                          padding: const EdgeInsets.all(AppTheme.spaceLg),
-                          itemCount: channels.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 24),
-                          itemBuilder: (context, index) {
-                            final item = channels[index];
-                            final qrUrl = ServerConfigManager.instance.resolveMediaUrl(item.qrImage);
+                      : Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 640),
+                            child: ListView.separated(
+                              padding: const EdgeInsets.all(AppTheme.spaceLg),
+                              itemCount: channels.length,
+                              separatorBuilder: (context, index) => const SizedBox(height: 24),
+                              itemBuilder: (context, index) {
+                                final item = channels[index];
+                                final qrUrl = ServerConfigManager.instance.resolveMediaUrl(item.qrImage);
 
-                            return Column(
-                              children: [
-                                Text(
-                                  item.label,
-                                  style: const TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                    color: AppTheme.textPrimary,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                if (qrUrl.isNotEmpty)
-                                  Container(
-                                    width: 200,
-                                    height: 200,
-                                    padding: const EdgeInsets.all(8),
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                                    ),
-                                    child: ClipRRect(
-                                      borderRadius: BorderRadius.circular(4),
-                                      child: CachedNetworkImage(
-                                        imageUrl: qrUrl,
-                                        httpHeaders: FormatUtil.imageHeaders(qrUrl),
-                                        fit: BoxFit.contain,
-                                        placeholder: (context, url) => const Center(
-                                          child: CircularProgressIndicator(color: AppTheme.accent),
-                                        ),
-                                        errorWidget: (context, url, error) => const Center(
-                                          child: Text('图片加载失败', style: TextStyle(color: Colors.black54, fontSize: 12)),
-                                        ),
+                                return Column(
+                                  children: [
+                                    Text(
+                                      item.label,
+                                      style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.textPrimary,
                                       ),
                                     ),
-                                  ),
-                              ],
-                            );
-                          },
+                                    const SizedBox(height: 12),
+                                    if (qrUrl.isNotEmpty)
+                                      Container(
+                                        width: 200,
+                                        height: 200,
+                                        padding: const EdgeInsets.all(8),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white,
+                                          borderRadius: BorderRadius.circular(AppTheme.radiusMd),
+                                        ),
+                                        child: ClipRRect(
+                                          borderRadius: BorderRadius.circular(4),
+                                          child: CachedNetworkImage(
+                                            imageUrl: qrUrl,
+                                            httpHeaders: FormatUtil.imageHeaders(qrUrl),
+                                            fit: BoxFit.contain,
+                                            placeholder: (context, url) => const Center(
+                                              child: CircularProgressIndicator(color: AppTheme.accent),
+                                            ),
+                                            errorWidget: (context, url, error) => const Center(
+                                              child: Text('图片加载失败', style: TextStyle(color: Colors.black54, fontSize: 12)),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                );
+                              },
+                            ),
+                          ),
                         ),
             ),
           ],

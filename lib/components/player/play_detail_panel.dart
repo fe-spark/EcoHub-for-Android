@@ -94,8 +94,6 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     } else if (oldWidget.viewingSourceId != widget.viewingSourceId) {
       _clampGroup(widget.viewingSourceId);
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _measureHeader();
-        _checkReadyAndScroll(true);
         _syncSourceBar(true);
         _syncGroupBar(true);
       });
@@ -333,10 +331,25 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     final index = widget.sources.indexWhere((s) => s.id == widget.viewingSourceId);
     if (index < 0) return;
 
+    final targetSource = widget.sources[index];
+    final itemCtx = _sourceKeys[targetSource.id]?.currentContext;
+    if (itemCtx != null) {
+      final renderObject = itemCtx.findRenderObject();
+      final scrollable = Scrollable.maybeOf(itemCtx);
+      if (scrollable != null && renderObject != null) {
+        scrollable.position.ensureVisible(
+          renderObject,
+          alignment: 0.5,
+          duration: smooth ? const Duration(milliseconds: 250) : Duration.zero,
+          curve: Curves.easeOutCubic,
+        );
+        return;
+      }
+    }
+
     final targetOffset = _calculateSourceTargetOffset(index);
     final maxExtent = _sourceScroller.position.maxScrollExtent;
 
-    // 若目标偏移量 > 0 但此时 maxScrollExtent 仍为 0，可能下一微帧才完成 viewport 测算，安排下一微帧重试
     if (targetOffset > 0 && maxExtent <= 0) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _syncSourceBar(smooth);
@@ -345,8 +358,6 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     }
 
     final clampedOffset = targetOffset.clamp(0.0, maxExtent);
-
-    // 避免重复滚动或微小差值抖动
     if ((_sourceScroller.offset - clampedOffset).abs() < 1.0) return;
 
     try {
@@ -363,6 +374,21 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     if (!_needsGrouping() || !_groupScroller.hasClients) return;
     final g = _groupOf(widget.viewingSourceId);
 
+    final itemCtx = _groupKeys[g]?.currentContext;
+    if (itemCtx != null) {
+      final renderObject = itemCtx.findRenderObject();
+      final scrollable = Scrollable.maybeOf(itemCtx);
+      if (scrollable != null && renderObject != null) {
+        scrollable.position.ensureVisible(
+          renderObject,
+          alignment: 0.5,
+          duration: smooth ? const Duration(milliseconds: 250) : Duration.zero,
+          curve: Curves.easeOutCubic,
+        );
+        return;
+      }
+    }
+
     final targetOffset = _calculateGroupTargetOffset(g);
     final maxExtent = _groupScroller.position.maxScrollExtent;
 
@@ -374,7 +400,6 @@ class _PlayDetailPanelState extends State<PlayDetailPanel> {
     }
 
     final clampedOffset = targetOffset.clamp(0.0, maxExtent);
-
     if ((_groupScroller.offset - clampedOffset).abs() < 1.0) return;
 
     try {

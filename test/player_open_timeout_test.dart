@@ -31,5 +31,15 @@ void main() {
       expect(ctrl.isOpening, isFalse);
       expect(ctrl.isPlaying, isFalse);
     });
+
+    test('initPlayer with empty url does not report error and keeps silent state', () async {
+      final ctrl = PlayerPlaybackController();
+      await ctrl.initPlayer('');
+      expect(ctrl.errorText, isEmpty);
+      expect(ctrl.isOpening, isFalse);
+      expect(ctrl.isPlaying, isFalse);
+      expect(ctrl.isBuffering, isFalse);
+      expect(ctrl.isReady, isFalse);
+    });
   });
 }

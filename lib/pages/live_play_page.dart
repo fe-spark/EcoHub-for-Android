@@ -3,15 +3,16 @@ import 'package:flutter/services.dart';
 import '../api/film_api.dart';
 import '../api/http_client.dart';
 import '../common/app_theme.dart';
-import '../components/empty_state.dart';
 import '../components/loading_view.dart';
-import '../components/player/play_side_tabs.dart';
+import '../components/player/live_play_body.dart';
+import '../components/player/live_play_error_view.dart';
 import '../components/player/video_player_widget.dart';
 import '../models/film_models.dart';
 import '../services/pip_manager.dart';
 import '../utils/app_orientation.dart';
 import '../utils/app_settings_manager.dart';
 import '../utils/breakpoint.dart';
+import '../utils/favorite_manager.dart';
 import '../utils/history_manager.dart';
 import '../utils/play_navigation.dart';
 import '../utils/play_resume.dart';
@@ -23,15 +24,17 @@ import '../utils/split_cutout_insets.dart';
 class LivePlayPage extends StatefulWidget {
   final String sourceId;
   final String sourceMid;
-  final int episodeIndex;
-  final double currentTime;
+  final int? episodeIndex;
+  final double? currentTime;
+  final String title;
 
   const LivePlayPage({
     super.key,
     required this.sourceId,
     required this.sourceMid,
-    this.episodeIndex = 0,
-    this.currentTime = 0,
+    this.episodeIndex,
+    this.currentTime,
+    this.title = '',
   });
 
   @override
@@ -66,6 +69,7 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   double _lastDuration = 0;
   bool _persistEnabled = true;
   bool _isPipActive = false;
+  bool _isFav = false;
 
   String get _historyId => PlayNavigation.livePlayHistoryId(widget.sourceId, _sourceMid);
 
@@ -76,11 +80,14 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     PipManager.instance.addListener(_onPipChanged);
     _isPipActive = PipManager.instance.isPipActive;
     _sourceMid = widget.sourceMid;
-    _episodeIndex = widget.episodeIndex;
-    _initialTime = widget.currentTime;
+    _episodeIndex = widget.episodeIndex ?? 0;
+    _initialTime = widget.currentTime ?? 0;
     _lastCurrentTime = _initialTime;
+    if (widget.title.isNotEmpty) _name = widget.title;
     HttpClient.instance.trackView('play', _historyId, 'LivePlayPage');
     SourceGuard.onReconnect(_onReconnect);
+    FavoriteManager.onFavoriteChange(_syncFavoriteState);
+    _syncFavoriteState();
     _initPlay();
   }
 
@@ -88,15 +95,37 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     PipManager.instance.removeListener(_onPipChanged);
-    if (_lastCurrentTime > 0) {
-      _persistHistory(_lastCurrentTime, _lastDuration);
-    }
+    FavoriteManager.offFavoriteChange(_syncFavoriteState);
+    _persistHistory(_lastCurrentTime, _lastDuration);
     try {
       SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } catch (_) {}
     SourceGuard.offReconnect(_onReconnect);
     super.dispose();
+  }
+
+  Future<void> _syncFavoriteState() async {
+    if (_historyId.isEmpty) return;
+    final fav = await FavoriteManager.find(_historyId);
+    if (!mounted) return;
+    setState(() {
+      _isFav = fav != null;
+      if (_name.isEmpty && fav != null && fav.name.isNotEmpty) {
+        _name = fav.name;
+        _picture = fav.picture;
+      }
+    });
+    if (_name.isEmpty) {
+      final prev = await HistoryManager.find(_historyId);
+      if (!mounted) return;
+      if (_name.isEmpty && prev != null && prev.name.isNotEmpty) {
+        setState(() {
+          _name = prev.name;
+          _picture = prev.picture;
+        });
+      }
+    }
   }
 
   void _onPipChanged(bool active) {
@@ -118,13 +147,31 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   }
 
   Future<void> _initPlay() async {
-    if (widget.episodeIndex == 0 && widget.currentTime == 0 && _historyId.isNotEmpty) {
-      final resume = await PlayResume.fromHistory(_historyId);
-      _episodeIndex = resume.episodeIndex;
-      _initialTime = resume.currentTime;
-      _lastCurrentTime = resume.currentTime;
-      _lastDuration = resume.duration;
+    int targetEpIndex = widget.episodeIndex ?? -1;
+    double targetTime = widget.currentTime ?? -1;
+
+    if (_historyId.isNotEmpty) {
+      try {
+        final prev = await HistoryManager.find(_historyId);
+        if (prev != null) {
+          if (_name.isEmpty && prev.name.isNotEmpty) {
+            _name = prev.name;
+          }
+          if (targetEpIndex < 0 && prev.episodeIndex >= 0) {
+            targetEpIndex = prev.episodeIndex;
+          }
+          if (targetTime < 0) {
+            final ended = prev.duration > 0 && prev.currentTime >= prev.duration - 3;
+            targetTime = ended ? 0 : prev.currentTime;
+          }
+          _lastDuration = prev.duration;
+        }
+      } catch (_) {}
     }
+
+    _episodeIndex = targetEpIndex >= 0 ? targetEpIndex : 0;
+    _initialTime = targetTime >= 0 ? targetTime : 0;
+    _lastCurrentTime = _initialTime;
     await _loadPlay();
   }
 
@@ -136,7 +183,7 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       });
       return;
     }
-    if (_name.isEmpty) {
+    if (_sources.isEmpty) {
       setState(() => _loading = true);
     }
     try {
@@ -314,11 +361,7 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     setState(() => _playerFull = full);
     try {
       if (full) {
-        SystemChrome.setPreferredOrientations(
-          isPortrait
-              ? [DeviceOrientation.portraitUp]
-              : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
-        );
+        SystemChrome.setPreferredOrientations(isPortrait ? [DeviceOrientation.portraitUp] : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       } else {
         SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
@@ -347,15 +390,11 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       topInset: useInset ? viewPadding.top : 0,
       bottomInset: useInset ? viewPadding.bottom : 0,
       leftInset: overrideLeftInset ?? (useInset ? viewPadding.left : 0),
-      rightInset: isFull
-          ? viewPadding.right
-          : (edgeHud ? AppTheme.safeEdge : 0),
+      rightInset: isFull ? viewPadding.right : (edgeHud ? AppTheme.safeEdge : 0),
       hasPrev: _hasPrev,
       hasNext: _hasNext,
       onBack: () => _playerFull ? _setFullscreen(false) : Navigator.pop(context),
-      onEnded: () {
-        if (AppSettingsManager.instance.autoPlayNext && _hasNext) _playNext();
-      },
+      onEnded: () { if (AppSettingsManager.instance.autoPlayNext && _hasNext) _playNext(); },
       onPrev: _playPrev,
       onNext: _playNext,
       onFullscreenChange: _setFullscreen,
@@ -396,14 +435,20 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   }
 
   Widget _buildPlayBody({required bool isFullMode, required bool split}) {
-    if (_loading && _name.isEmpty) {
-      return const LoadingView(label: '正在打开播放页');
-    }
-    if (_errorText.isNotEmpty && _name.isEmpty) {
-      return EmptyState(
-        title: '当前内容无法播放',
-        subtitle: _errorText,
-        icon: Icons.play_disabled_rounded,
+    if (_loading && _sources.isEmpty) return const LoadingView(label: '正在打开播放页');
+    if (_errorText.isNotEmpty && _sources.isEmpty) {
+      return LivePlayErrorView(
+        filmName: _name,
+        errorText: _errorText,
+        isFavorite: _isFav,
+        onBack: () => Navigator.pop(context),
+        onRetry: _loadPlay,
+        onRemoveFavorite: () async {
+          await FavoriteManager.remove(_historyId);
+          if (!mounted) return;
+          setState(() => _isFav = false);
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已移出收藏')));
+        },
       );
     }
 
@@ -419,70 +464,13 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       );
     }
 
-    if (split) {
-      final media = MediaQuery.of(context);
-      final cutout = SplitCutoutInsets.resolve(
-        media.viewPadding,
-        padding: media.padding,
-        displayFeatures: media.displayFeatures,
-        size: media.size,
-      );
-
-      return Row(
-        children: [
-          Expanded(
-            flex: 7,
-            child: _buildVideoPlayer(
-              isFull: false,
-              edgeHud: true,
-              overrideLeftInset: cutout.left,
-            ),
-          ),
-          Container(width: 1, color: const Color(0x24FFFFFF)),
-          Expanded(
-            flex: 5,
-            child: Container(
-              color: AppTheme.bgElevated,
-              child: SafeArea(
-                top: true,
-                bottom: true,
-                left: false,
-                right: false,
-                child: _sideTabs(
-                  columns: 3,
-                  isSplit: true,
-                  rightInset: cutout.right,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          child: _buildVideoPlayer(isFull: false),
-        ),
-        Container(height: 8, color: AppTheme.bgElevated),
-        Expanded(
-          child: _sideTabs(
-            columns: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width),
-            isSplit: false,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _sideTabs({
-    required int columns,
-    bool isSplit = false,
-    double rightInset = 0,
-  }) {
-    return PlaySideTabs(
+    return LivePlayBody(
+      isSplit: split,
+      playerWidget: _buildVideoPlayer(
+        isFull: false,
+        edgeHud: split,
+        overrideLeftInset: split ? SplitCutoutInsets.resolve(MediaQuery.viewPaddingOf(context), padding: MediaQuery.paddingOf(context), displayFeatures: MediaQuery.displayFeaturesOf(context), size: MediaQuery.sizeOf(context)).left : null,
+      ),
       activeTab: _activeTab,
       onTabChange: (tab) => setState(() => _activeTab = tab),
       filmId: _historyId,
@@ -496,13 +484,10 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       playingSourceId: _playingSourceId,
       viewingSourceId: _viewingSourceId,
       episodeIndex: _episodeIndex,
-      isSplit: isSplit,
-      rightInset: rightInset,
       onViewSource: (id) => setState(() => _viewingSourceId = id),
       onSelectEpisode: (sourceId, index) => _selectEpisode(sourceId, index),
       relateLoading: _relateLoading,
       related: _related,
-      columns: columns,
       onOpenRelated: _openRelated,
       sourceName: _sourceName,
     );

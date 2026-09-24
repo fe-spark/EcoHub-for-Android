@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../common/app_theme.dart';
 import '../models/film_models.dart';
 import '../utils/format_util.dart';
+import '../utils/nav_util.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/favorite_manager.dart';
 
@@ -31,8 +32,13 @@ class FilmCard extends StatelessWidget {
       onClickCard!(film);
       return;
     }
-    final filmId = FormatUtil.filmId(film);
-    Navigator.pushNamed(context, '/play', arguments: {'id': filmId});
+    NavUtil.openPlay(
+      context,
+      FormatUtil.filmId(film),
+      sourceId: film.sourceId,
+      sourceMid: film.sourceMid > 0 ? '${film.sourceMid}' : '',
+      title: film.name,
+    );
   }
 
   Widget _buildPosterTag(String text) {

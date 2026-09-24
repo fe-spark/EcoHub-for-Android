@@ -31,6 +31,7 @@ class NavUtil {
     String sourceMid = '',
     int? episodeIndex,
     double? currentTime,
+    String title = '',
   }) {
     if (PlayNavigation.isLocalFilmId(id)) {
       final params = <String, dynamic>{'id': id};
@@ -57,6 +58,7 @@ class NavUtil {
     final params = <String, dynamic>{
       'sourceId': liveSource,
       'sourceMid': liveSid,
+      if (title.isNotEmpty) 'title': title,
     };
     if (episodeIndex != null && episodeIndex >= 0) {
       params['episodeIndex'] = '$episodeIndex';

@@ -34,6 +34,7 @@ class SearchResultItem extends StatelessWidget {
       filmId,
       sourceId: film.sourceId,
       sourceMid: film.sourceMid > 0 ? '${film.sourceMid}' : '',
+      title: film.name,
     );
   }
 

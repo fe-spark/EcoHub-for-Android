@@ -137,7 +137,7 @@ class _FavoritePageState extends State<FavoritePage> {
         borderRadius: BorderRadius.circular(AppTheme.radiusLg),
         child: InkWell(
           onTap: () {
-            NavUtil.openPlay(context, item.id).then((_) => _reload());
+            NavUtil.openPlay(context, item.id, title: item.name).then((_) => _reload());
           },
           borderRadius: BorderRadius.circular(AppTheme.radiusLg),
           child: Padding(

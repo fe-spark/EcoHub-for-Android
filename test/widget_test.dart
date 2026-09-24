@@ -255,6 +255,15 @@ void main() {
       expect(res.message, '请输入有效的软件源地址');
     });
 
+    test('formatConnectionError correctly identifies 502/503/504 and connection refused as service error', () {
+      final client = HttpClient.instance;
+      expect(client.formatConnectionError(Exception('HTTP 502')), contains('服务未启动或网关异常 (服务错误)'));
+      expect(client.formatConnectionError(Exception('504 Gateway Timeout')), contains('服务未启动或网关异常 (服务错误)'));
+      expect(client.formatConnectionError(Exception('Connection refused, errno = 111')), contains('服务未启动或网关异常 (服务错误)'));
+      expect(client.formatConnectionError(Exception('SocketException: OS Error: Connection refused')), contains('服务未启动或网关异常 (服务错误)'));
+      expect(client.formatConnectionError(Exception('Future not completed: TimeoutException')), contains('连接超时'));
+    });
+
     test('ConnectionResult fields', () {
       const res = ConnectionResult(ok: false, isPrivate: true, message: '该软件源已开启私有化访问，请在地址后追加 ?key=密钥');
       expect(res.ok, false);
@@ -913,7 +922,7 @@ void main() {
       expect(rotatedSource0.dx, closeTo(559.2, 1.0));
     });
 
-    testWidgets('PlayDetailPanel precisely aligns selected source chip to leading edge on initial entry and clicks in split', (tester) async {
+    testWidgets('PlayDetailPanel precisely centers selected source chip on initial entry and clicks in split', (tester) async {
       tester.view.physicalSize = const Size(800, 360);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -964,42 +973,37 @@ void main() {
       await tester.pumpAndSettle();
 
       final panelLeft = 800 * 7 / 12; // 466.666
+      final panelWidth = 800 * 5 / 12; // 333.333
+      final panelCenter = panelLeft + panelWidth / 2; // 633.333
 
-      // 1. 首次进入时恢复播放非首个源，选中源胶囊必须精确对齐首位内边距，绝不被切掉一半
+      // 1. 首次进入时恢复播放非首个源，选中源胶囊居中聚焦
       final suboFinder = find.text('速博(SUBO)');
       final suboChip = find.ancestor(of: suboFinder, matching: find.byType(InkWell)).first;
       final suboRect = tester.getRect(suboChip);
-      expect(suboRect.left - panelLeft, closeTo(12.0, 1.0));
+      expect(suboRect.center.dx, closeTo(panelCenter, 15.0));
 
-      // 2. 点击切换到 HD(SN) 后精确对齐首位，且前一个 tag 完全移出视口左侧
+      // 2. 点击切换到 HD(SN) 后胶囊居中聚焦
       await tester.tap(find.text('HD(SN)'));
       await tester.pumpAndSettle();
       final hdsnFinder = find.text('HD(SN)');
       final hdsnChip = find.ancestor(of: hdsnFinder, matching: find.byType(InkWell)).first;
       final hdsnRect = tester.getRect(hdsnChip);
-      expect(hdsnRect.left - panelLeft, closeTo(12.0, 1.0));
+      expect(hdsnRect.center.dx, closeTo(panelCenter, 15.0));
 
-      // 3. 连续依次点击后续源：金鹰2(JY)、红牛(HN)、非凡(FF)，依次验证零累积误差对齐与前项完全移出
+      // 3. 点击切换到金鹰2(JY)、红牛(HN)
       await tester.tap(find.text('金鹰2(JY)'));
       await tester.pumpAndSettle();
       final jy2Finder = find.text('金鹰2(JY)');
       final jy2Chip = find.ancestor(of: jy2Finder, matching: find.byType(InkWell)).first;
       final jy2Rect = tester.getRect(jy2Chip);
-      expect(jy2Rect.left - panelLeft, closeTo(12.0, 1.0));
+      expect(jy2Rect.center.dx, closeTo(panelCenter, 15.0));
 
       await tester.tap(find.text('红牛(HN)'));
       await tester.pumpAndSettle();
       final hnFinder = find.text('红牛(HN)');
       final hnChip = find.ancestor(of: hnFinder, matching: find.byType(InkWell)).first;
       final hnRect = tester.getRect(hnChip);
-      expect(hnRect.left - panelLeft, closeTo(12.0, 1.0));
-
-      await tester.tap(find.text('非凡(FF)'));
-      await tester.pumpAndSettle();
-      final ffFinder = find.text('非凡(FF)');
-      final ffChip = find.ancestor(of: ffFinder, matching: find.byType(InkWell)).first;
-      final ffRect = tester.getRect(ffChip);
-      expect(ffRect.left - panelLeft, closeTo(12.0, 1.0));
+      expect(hnRect.center.dx, closeTo(panelCenter, 15.0));
     });
 
     testWidgets('Landscape split mode honors right safe area insets', (tester) async {

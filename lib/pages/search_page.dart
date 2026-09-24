@@ -6,12 +6,10 @@ import '../api/http_client.dart';
 import '../utils/search_history_manager.dart';
 import '../utils/source_guard.dart';
 import '../utils/favorite_manager.dart';
-import '../utils/breakpoint.dart';
-import '../components/search_result_item.dart';
 import '../components/search_source_tabs.dart';
 import '../components/search_suggest_pane.dart';
+import '../components/search_result_list.dart';
 import '../components/loading_view.dart';
-import '../components/empty_state.dart';
 
 const List<String> _defaultHotKeywords = [
   '凡人修仙传', '庆余年', '仙逆', '吞噬星空', '遮天', '斗破苍穹', '白夜破晓', '大奉打更人'
@@ -360,6 +358,7 @@ class _SearchPageState extends State<SearchPage> {
                           if (_inputController.text.isNotEmpty)
                             GestureDetector(
                               onTap: () {
+                                _focusNode.unfocus();
                                 setState(() {
                                   _inputController.clear();
                                   _submitted = '';
@@ -401,6 +400,7 @@ class _SearchPageState extends State<SearchPage> {
                       activeId: _source,
                       onChange: (id) {
                         if (id == _source) return;
+                        _focusNode.unfocus();
                         setState(() {
                           _source = id;
                           _applySource(id);
@@ -435,79 +435,14 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   Widget _buildResultList() {
-    if (_list.isEmpty) {
-      final hasError = _sourceError.isNotEmpty;
-      return RefreshIndicator(
-        onRefresh: () => _doSearch(true, keepSource: true),
-        color: AppTheme.accent,
-        backgroundColor: AppTheme.bgCard,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          child: Container(
-            alignment: Alignment.center,
-            padding: const EdgeInsets.only(top: 80, bottom: 40),
-            child: EmptyState(
-              title: hasError ? '该采集源搜索失败' : '未找到相关影片',
-              subtitle: hasError
-                  ? _sourceError
-                  : '未找到与「$_submitted」相关的影片\n建议缩短或更换搜索词，也可以尝试切换其他采集源',
-              icon: hasError ? Icons.error_outline_rounded : Icons.search_off_rounded,
-            ),
-          ),
-        ),
-      );
-    }
-
-    final lanes = Breakpoint.listLanesOf(MediaQuery.sizeOf(context).width);
-
-    return RefreshIndicator(
+    return SearchResultList(
+      list: _list,
+      page: _page,
+      loadingMore: _loadingMore,
+      sourceError: _sourceError,
+      submitted: _submitted,
+      scrollController: _scrollController,
       onRefresh: () => _doSearch(true, keepSource: true),
-      color: AppTheme.accent,
-      backgroundColor: AppTheme.bgCard,
-      child: CustomScrollView(
-        controller: _scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(AppTheme.spaceLg, 8, AppTheme.spaceLg, 8),
-            sliver: SliverToBoxAdapter(
-              child: Text(
-                '共 ${_page.total} 部与「$_submitted」相关',
-                style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
-              ),
-            ),
-          ),
-          if (lanes <= 1)
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
-              sliver: SliverList(
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: SearchResultItem(film: _list[index]),
-                  ),
-                  childCount: _list.length,
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: AppTheme.spaceLg),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: lanes,
-                  mainAxisExtent: 168,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 8,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) => SearchResultItem(film: _list[index]),
-                  childCount: _list.length,
-                ),
-              ),
-            ),
-        ],
-      ),
     );
   }
 }

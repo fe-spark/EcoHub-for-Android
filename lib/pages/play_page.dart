@@ -14,7 +14,7 @@ import '../utils/format_util.dart';
 import '../utils/split_cutout_insets.dart';
 import '../utils/app_settings_manager.dart';
 import '../components/player/video_player_widget.dart';
-import '../components/player/play_side_tabs.dart';
+import '../components/player/live_play_body.dart';
 import '../components/loading_view.dart';
 import '../components/empty_state.dart';
 import '../services/pip_manager.dart';
@@ -23,15 +23,15 @@ import '../services/pip_manager.dart';
 class PlayPage extends StatefulWidget {
   final String id;
   final String sourceId;
-  final int episodeIndex;
-  final double currentTime;
+  final int? episodeIndex;
+  final double? currentTime;
 
   const PlayPage({
     super.key,
     required this.id,
     this.sourceId = '',
-    this.episodeIndex = 0,
-    this.currentTime = 0,
+    this.episodeIndex,
+    this.currentTime,
   });
 
   @override
@@ -74,8 +74,8 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     PipManager.instance.addListener(_onPipChanged);
     _isPipActive = PipManager.instance.isPipActive;
     _filmId = widget.id;
-    _episodeIndex = widget.episodeIndex;
-    _initialTime = widget.currentTime;
+    _episodeIndex = widget.episodeIndex ?? 0;
+    _initialTime = widget.currentTime ?? 0;
     _lastCurrentTime = _initialTime;
     SourceGuard.onReconnect(_onReconnect);
 
@@ -86,9 +86,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     PipManager.instance.removeListener(_onPipChanged);
-    if (_lastCurrentTime > 0) {
-      _persistHistory(_lastCurrentTime, _lastDuration);
-    }
+    _persistHistory(_lastCurrentTime, _lastDuration);
     try {
       SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -105,10 +103,8 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      if (_lastCurrentTime > 0) {
-        _persistHistory(_lastCurrentTime, _lastDuration);
-      }
+    if (state == AppLifecycleState.paused && _lastCurrentTime > 0) {
+      _persistHistory(_lastCurrentTime, _lastDuration);
     }
   }
 
@@ -119,16 +115,33 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   }
 
   Future<void> _initPlay() async {
-    var sid = widget.sourceId;
-    if (sid.isEmpty && widget.episodeIndex == 0 && widget.currentTime == 0 && _filmId.isNotEmpty) {
-      final resume = await PlayResume.fromHistory(_filmId);
-      sid = resume.sourceId;
-      _episodeIndex = resume.episodeIndex;
-      _initialTime = resume.currentTime;
-      _lastCurrentTime = resume.currentTime;
-      _lastDuration = resume.duration;
+    var targetSourceId = widget.sourceId;
+    int targetEpIndex = widget.episodeIndex ?? -1;
+    double targetTime = widget.currentTime ?? -1;
+
+    if (_filmId.isNotEmpty) {
+      try {
+        final prev = await HistoryManager.find(_filmId);
+        if (prev != null) {
+          if (targetSourceId.isEmpty && prev.sourceId.isNotEmpty) {
+            targetSourceId = prev.sourceId;
+          }
+          if (targetEpIndex < 0 && prev.episodeIndex >= 0) {
+            targetEpIndex = prev.episodeIndex;
+          }
+          if (targetTime < 0) {
+            final ended = prev.duration > 0 && prev.currentTime >= prev.duration - 3;
+            targetTime = ended ? 0 : prev.currentTime;
+          }
+          _lastDuration = prev.duration;
+        }
+      } catch (_) {}
     }
-    _loadPlay(sid);
+
+    _episodeIndex = targetEpIndex >= 0 ? targetEpIndex : 0;
+    _initialTime = targetTime >= 0 ? targetTime : 0;
+    _lastCurrentTime = _initialTime;
+    _loadPlay(targetSourceId);
     _loadRelate();
   }
 
@@ -411,10 +424,10 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
 
   Widget _buildPlayBody({required bool isFullMode, required bool split}) {
     // 对齐 OHOS 顶层 build：先按 loading/error 守卫，避免 playUrl 为空时渲染播放器报错。
-    if (_loading && _name.isEmpty) {
+    if (_loading && _sources.isEmpty) {
       return const LoadingView(label: '正在打开播放页');
     }
-    if (_errorText.isNotEmpty && _name.isEmpty) {
+    if (_errorText.isNotEmpty && _sources.isEmpty) {
       return EmptyState(
         title: '当前内容无法播放',
         subtitle: _errorText,
@@ -435,71 +448,13 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       );
     }
 
-    if (split) {
-      final media = MediaQuery.of(context);
-      final cutout = SplitCutoutInsets.resolve(
-        media.viewPadding,
-        padding: media.padding,
-        displayFeatures: media.displayFeatures,
-        size: media.size,
-      );
-
-      // 对齐 OHOS `splitPlay()`：横屏宽屏时左侧视频、右侧详情分屏。
-      return Row(
-        children: [
-          Expanded(
-            flex: 7,
-            child: _buildVideoPlayer(
-              isFull: false,
-              edgeHud: true,
-              overrideLeftInset: cutout.left,
-            ),
-          ),
-          Container(width: 1, color: const Color(0x24FFFFFF)),
-          Expanded(
-            flex: 5,
-            child: Container(
-              color: AppTheme.bgElevated,
-              child: SafeArea(
-                top: true,
-                bottom: true,
-                left: false,
-                right: false,
-                child: _sideTabs(
-                  columns: 3,
-                  isSplit: true,
-                  rightInset: cutout.right,
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          child: _buildVideoPlayer(isFull: false),
-        ),
-        Container(height: 8, color: AppTheme.bgElevated),
-        Expanded(
-          child: _sideTabs(
-            columns: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width),
-            isSplit: false,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _sideTabs({
-    required int columns,
-    bool isSplit = false,
-    double rightInset = 0,
-  }) {
-    return PlaySideTabs(
+    return LivePlayBody(
+      isSplit: split,
+      playerWidget: _buildVideoPlayer(
+        isFull: false,
+        edgeHud: split,
+        overrideLeftInset: split ? SplitCutoutInsets.resolve(MediaQuery.viewPaddingOf(context), padding: MediaQuery.paddingOf(context), displayFeatures: MediaQuery.displayFeaturesOf(context), size: MediaQuery.sizeOf(context)).left : null,
+      ),
       activeTab: _activeTab,
       onTabChange: (tab) => setState(() => _activeTab = tab),
       filmId: _filmId,
@@ -513,14 +468,12 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       playingSourceId: _playingSourceId,
       viewingSourceId: _viewingSourceId,
       episodeIndex: _episodeIndex,
-      isSplit: isSplit,
-      rightInset: rightInset,
       onViewSource: (id) => setState(() => _viewingSourceId = id),
       onSelectEpisode: (sourceId, index) => _selectEpisode(sourceId, index),
       relateLoading: _relateLoading,
       related: _related,
-      columns: columns,
       onOpenRelated: _openRelated,
+      sourceName: '',
     );
   }
 }
