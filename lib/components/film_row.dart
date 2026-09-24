@@ -35,6 +35,9 @@ class FilmRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (films.isEmpty) {
+      return const SizedBox.shrink();
+    }
     final padding = MediaQuery.paddingOf(context);
     final left = leftInset ?? padding.left;
     final right = rightInset ?? padding.right;
@@ -129,21 +132,9 @@ class FilmRow extends StatelessWidget {
               ],
             ),
           ),
-          if (films.isEmpty)
-            Padding(
-              padding: EdgeInsets.only(left: AppTheme.spaceLg + left),
-              child: const Text(
-                '暂无影片',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: AppTheme.textMuted,
-                ),
-              ),
-            )
-          else
-            SizedBox(
-              height: rowHeight,
-              child: ListView.separated(
+          SizedBox(
+            height: rowHeight,
+            child: ListView.separated(
                 scrollDirection: Axis.horizontal,
                 padding: EdgeInsets.only(
                   left: AppTheme.spaceLg + left,

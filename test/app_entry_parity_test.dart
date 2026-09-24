@@ -5,6 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecohub_android/utils/server_config_manager.dart';
 import 'package:ecohub_android/utils/history_manager.dart';
 import 'package:ecohub_android/pages/splash_page.dart';
+import 'package:ecohub_android/pages/main_scaffold_page.dart';
+import 'package:ecohub_android/utils/source_guard.dart';
 import 'package:ecohub_android/components/notice_dialog.dart';
 
 void main() {
@@ -149,6 +151,24 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(dismissed, isTrue);
+    });
+
+    test('MainScaffoldPage resetNoticeSession and SourceGuard cooldown', () async {
+      MainScaffoldPage.resetNoticeSession();
+      SourceGuard.markReconnectedCooldown(const Duration(milliseconds: 50));
+      expect(SourceGuard.skipCount, 1);
+      SourceGuard.intercept();
+      await Future<void>.delayed(const Duration(milliseconds: 70));
+      expect(SourceGuard.skipCount, 0);
+    });
+
+    test('SourceGuard 重复进入 cooldown 不会累加 skipCount', () async {
+      SourceGuard.markReconnectedCooldown(const Duration(milliseconds: 80));
+      expect(SourceGuard.skipCount, 1);
+      SourceGuard.markReconnectedCooldown(const Duration(milliseconds: 80));
+      expect(SourceGuard.skipCount, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(SourceGuard.skipCount, 0);
     });
   });
 }

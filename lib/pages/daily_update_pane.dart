@@ -155,8 +155,9 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
 
     _fetchLock = true;
     if (reset) {
-      if (!fromPull && _films.isEmpty) {
+      if (!fromPull) {
         setState(() {
+          _films = [];
           _loading = true;
           _errorText = '';
         });
@@ -189,9 +190,9 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
       setState(() {
         _loading = false;
         _loadingMore = false;
-        if (reset && _films.isEmpty) {
+        if (reset) {
           _errorText = msg.isNotEmpty ? msg : '每日更新加载失败';
-        } else if (!reset) {
+        } else {
           _toast(msg);
         }
       });
@@ -228,39 +229,55 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
     }
 
     if (_films.isEmpty) {
+      final emptyBody = ListView(
+        physics: _errorText.isNotEmpty
+            ? const ClampingScrollPhysics()
+            : const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
+        padding: EdgeInsets.only(left: leftInset, right: rightInset),
+        children: [
+          SizedBox(height: widget.headerHeight + 24),
+          if (_errorText.isNotEmpty)
+            EmptyState(
+              title: '加载失败',
+              subtitle: _errorText,
+              icon: Icons.error_outline_rounded,
+              action: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _paneActionPill(
+                    icon: Icons.link_rounded,
+                    label: '更换软件源',
+                    accent: true,
+                    onTap: () => Navigator.pushNamed(context, '/server_config'),
+                  ),
+                  const SizedBox(height: 12),
+                  _paneActionPill(
+                    icon: Icons.refresh_rounded,
+                    label: '刷新',
+                    accent: false,
+                    onTap: () => _loadData(true, fromPull: false),
+                  ),
+                ],
+              ),
+            )
+          else
+            const EmptyState(
+              title: '暂无更新',
+              subtitle: '近 24 小时还没有新片入库',
+              icon: Icons.local_fire_department_rounded,
+            ),
+        ],
+      );
+      if (_errorText.isNotEmpty) {
+        return emptyBody;
+      }
       return RefreshIndicator(
         onRefresh: () => _loadData(true, fromPull: true),
         color: AppTheme.accent,
         backgroundColor: AppTheme.bgCard,
         edgeOffset: widget.headerHeight,
         displacement: 16,
-        child: ListView(
-          physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          padding: EdgeInsets.only(left: leftInset, right: rightInset),
-          children: [
-            SizedBox(height: widget.headerHeight + 24),
-            if (_errorText.isNotEmpty)
-              EmptyState(
-                title: '加载失败',
-                subtitle: _errorText,
-                icon: Icons.error_outline_rounded,
-                action: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.bgCard,
-                    foregroundColor: AppTheme.textPrimary,
-                  ),
-                  onPressed: () => _loadData(true, fromPull: false),
-                  child: const Text('重试'),
-                ),
-              )
-            else
-              const EmptyState(
-                title: '暂无更新',
-                subtitle: '近 24 小时还没有新片入库',
-                icon: Icons.local_fire_department_rounded,
-              ),
-          ],
-        ),
+        child: emptyBody,
       );
     }
 
@@ -329,6 +346,35 @@ class _DailyUpdatePaneState extends State<DailyUpdatePane> with AutomaticKeepAli
           ),
         ),
       ],
+    );
+  }
+
+  Widget _paneActionPill({
+    required IconData icon,
+    required String label,
+    required bool accent,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+      child: Container(
+        width: 148,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: accent ? AppTheme.accent : AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: AppTheme.textPrimary),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+          ],
+        ),
+      ),
     );
   }
 }

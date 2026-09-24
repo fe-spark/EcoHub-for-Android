@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../common/app_theme.dart';
 import '../utils/app_version_util.dart';
+import 'app_markdown_view.dart';
 
 /// 版本更新弹窗组件
 class VersionUpdateDialog extends StatefulWidget {
@@ -89,29 +90,34 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
             ),
           ),
 
-          // 居中弹窗卡片
-          ScaleTransition(
-            scale: _scaleAnimation,
-            child: FadeTransition(
-              opacity: _opacityAnimation,
-              child: Builder(
-                builder: (context) {
-                  final media = MediaQuery.of(context);
-                  final landscape = media.size.height > 0 && media.size.height < 500;
-                  final maxHeight = media.size.height * 0.88;
+          // 居中弹窗卡片（受 SafeArea 保护，避让状态栏、灵动岛与屏幕打孔）
+          Positioned.fill(
+            child: SafeArea(
+              child: Center(
+                child: ScaleTransition(
+                  scale: _scaleAnimation,
+                  child: FadeTransition(
+                    opacity: _opacityAnimation,
+                    child: Builder(
+                      builder: (context) {
+                        final media = MediaQuery.of(context);
+                        final landscape = media.size.height > 0 && media.size.height < 500;
+                        final safeHeight = media.size.height - media.padding.top - media.padding.bottom;
+                        final verticalMargin = landscape ? 20.0 : 36.0;
+                        final maxHeight = (safeHeight - verticalMargin).clamp(160.0, 680.0);
 
-                  return Container(
-                    width: media.size.width * 0.86,
-                    constraints: BoxConstraints(maxWidth: 380, maxHeight: maxHeight),
-                    padding: EdgeInsets.all(landscape ? AppTheme.spaceMd : AppTheme.spaceLg),
-                    decoration: BoxDecoration(
-                      color: AppTheme.bgElevated,
-                      borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-                      border: Border.all(color: AppTheme.border),
-                      boxShadow: const [
-                        BoxShadow(
-                          color: Colors.black54,
-                          blurRadius: 24,
+                        return Container(
+                          width: media.size.width * 0.86,
+                          constraints: BoxConstraints(maxWidth: 380, maxHeight: maxHeight),
+                          padding: EdgeInsets.all(landscape ? AppTheme.spaceMd : AppTheme.spaceLg),
+                          decoration: BoxDecoration(
+                            color: AppTheme.bgElevated,
+                            borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                            border: Border.all(color: AppTheme.border),
+                            boxShadow: const [
+                              BoxShadow(
+                                color: Colors.black54,
+                                blurRadius: 24,
                           offset: Offset(0, 8),
                         ),
                       ],
@@ -182,50 +188,54 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
                             ),
                           ],
                         ),
-                        SizedBox(height: landscape ? 6 : AppTheme.spaceSm),
+                        // 分割线
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: AppTheme.border.withValues(alpha: 0.5),
+                        ),
+                        SizedBox(height: landscape ? 4 : 8),
 
-                        // Release notes
+                        // Release notes (无嵌套底色，紧凑自适应，超出时滚动)
                         Flexible(
-                          child: Container(
-                            width: double.infinity,
-                            padding: const EdgeInsets.all(AppTheme.spaceMd),
-                            decoration: BoxDecoration(
-                              color: AppTheme.bgCard,
-                              borderRadius: BorderRadius.circular(AppTheme.radiusMd),
-                            ),
-                            child: SingleChildScrollView(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (widget.updateInfo.releaseName.isNotEmpty &&
-                                      widget.updateInfo.releaseName != 'v${widget.updateInfo.latestVersion}')
-                                    Padding(
-                                      padding: const EdgeInsets.only(bottom: 6),
-                                      child: Text(
-                                        widget.updateInfo.releaseName,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.bold,
-                                          color: AppTheme.textPrimary,
-                                        ),
+                          child: SingleChildScrollView(
+                            padding: const EdgeInsets.symmetric(horizontal: 2.0, vertical: 4.0),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                if (widget.updateInfo.releaseName.isNotEmpty &&
+                                    widget.updateInfo.releaseName != 'v${widget.updateInfo.latestVersion}')
+                                  Padding(
+                                    padding: const EdgeInsets.only(bottom: 6),
+                                    child: Text(
+                                      widget.updateInfo.releaseName,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppTheme.textPrimary,
                                       ),
                                     ),
-                                  Text(
-                                    widget.updateInfo.releaseNotes.isNotEmpty
-                                        ? widget.updateInfo.releaseNotes.trim()
-                                        : '包含稳定性优化与功能增强。',
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      color: AppTheme.textSecondary,
-                                      height: 1.4,
-                                    ),
                                   ),
-                                ],
-                              ),
+                                AppMarkdownView(
+                                  data: widget.updateInfo.releaseNotes.isNotEmpty
+                                      ? widget.updateInfo.releaseNotes.trim()
+                                      : '包含稳定性优化与功能增强。',
+                                  fontSize: 13,
+                                  textColor: AppTheme.textSecondary,
+                                ),
+                              ],
                             ),
                           ),
                         ),
-                        SizedBox(height: landscape ? AppTheme.spaceSm : AppTheme.spaceLg),
+                        SizedBox(height: landscape ? 4 : 8),
+
+                        // 底部分割线
+                        Divider(
+                          height: 1,
+                          thickness: 1,
+                          color: AppTheme.border.withValues(alpha: 0.5),
+                        ),
+                        SizedBox(height: landscape ? AppTheme.spaceSm : AppTheme.spaceMd),
 
                         // Actions
                         if (landscape)
@@ -309,9 +319,12 @@ class _VersionUpdateDialogState extends State<VersionUpdateDialog> with SingleTi
               ),
             ),
           ),
-          ],
         ),
       ),
-    );
+    ),
+    ],
+  ),
+),
+);
   }
 }

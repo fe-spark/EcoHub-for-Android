@@ -8,6 +8,7 @@ import '../api/http_client.dart';
 import '../api/film_api.dart';
 import '../components/app_icon.dart';
 import '../components/server_history_dialog.dart';
+import 'main_scaffold_page.dart';
 
 /// 软件源配置页，对齐 OHOS `ServerConfigPage`
 class ServerConfigPage extends StatefulWidget {
@@ -77,12 +78,13 @@ class _ServerConfigPageState extends State<ServerConfigPage> {
     await _loadHistory();
     FilmApi.clearSiteConfig();
     SiteHeartbeat.instance.resetFailures();
-    SourceGuard.markClosed();
-    SourceGuard.notifyReconnected();
+    MainScaffoldPage.resetNoticeSession();
+    SourceGuard.markReconnectedCooldown();
 
     if (!mounted) return;
     _toast(_reconnect ? '已重新接入' : '源已接入');
     Navigator.of(context).pushNamedAndRemoveUntil('/main', (route) => false);
+    SourceGuard.notifyReconnected();
   }
 
   void _toast(String message) {

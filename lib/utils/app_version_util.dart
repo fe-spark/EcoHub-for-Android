@@ -26,7 +26,7 @@ class AppUpdateInfo {
 
 /// 版本工具与检查器
 class AppVersionUtil {
-  static const String appVersion = '1.0.1';
+  static const String appVersion = '1.0.2';
   static const String latestReleaseUrl = 'https://github.com/fe-spark/EcoHub-for-Android/releases/latest';
   static String _cachedVersionName = '';
   static AppUpdateInfo? _cachedUpdateInfo;

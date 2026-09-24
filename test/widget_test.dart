@@ -1458,6 +1458,27 @@ void main() {
       expect(firstCardPos.dx, greaterThanOrEqualTo(64.0));
     });
 
+    testWidgets('FilmRow with empty films renders nothing (SizedBox.shrink)', (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: FilmRow(
+              title: '演唱会',
+              films: [],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('演唱会'), findsNothing);
+      expect(find.text('暂无影片'), findsNothing);
+      expect(find.byType(FilmRow), findsOneWidget);
+      final size = tester.getSize(find.byType(FilmRow));
+      expect(size.width, 0.0);
+      expect(size.height, 0.0);
+    });
+
     testWidgets('PlayerSkinView portrait back header has highest layer and responds to click even when error pad is active', (tester) async {
       bool backClicked = false;
 

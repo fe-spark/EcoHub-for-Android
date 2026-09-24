@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
 import '../services/route_observer.dart';
@@ -7,8 +8,26 @@ import 'server_config_manager.dart';
 class SourceGuard {
   static bool _intercepting = false;
   static int _skipCount = 0;
+  static Timer? _reconnectSkipTimer;
   static final List<VoidCallback> _listeners = [];
   static GlobalKey<NavigatorState>? navigatorKey;
+
+  static void markReconnectedCooldown([Duration duration = const Duration(seconds: 4)]) {
+    _intercepting = false;
+    if (_reconnectSkipTimer != null) {
+      _reconnectSkipTimer!.cancel();
+      _reconnectSkipTimer = null;
+      endSkip();
+    }
+    beginSkip();
+    _reconnectSkipTimer = Timer(duration, () {
+      endSkip();
+      _reconnectSkipTimer = null;
+    });
+  }
+
+  @visibleForTesting
+  static int get skipCount => _skipCount;
 
   static void beginSkip() {
     _skipCount++;

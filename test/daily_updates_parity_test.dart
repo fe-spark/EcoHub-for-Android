@@ -33,16 +33,11 @@ void main() {
       expect(find.text('每日更新'), findsOneWidget);
       expect(find.byIcon(Icons.local_fire_department_rounded), findsOneWidget);
 
-      // Network error state rendered with EmptyState & retry button
+      // Network error state rendered with EmptyState & retry button, no pull-to-refresh
       expect(find.byType(EmptyState), findsOneWidget);
       expect(find.text('加载失败'), findsOneWidget);
       expect(find.text('重试'), findsOneWidget);
-
-      // RefreshIndicator is available on error state with edgeOffset
-      final refreshFinder = find.byType(RefreshIndicator);
-      expect(refreshFinder, findsOneWidget);
-      final refreshWidget = tester.widget<RefreshIndicator>(refreshFinder);
-      expect(refreshWidget.edgeOffset, greaterThan(0));
+      expect(find.byType(RefreshIndicator), findsNothing);
     });
 
     testWidgets('DailyUpdatesTab state provides TickerProvider for smooth animations', (tester) async {

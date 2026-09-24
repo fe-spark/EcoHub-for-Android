@@ -18,6 +18,7 @@ class SiteHeartbeat {
   bool _probing = false;
   Timer? _timer;
   int _consecutiveFailures = 0;
+  int _generation = 0;
   bool _configHooked = false;
 
   factory SiteHeartbeat() => _instance;
@@ -47,7 +48,9 @@ class SiteHeartbeat {
 
   void resetFailures() {
     _consecutiveFailures = 0;
-    if (_running && _timer == null && !_probing) {
+    _generation++;
+    _clearTimer();
+    if (_running) {
       _scheduleNext(_heartbeatIntervalMs);
     }
   }
@@ -78,7 +81,11 @@ class SiteHeartbeat {
   }
 
   Future<void> _runProbe() async {
-    if (!_running || _probing) return;
+    if (!_running) return;
+    if (_probing) {
+      _scheduleNext(_heartbeatIntervalMs);
+      return;
+    }
     final serverUrl = ServerConfigManager.instance.getCachedServerUrl();
     if (serverUrl.isEmpty) return;
 
@@ -99,14 +106,17 @@ class SiteHeartbeat {
       return;
     }
 
+    final gen = _generation;
     _probing = true;
     try {
       final config = await FilmApi.getSiteConfig(force: true, timeoutMs: _probeTimeoutMs);
+      if (gen != _generation) return;
       _consecutiveFailures = 0;
       checkSiteClosedState(config);
     } catch (_) {
+      if (gen != _generation) return;
       final stillOnline = await hasInternetConnection();
-      if (!stillOnline) {
+      if (!stillOnline || gen != _generation) {
         _consecutiveFailures = 0;
         return;
       }
@@ -122,7 +132,7 @@ class SiteHeartbeat {
       }
     } finally {
       _probing = false;
-      if (_running && _consecutiveFailures < _maxFailures) {
+      if (gen == _generation && _running && _consecutiveFailures < _maxFailures) {
         _scheduleNext(_heartbeatIntervalMs);
       }
     }

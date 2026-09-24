@@ -402,18 +402,11 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with TickerProviderSt
         child: const LoadingView(label: '正在加载今日更新'),
       );
     } else if (!_ready && _errorText.isNotEmpty) {
-      body = RefreshIndicator(
-        onRefresh: () => _loadMeta(fromPull: true),
-        color: AppTheme.accent,
-        backgroundColor: AppTheme.bgCard,
-        edgeOffset: headerHeight,
-        displacement: 16,
-        child: ListView(
-          physics: const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-          padding: EdgeInsets.only(left: leftInset, right: rightInset),
-          children: [
-            SizedBox(height: headerHeight + 20),
-            EmptyState(
+      body = Padding(
+        padding: EdgeInsets.only(top: headerHeight, left: leftInset, right: rightInset),
+        child: Center(
+          child: SingleChildScrollView(
+            child: EmptyState(
               title: '加载失败',
               subtitle: _errorText,
               icon: Icons.error_outline_rounded,
@@ -426,7 +419,7 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with TickerProviderSt
                 child: const Text('重试'),
               ),
             ),
-          ],
+          ),
         ),
       );
     } else {

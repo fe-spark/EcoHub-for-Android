@@ -18,13 +18,21 @@ import 'profile_tab.dart';
 class MainScaffoldPage extends StatefulWidget {
   const MainScaffoldPage({super.key});
 
+  static void resetNoticeSession() {
+    _MainScaffoldPageState.resetNoticeSession();
+  }
+
   @override
   State<MainScaffoldPage> createState() => _MainScaffoldPageState();
 }
 
 class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBindingObserver {
-  /// 对齐 OHOS AppStorage NOTICE_DISMISSED_SESSION 会话级公告关闭标记
-  static bool _noticeDismissedSession = false;
+  /// 会话内最近一次关闭的公告指纹（换源清空；公告变动后再弹）
+  static String _dismissedNoticeKey = '';
+
+  static void resetNoticeSession() {
+    _dismissedNoticeKey = '';
+  }
 
   int _currentTabIndex = 0;
   String _siteName = 'EcoHub';
@@ -34,16 +42,15 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
   bool _showNotice = false;
   String _noticeTitle = '站点公告';
   String _noticeContent = '';
+  String _currentNoticeKey = '';
   bool _hasAppUpdate = false;
   bool _showUpdateDialog = false;
-  bool _hasDismissedNotice = false;
   final List<bool> _tabReady = [true, false, false];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _hasDismissedNotice = _noticeDismissedSession;
     FilmApi.onConfigChange(_onConfigChange);
     SourceGuard.onReconnect(_onReconnect);
     AppVersionUtil.hasUpdate.addListener(_onHasUpdate);
@@ -107,22 +114,28 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
 
   Future<void> _checkNotice(BasicConfig config) async {
     if (!config.state || !config.noticeEnabled || !config.noticeShowInApp || config.noticeContent.trim().isEmpty) {
-      setState(() {
-        _showNotice = false;
-      });
+      if (mounted) setState(() => _showNotice = false);
       return;
     }
     final targetVersion = config.noticeAppVersion.isNotEmpty ? config.noticeAppVersion : config.noticeVersion;
     final appVersion = await AppVersionUtil.getVersionName();
     final isMatched = AppVersionUtil.isVersionMatched(appVersion, targetVersion);
 
-    if (isMatched && !_hasDismissedNotice) {
+    final serverUrl = ServerConfigManager.instance.getCachedServerUrl();
+    final content = config.noticeContent.trim();
+    final summary = content.length > 32 ? content.substring(0, 32) : content;
+    final noticeKey = '$serverUrl::${config.noticeTitle.trim()}::${content.length}_$summary';
+
+    if (isMatched && _dismissedNoticeKey != noticeKey) {
+      if (!mounted) return;
       setState(() {
         _noticeTitle = config.noticeTitle.isNotEmpty ? config.noticeTitle : '站点公告';
         _noticeContent = config.noticeContent;
+        _currentNoticeKey = noticeKey;
         _showNotice = true;
       });
-    } else if (!isMatched) {
+    } else if (!isMatched || _dismissedNoticeKey == noticeKey) {
+      if (!mounted) return;
       setState(() {
         _showNotice = false;
       });
@@ -186,61 +199,36 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.bg,
-      body: Stack(
-        children: [
-          if (!_ready)
-            const LoadingView(label: '正在接入服务')
-          else if (!_siteOpen)
-            _buildMaintenanceView()
-          else
-            IndexedStack(
-              index: _currentTabIndex,
-              children: [
-                if (_tabReady[0])
-                  RecommendTab(
-                    siteName: _siteName,
-                    onOpenSearch: () => Navigator.pushNamed(context, '/search'),
-                  )
-                else
-                  const SizedBox.shrink(),
-                if (_tabReady[1])
-                  const DailyUpdatesTab()
-                else
-                  const SizedBox.shrink(),
-                if (_tabReady[2])
-                  const ProfileTab()
-                else
-                  const SizedBox.shrink(),
-              ],
-            ),
+    final showNoticeOverlay = _showNotice && _ready && _siteOpen;
+    final showUpdateOverlay = _showUpdateDialog && AppVersionUtil.getCachedUpdateInfo() != null;
+    final hasModalOverlay = showNoticeOverlay || showUpdateOverlay;
 
-          // Notice modal
-          if (_showNotice && _ready && _siteOpen)
-            NoticeDialog(
-              title: _noticeTitle,
-              content: _noticeContent,
-              onClose: () {
-                _noticeDismissedSession = true;
-                setState(() {
-                  _hasDismissedNotice = true;
-                  _showNotice = false;
-                });
-              },
-            ),
-          if (_showUpdateDialog && AppVersionUtil.getCachedUpdateInfo() != null)
-            VersionUpdateDialog(
-              updateInfo: AppVersionUtil.getCachedUpdateInfo()!,
-              onClose: () {
-                AppVersionUtil.showUpdateDialog.value = false;
-                setState(() {
-                  _showUpdateDialog = false;
-                });
-              },
-            ),
-        ],
-      ),
+    final scaffold = Scaffold(
+      backgroundColor: AppTheme.bg,
+      body: !_ready
+          ? const LoadingView(label: '正在接入服务')
+          : !_siteOpen
+              ? _buildMaintenanceView()
+              : IndexedStack(
+                  index: _currentTabIndex,
+                  children: [
+                    if (_tabReady[0])
+                      RecommendTab(
+                        siteName: _siteName,
+                        onOpenSearch: () => Navigator.pushNamed(context, '/search'),
+                      )
+                    else
+                      const SizedBox.shrink(),
+                    if (_tabReady[1])
+                      const DailyUpdatesTab()
+                    else
+                      const SizedBox.shrink(),
+                    if (_tabReady[2])
+                      const ProfileTab()
+                    else
+                      const SizedBox.shrink(),
+                  ],
+                ),
       bottomNavigationBar: _ready && _siteOpen
           ? Container(
               decoration: const BoxDecoration(
@@ -287,6 +275,58 @@ class _MainScaffoldPageState extends State<MainScaffoldPage> with WidgetsBinding
               ),
             )
           : null,
+    );
+
+    return PopScope(
+      canPop: !hasModalOverlay,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (showNoticeOverlay) {
+          if (_currentNoticeKey.isNotEmpty) {
+            _dismissedNoticeKey = _currentNoticeKey;
+          }
+          setState(() {
+            _showNotice = false;
+          });
+        } else if (showUpdateOverlay) {
+          AppVersionUtil.showUpdateDialog.value = false;
+          setState(() {
+            _showUpdateDialog = false;
+          });
+        }
+      },
+      child: Stack(
+        children: [
+          scaffold,
+
+          // Notice modal (全屏遮罩，完整覆盖包括 TabBar 在内的整个视口)
+          if (showNoticeOverlay)
+            NoticeDialog(
+              title: _noticeTitle,
+              content: _noticeContent,
+              onClose: () {
+                if (_currentNoticeKey.isNotEmpty) {
+                  _dismissedNoticeKey = _currentNoticeKey;
+                }
+                setState(() {
+                  _showNotice = false;
+                });
+              },
+            ),
+
+          // Version update modal
+          if (showUpdateOverlay)
+            VersionUpdateDialog(
+              updateInfo: AppVersionUtil.getCachedUpdateInfo()!,
+              onClose: () {
+                AppVersionUtil.showUpdateDialog.value = false;
+                setState(() {
+                  _showUpdateDialog = false;
+                });
+              },
+            ),
+        ],
+      ),
     );
   }
 

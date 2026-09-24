@@ -20,7 +20,7 @@ class EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 80),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -42,6 +42,7 @@ class EmptyState extends StatelessWidget {
                 style: const TextStyle(
                   fontSize: 13,
                   color: AppTheme.textMuted,
+                  height: 1.45,
                 ),
                 textAlign: TextAlign.center,
               ),

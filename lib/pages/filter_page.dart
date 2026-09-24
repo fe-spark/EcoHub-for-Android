@@ -41,21 +41,12 @@ class _FilterPageState extends State<FilterPage> {
   String _pid = '';
   String _titleName = '片库';
   List<MovieBasicInfo> _films = [];
-  int _total = 0;
-  int _current = 1;
-  int _pageCount = 1;
-  bool _loading = true;
-  bool _listLoading = false;
-  bool _loadingMore = false;
-  bool _fetchLock = false;
+  int _total = 0, _current = 1, _pageCount = 1;
+  bool _loading = true, _listLoading = false, _loadingMore = false, _fetchLock = false;
   String _errorText = '';
 
-  List<String> _sortList = [];
-  List<String> _titleKeys = [];
-  List<String> _titles = [];
-  List<String> _tagKeys = [];
-  List<List<String>> _tagNames = [];
-  List<List<String>> _tagValues = [];
+  List<String> _sortList = [], _titleKeys = [], _titles = [], _tagKeys = [];
+  List<List<String>> _tagNames = [], _tagValues = [];
 
   final Map<String, String> _selected = {};
   final ScrollController _scrollController = ScrollController();
@@ -164,9 +155,9 @@ class _FilterPageState extends State<FilterPage> {
       if (fromPull) {
         setState(() => _listLoading = false);
       } else if (_sortList.isEmpty) {
-        setState(() => _loading = true);
+        setState(() { _films = []; _loading = true; _listLoading = false; _errorText = ''; });
       } else {
-        setState(() => _listLoading = true);
+        setState(() { _listLoading = true; _loading = false; _errorText = ''; });
       }
     } else {
       setState(() => _loadingMore = true);
@@ -254,24 +245,10 @@ class _FilterPageState extends State<FilterPage> {
 
   /// 行顺序：sortList，再补 tags 里有选项但 sortList 没列的键（类型/剧情/地区等）。
   List<String> _rowKeys() {
-    final available = <String>{};
-    for (final k in _tagKeys) {
-      if (_namesOf(k).isNotEmpty) available.add(k);
-    }
-    for (final k in _sortList) {
-      if (_namesOf(k).isNotEmpty) available.add(k);
-    }
+    final available = {for (final k in [..._tagKeys, ..._sortList]) if (_namesOf(k).isNotEmpty) k};
     final keys = <String>[];
-    void add(String k) {
-      if (available.contains(k) && !keys.contains(k)) keys.add(k);
-    }
-    for (final k in _sortList) {
-      add(k);
-    }
-    for (final k in const ['Category', 'Plot', 'Area', 'Language', 'Year', 'Sort']) {
-      add(k);
-    }
-    for (final k in available) {
+    void add(String k) { if (available.contains(k) && !keys.contains(k)) keys.add(k); }
+    for (final k in [..._sortList, 'Category', 'Plot', 'Area', 'Language', 'Year', 'Sort', ...available]) {
       add(k);
     }
     return keys;
@@ -294,8 +271,9 @@ class _FilterPageState extends State<FilterPage> {
                 alignment: Alignment.bottomRight,
                 children: [
                   RefreshIndicator(
+                    notificationPredicate: (n) => n.depth == 0 && _errorText.isEmpty,
                     onRefresh: () async {
-                      if (_fetchLock) return;
+                      if (_fetchLock || _errorText.isNotEmpty) return;
                       await _loadData(true, fromPull: true);
                     },
                     color: AppTheme.accent,
@@ -346,6 +324,14 @@ class _FilterPageState extends State<FilterPage> {
             title: '加载失败',
             subtitle: _errorText,
             icon: Icons.info_outline_rounded,
+            action: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ActionPill(icon: Icons.link_rounded, label: '更换软件源', accent: true, onTap: () => Navigator.pushNamed(context, '/server_config')),
+                const SizedBox(height: 12),
+                _ActionPill(icon: Icons.refresh_rounded, label: '刷新', accent: false, onTap: () => _loadData(true)),
+              ],
+            ),
           ),
         ),
       ];
@@ -465,9 +451,39 @@ class _FilterPill extends StatelessWidget {
         borderRadius: BorderRadius.circular(AppTheme.radiusPill),
         border: Border.all(color: AppTheme.accent),
       ),
-      child: Text(
-        label,
-        style: const TextStyle(fontSize: 12, color: AppTheme.accent, height: 1),
+      child: Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.accent, height: 1)),
+    );
+  }
+}
+
+class _ActionPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool accent;
+  final VoidCallback onTap;
+  const _ActionPill({required this.icon, required this.label, required this.accent, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+      child: Container(
+        width: 148,
+        height: 38,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: accent ? AppTheme.accent : AppTheme.bgCard,
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: AppTheme.textPrimary),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
+          ],
+        ),
       ),
     );
   }

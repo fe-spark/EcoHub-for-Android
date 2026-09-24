@@ -27,18 +27,10 @@ class RecommendTab extends StatefulWidget {
 }
 
 class _RecommendTabState extends State<RecommendTab> {
-  /// 对齐 OHOS `edgeEffect(EdgeEffect.None)`：竖向无弹性，避免回顶后 headerAlpha 卡在毛玻璃。
-  static const _verticalPhysics = AlwaysScrollableScrollPhysics(
-    parent: ClampingScrollPhysics(),
-  );
-  static const _iconSize = 17.0;
-  static const _tagHeight = 32.0;
-  static const _glyphSize = 10.0;
-  static const _labelSize = 13.0;
-  static const _iconBg = Color(0x1FFA8C16);
-  static const _iconBorder = Color(0x47FA8C16);
-  static const _chipBg = Color(0x0DFFFFFF);
-  static const _chipBorder = Color(0x1AFFFFFF);
+  static const _verticalPhysics = AlwaysScrollableScrollPhysics(parent: ClampingScrollPhysics());
+  static const _iconSize = 17.0, _tagHeight = 32.0, _glyphSize = 10.0, _labelSize = 13.0;
+  static const _iconBg = Color(0x1FFA8C16), _iconBorder = Color(0x47FA8C16);
+  static const _chipBg = Color(0x0DFFFFFF), _chipBorder = Color(0x1AFFFFFF);
 
   List<BannerItem> _banners = [];
   List<HomeSection> _sections = [];
@@ -95,8 +87,10 @@ class _RecommendTabState extends State<RecommendTab> {
   Future<void> _loadHome({required bool fromPull, bool showHint = false}) async {
     if (_fetchLock) return;
     _fetchLock = true;
-    if (!fromPull && _banners.isEmpty && _sections.isEmpty) {
+    if (!fromPull) {
       setState(() {
+        _banners = [];
+        _sections = [];
         _loading = true;
         _errorText = '';
       });
@@ -130,7 +124,11 @@ class _RecommendTabState extends State<RecommendTab> {
   }
 
   List<HomeSection> _visibleSections() {
-    return _sections.where((s) => s.nav.show).toList();
+    return _sections.where((s) {
+      if (!s.nav.show) return false;
+      final films = s.movies.isNotEmpty ? s.movies : s.hot;
+      return films.isNotEmpty;
+    }).toList();
   }
 
   String _categoryGlyph(String name) {
@@ -225,23 +223,13 @@ class _RecommendTabState extends State<RecommendTab> {
     );
   }
 
-  Widget _emptyActions() {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+  Widget _stateActions({required String label, required VoidCallback onTap}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        _pillButton(
-          icon: Icons.refresh_rounded,
-          label: '刷新',
-          accent: false,
-          onTap: () => _loadHome(fromPull: true, showHint: true),
-        ),
-        const SizedBox(width: 12),
-        _pillButton(
-          icon: Icons.link_rounded,
-          label: '更换软件源',
-          accent: true,
-          onTap: () => Navigator.pushNamed(context, '/server_config'),
-        ),
+        _pillButton(icon: Icons.link_rounded, label: '更换软件源', accent: true, onTap: () => Navigator.pushNamed(context, '/server_config')),
+        const SizedBox(height: 12),
+        _pillButton(icon: Icons.refresh_rounded, label: label, accent: false, onTap: onTap),
       ],
     );
   }
@@ -258,14 +246,16 @@ class _RecommendTabState extends State<RecommendTab> {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Container(
+          width: 148,
+          height: 38,
+          alignment: Alignment.center,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 14, color: AppTheme.textPrimary),
-              const SizedBox(width: 4),
-              Text(label, style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary)),
+              Icon(icon, size: 15, color: AppTheme.textPrimary),
+              const SizedBox(width: 6),
+              Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: AppTheme.textPrimary)),
             ],
           ),
         ),
@@ -293,13 +283,22 @@ class _RecommendTabState extends State<RecommendTab> {
   }) {
     return _wrapRefresh(
       topInset: topInset,
-      child: ListView(
-        physics: _verticalPhysics,
-        padding: EdgeInsets.only(left: leftInset, right: rightInset),
-        children: [
-          const SizedBox(height: 80),
-          child,
-        ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return ListView(
+            physics: _verticalPhysics,
+            padding: EdgeInsets.only(left: leftInset, right: rightInset),
+            children: [
+              ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding: EdgeInsets.only(top: 48 + topInset),
+                  child: Center(child: child),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -394,18 +393,16 @@ class _RecommendTabState extends State<RecommendTab> {
         child: const LoadingView(label: '正在加载推荐'),
       );
     } else if (_errorText.isNotEmpty) {
-      body = _scrollableState(
-        topInset: topInset,
-        leftInset: leftInset,
-        rightInset: rightInset,
-        child: EmptyState(
-          title: '加载失败',
-          subtitle: _errorText,
-          icon: Icons.error_outline_rounded,
-          action: ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.bgCard, foregroundColor: AppTheme.textPrimary),
-            onPressed: () => _loadHome(fromPull: true, showHint: true),
-            child: const Text('重试'),
+      body = Padding(
+        padding: EdgeInsets.only(top: 48 + topInset, left: leftInset, right: rightInset),
+        child: Center(
+          child: SingleChildScrollView(
+            child: EmptyState(
+              title: '加载失败',
+              subtitle: _errorText,
+              icon: Icons.error_outline_rounded,
+              action: _stateActions(label: '刷新', onTap: () => _loadHome(fromPull: false, showHint: true)),
+            ),
           ),
         ),
       );
@@ -414,15 +411,11 @@ class _RecommendTabState extends State<RecommendTab> {
         topInset: topInset,
         leftInset: leftInset,
         rightInset: rightInset,
-        child: Column(
-          children: [
-            const EmptyState(
-              title: '暂无影片数据',
-              subtitle: '当前软件源内暂无影片或尚未采集，可下拉刷新或更换软件源',
-              icon: Icons.movie_outlined,
-            ),
-            _emptyActions(),
-          ],
+        child: EmptyState(
+          title: '暂无影片数据',
+          subtitle: '当前软件源内暂无影片或尚未采集，可下拉刷新或更换软件源',
+          icon: Icons.movie_outlined,
+          action: _stateActions(label: '刷新', onTap: () => _loadHome(fromPull: true, showHint: true)),
         ),
       );
     } else {

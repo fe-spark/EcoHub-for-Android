@@ -85,6 +85,36 @@ void main() {
       expect(find.text('我知道了'), findsOneWidget);
     });
 
+    testWidgets('NoticeDialog respects large top safe area (Dynamic Island/notch)', (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.padding = FakeViewPadding(top: 59.0, bottom: 34.0);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        tester.view.resetPadding();
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NoticeDialog(
+              title: '重要站点公告',
+              content: '长公告内容测试\n' * 30,
+              onClose: () {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      final titleTopLeft = tester.getTopLeft(find.text('重要站点公告'));
+      // 标题的 Y 坐标必须大于 topPadding (59.0)，绝对不能顶进灵动岛/状态栏
+      expect(titleTopLeft.dy, greaterThan(59.0));
+    });
+
     testWidgets('VersionUpdateDialog does not overflow in landscape', (tester) async {
       tester.view.physicalSize = const Size(640, 360);
       tester.view.devicePixelRatio = 1.0;
@@ -370,6 +400,46 @@ void main() {
 
       expect(mockPlatform.launchedUrl, AppVersionUtil.latestReleaseUrl);
       expect(closed, isTrue);
+    });
+
+    testWidgets('NoticeDialog covers bottom navigation bar when displayed over scaffold with bottom bar', (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Stack(
+            children: [
+              Scaffold(
+                body: const Center(child: Text('Content')),
+                bottomNavigationBar: BottomNavigationBar(
+                  items: const [
+                    BottomNavigationBarItem(icon: Icon(Icons.home), label: '推荐'),
+                    BottomNavigationBarItem(icon: Icon(Icons.person), label: '我的'),
+                  ],
+                ),
+              ),
+              NoticeDialog(
+                title: '站点公告',
+                content: '全屏遮罩测试',
+                onClose: () {},
+              ),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final dialogFinder = find.byType(NoticeDialog);
+      expect(dialogFinder, findsOneWidget);
+      final dialogSize = tester.getSize(dialogFinder);
+      expect(dialogSize.width, 390.0);
+      expect(dialogSize.height, 844.0);
+
+      final navBar = tester.getRect(find.byType(BottomNavigationBar));
+      expect(navBar.bottom, lessThanOrEqualTo(dialogSize.height));
+      expect(navBar.top, greaterThan(0));
     });
   });
 }

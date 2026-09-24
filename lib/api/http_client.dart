@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
+import '../utils/site_heartbeat.dart';
 import '../utils/app_version_util.dart';
 
 class ApiResponse {
