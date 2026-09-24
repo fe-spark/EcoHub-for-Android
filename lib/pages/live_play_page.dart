@@ -1,45 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../common/app_theme.dart';
-import '../models/film_models.dart';
 import '../api/film_api.dart';
 import '../api/http_client.dart';
-import '../utils/history_manager.dart';
+import '../common/app_theme.dart';
+import '../components/empty_state.dart';
+import '../components/loading_view.dart';
+import '../components/player/play_side_tabs.dart';
+import '../components/player/video_player_widget.dart';
+import '../models/film_models.dart';
+import '../services/pip_manager.dart';
 import '../utils/app_orientation.dart';
+import '../utils/app_settings_manager.dart';
 import '../utils/breakpoint.dart';
+import '../utils/history_manager.dart';
+import '../utils/play_navigation.dart';
 import '../utils/play_resume.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
-import '../utils/format_util.dart';
 import '../utils/split_cutout_insets.dart';
-import '../utils/app_settings_manager.dart';
-import '../components/player/video_player_widget.dart';
-import '../components/player/play_side_tabs.dart';
-import '../components/loading_view.dart';
-import '../components/empty_state.dart';
-import '../services/pip_manager.dart';
 
-/// 影片播放主页面
-class PlayPage extends StatefulWidget {
-  final String id;
+/// 采集源现场播放页，布局对齐自定义播放页（播放器 + 详情/选集 + 同类推荐）
+class LivePlayPage extends StatefulWidget {
   final String sourceId;
+  final String sourceMid;
   final int episodeIndex;
   final double currentTime;
 
-  const PlayPage({
+  const LivePlayPage({
     super.key,
-    required this.id,
-    this.sourceId = '',
+    required this.sourceId,
+    required this.sourceMid,
     this.episodeIndex = 0,
     this.currentTime = 0,
   });
 
   @override
-  State<PlayPage> createState() => _PlayPageState();
+  State<LivePlayPage> createState() => _LivePlayPageState();
 }
 
-class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
-  late String _filmId;
+class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver {
+  late String _sourceMid;
   bool _loading = true;
   String _errorText = '';
   String _name = '';
@@ -61,11 +61,13 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   int _activeTab = 0;
   bool _playerFull = false;
   final GlobalKey _videoKey = GlobalKey();
-  String _sourceName = '默认源';
+  String _sourceName = '';
   double _lastCurrentTime = 0;
   double _lastDuration = 0;
   bool _persistEnabled = true;
   bool _isPipActive = false;
+
+  String get _historyId => PlayNavigation.livePlayHistoryId(widget.sourceId, _sourceMid);
 
   @override
   void initState() {
@@ -73,12 +75,12 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     PipManager.instance.addListener(_onPipChanged);
     _isPipActive = PipManager.instance.isPipActive;
-    _filmId = widget.id;
+    _sourceMid = widget.sourceMid;
     _episodeIndex = widget.episodeIndex;
     _initialTime = widget.currentTime;
     _lastCurrentTime = _initialTime;
+    HttpClient.instance.trackView('play', _historyId, 'LivePlayPage');
     SourceGuard.onReconnect(_onReconnect);
-
     _initPlay();
   }
 
@@ -105,63 +107,46 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      if (_lastCurrentTime > 0) {
-        _persistHistory(_lastCurrentTime, _lastDuration);
-      }
+    if (state == AppLifecycleState.paused && _lastCurrentTime > 0) {
+      _persistHistory(_lastCurrentTime, _lastDuration);
     }
   }
 
   void _onReconnect() {
     _persistEnabled = false;
-    _loadPlay(_playingSourceId);
-    _loadRelate();
+    _loadPlay();
   }
 
   Future<void> _initPlay() async {
-    var sid = widget.sourceId;
-    if (sid.isEmpty && widget.episodeIndex == 0 && widget.currentTime == 0 && _filmId.isNotEmpty) {
-      final resume = await PlayResume.fromHistory(_filmId);
-      sid = resume.sourceId;
+    if (widget.episodeIndex == 0 && widget.currentTime == 0 && _historyId.isNotEmpty) {
+      final resume = await PlayResume.fromHistory(_historyId);
       _episodeIndex = resume.episodeIndex;
       _initialTime = resume.currentTime;
       _lastCurrentTime = resume.currentTime;
       _lastDuration = resume.duration;
     }
-    _loadPlay(sid);
-    _loadRelate();
+    await _loadPlay();
   }
 
-  Future<void> _loadPlay(String sourceId) async {
-    if (_filmId.isEmpty) {
+  Future<void> _loadPlay() async {
+    if (widget.sourceId.isEmpty || _sourceMid.isEmpty) {
       setState(() {
-        _errorText = '未找到影片参数';
+        _errorText = '缺少采集源播放参数';
         _loading = false;
       });
       return;
     }
-
     if (_name.isEmpty) {
-      setState(() {
-        _loading = true;
-      });
+      setState(() => _loading = true);
     }
-
     try {
-      final info = await FilmApi.getPlayInfo(_filmId, playFrom: sourceId, episode: _episodeIndex);
+      final info = await FilmApi.getLivePlayInfo(
+        widget.sourceId,
+        _sourceMid,
+        episode: _episodeIndex,
+      );
       if (!mounted) return;
-
       final detail = info.detail;
-      if (_name.isEmpty) {
-        HttpClient.instance.trackView(
-          'play',
-          _filmId,
-          'PlayPage',
-          '',
-          detail.descriptor.cName,
-          detail.name,
-        );
-      }
       setState(() {
         _name = detail.name;
         _picture = detail.picture;
@@ -177,12 +162,14 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
         _episodeIndex = info.currentEpisode;
         _playUrl = info.current.link;
         _playTitle = '${detail.name} · ${info.current.episode}';
-        _sourceName = _findSource(_playingSourceId)?.name ?? '默认源';
+        _sourceName = _findSource(_playingSourceId)?.name ?? (widget.sourceId.isNotEmpty ? widget.sourceId : '采集源');
         _errorText = '';
         _loading = false;
         _persistEnabled = true;
       });
       _persistHistory();
+      final cid = detail.rawCid > 0 ? detail.rawCid : detail.cid;
+      _loadRelate(cid);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -196,13 +183,15 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _loadRelate() async {
-    if (_filmId.isEmpty) return;
-    setState(() {
-      _relateLoading = true;
-    });
+  Future<void> _loadRelate(dynamic cid) async {
+    if (widget.sourceId.isEmpty) return;
+    setState(() => _relateLoading = true);
     try {
-      final list = await FilmApi.getRelate(_filmId);
+      final list = await FilmApi.getLiveRelate(
+        widget.sourceId,
+        cid: cid,
+        sid: _sourceMid,
+      );
       if (!mounted) return;
       setState(() {
         _related = list;
@@ -218,20 +207,17 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   }
 
   PlaySource? _findSource(String id) {
-    for (final s in _sources) {
-      if (s.id == id) return s;
+    for (final source in _sources) {
+      if (source.id == id) return source;
     }
     return _sources.isNotEmpty ? _sources.first : null;
   }
 
   void _selectEpisode(String sourceId, int index) {
-    if (_playingSourceId == sourceId && _episodeIndex == index && _playUrl.isNotEmpty) {
-      return;
-    }
+    if (_playingSourceId == sourceId && _episodeIndex == index && _playUrl.isNotEmpty) return;
     final source = _findSource(sourceId);
     if (source == null || index < 0 || index >= source.linkList.length) return;
-    final ep = source.linkList[index];
-
+    final episode = source.linkList[index];
     setState(() {
       _playingSourceId = sourceId;
       _viewingSourceId = sourceId;
@@ -239,23 +225,23 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       _initialTime = 0;
       _lastCurrentTime = 0;
       _lastDuration = 0;
-      _playUrl = ep.link;
+      _playUrl = episode.link;
       _playToken++;
-      _playTitle = '$_name · ${ep.episode}';
+      _playTitle = '$_name · ${episode.episode}';
       _sourceName = source.name;
     });
     _persistHistory(0, 0);
   }
 
-  bool _hasNext() {
-    final s = _findSource(_playingSourceId);
-    return s != null && _episodeIndex < s.linkList.length - 1;
+  bool get _hasNext {
+    final source = _findSource(_playingSourceId);
+    return source != null && _episodeIndex < source.linkList.length - 1;
   }
 
-  bool _hasPrev() => _episodeIndex > 0 && _findSource(_playingSourceId) != null;
+  bool get _hasPrev => _episodeIndex > 0 && _findSource(_playingSourceId) != null;
 
   void _playPrev() {
-    if (!_hasPrev()) {
+    if (!_hasPrev) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已经是第一集了')));
       return;
     }
@@ -263,48 +249,27 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   }
 
   void _playNext() {
-    if (!_hasNext()) {
+    if (!_hasNext) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已经是最后一集了')));
       return;
     }
     _selectEpisode(_playingSourceId, _episodeIndex + 1);
   }
 
-  void _persistHistory([double? currentTime, double? duration]) {
-    if (!_persistEnabled || _filmId.isEmpty || _name.isEmpty) return;
-    if (ServerConfigManager.instance.storageScope().isEmpty) return;
-
-    final source = _findSource(_playingSourceId);
-    final sourceName = source != null ? source.name : _sourceName;
-    final fallback = MovieUrlInfo(episode: _playTitle, link: _playUrl);
-    final ep = (source != null && source.linkList.length > _episodeIndex)
-        ? source.linkList[_episodeIndex]
-        : fallback;
-
-    HistoryManager.find(_filmId).then((prev) {
-      final cur = currentTime ?? (prev?.currentTime ?? 0);
-      final dur = duration ?? (prev?.duration ?? 0);
-      HistoryManager.save(HistoryItem(
-        id: _filmId,
-        name: _name,
-        picture: _picture,
-        sourceId: _playingSourceId,
-        sourceName: sourceName,
-        episodeIndex: _episodeIndex,
-        episode: ep.episode,
-        currentTime: cur,
-        duration: dur,
-        timeStamp: DateTime.now().millisecondsSinceEpoch,
-      ));
-    });
-  }
-
   Future<void> _openRelated(MovieBasicInfo film) async {
-    final id = FormatUtil.filmId(film);
-    if (id.isEmpty || id == _filmId) return;
+    String newSid = '';
+    if (film.sourceMid > 0) {
+      newSid = '${film.sourceMid}';
+    } else if (film.mid.isNotEmpty) {
+      newSid = film.mid;
+    } else if (film.id > 0) {
+      newSid = '${film.id}';
+    }
+    if (newSid.isEmpty || newSid == _sourceMid) return;
 
-    _filmId = id;
-    final resume = await PlayResume.fromHistory(_filmId);
+    _sourceMid = newSid;
+    HttpClient.instance.trackView('play', _historyId, 'LivePlayPage');
+    final resume = await PlayResume.fromHistory(_historyId);
     if (!mounted) return;
     setState(() {
       _name = '';
@@ -317,8 +282,31 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       _lastDuration = resume.duration;
       _activeTab = 0;
     });
-    _loadPlay(resume.sourceId);
-    _loadRelate();
+    _loadPlay();
+  }
+
+  void _persistHistory([double? currentTime, double? duration]) {
+    if (!_persistEnabled || _historyId.isEmpty || _name.isEmpty) return;
+    if (ServerConfigManager.instance.storageScope().isEmpty) return;
+    final source = _findSource(_playingSourceId);
+    final fallback = MovieUrlInfo(episode: _playTitle, link: _playUrl);
+    final episode = (source != null && source.linkList.length > _episodeIndex)
+        ? source.linkList[_episodeIndex]
+        : fallback;
+    HistoryManager.find(_historyId).then((prev) {
+      HistoryManager.save(HistoryItem(
+        id: _historyId,
+        name: _name,
+        picture: _picture,
+        sourceId: widget.sourceId,
+        sourceName: source?.name ?? _sourceName,
+        episodeIndex: _episodeIndex,
+        episode: episode.episode,
+        currentTime: currentTime ?? (prev?.currentTime ?? 0),
+        duration: duration ?? (prev?.duration ?? 0),
+        timeStamp: DateTime.now().millisecondsSinceEpoch,
+      ));
+    });
   }
 
   void _setFullscreen(bool full, {bool isPortrait = false}) {
@@ -326,11 +314,11 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     setState(() => _playerFull = full);
     try {
       if (full) {
-        // 全量对齐 OHOS：竖屏视频（短剧等）全屏必须按竖屏方向（portraitUp）播放；
-        // 横屏视频必须按横屏方向（landscapeLeft / landscapeRight）播放。
-        SystemChrome.setPreferredOrientations(isPortrait
-            ? [DeviceOrientation.portraitUp]
-            : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
+        SystemChrome.setPreferredOrientations(
+          isPortrait
+              ? [DeviceOrientation.portraitUp]
+              : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
+        );
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       } else {
         SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
@@ -344,7 +332,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     bool edgeHud = false,
     double? overrideLeftInset,
   }) {
-    // 对齐 OHOS hud inset：全屏/分屏时把安全区传给播放器控件，竖屏时归零（视频已在 SafeArea 内）。
     final viewPadding = MediaQuery.viewPaddingOf(context);
     final useInset = isFull || edgeHud;
     return VideoPlayerWidget(
@@ -363,11 +350,11 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       rightInset: isFull
           ? viewPadding.right
           : (edgeHud ? AppTheme.safeEdge : 0),
-      hasPrev: _hasPrev(),
-      hasNext: _hasNext(),
+      hasPrev: _hasPrev,
+      hasNext: _hasNext,
       onBack: () => _playerFull ? _setFullscreen(false) : Navigator.pop(context),
       onEnded: () {
-        if (AppSettingsManager.instance.autoPlayNext && _hasNext()) _playNext();
+        if (AppSettingsManager.instance.autoPlayNext && _hasNext) _playNext();
       },
       onPrev: _playPrev,
       onNext: _playNext,
@@ -383,7 +370,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    // 对齐 OHOS `isWideScreen()`：横屏宽屏（宽>=600 且宽>高）时进入分屏，而非全屏。
     final split = !_playerFull && size.width >= Breakpoint.md && size.width > size.height;
     final isFullMode = _playerFull;
 
@@ -410,7 +396,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   }
 
   Widget _buildPlayBody({required bool isFullMode, required bool split}) {
-    // 对齐 OHOS 顶层 build：先按 loading/error 守卫，避免 playUrl 为空时渲染播放器报错。
     if (_loading && _name.isEmpty) {
       return const LoadingView(label: '正在打开播放页');
     }
@@ -423,7 +408,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     }
 
     if (_isPipActive) {
-      // 画中画模式：整屏独占渲染播放器画面，其它详情与选集等 UI 彻底隐藏，避免在系统浮窗中呈现缩略图
       return SizedBox.expand(
         child: _buildVideoPlayer(isFull: false),
       );
@@ -444,7 +428,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
         size: media.size,
       );
 
-      // 对齐 OHOS `splitPlay()`：横屏宽屏时左侧视频、右侧详情分屏。
       return Row(
         children: [
           Expanded(
@@ -502,7 +485,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     return PlaySideTabs(
       activeTab: _activeTab,
       onTabChange: (tab) => setState(() => _activeTab = tab),
-      filmId: _filmId,
+      filmId: _historyId,
       picture: _picture,
       name: _name,
       subTitle: _subTitle,
@@ -521,6 +504,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       related: _related,
       columns: columns,
       onOpenRelated: _openRelated,
+      sourceName: _sourceName,
     );
   }
 }

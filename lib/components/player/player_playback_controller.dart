@@ -414,6 +414,7 @@ class PlayerPlaybackController extends ChangeNotifier {
   }
 
   void resumeLocal(double targetSec, bool wasPlaying) {
+    _isOpening = false;
     _playRequested = wasPlaying;
     seekTo(Duration(seconds: targetSec.toInt()));
     if (wasPlaying) {

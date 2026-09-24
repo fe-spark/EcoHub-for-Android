@@ -16,13 +16,14 @@ class PlayGroupBar extends StatelessWidget {
     required bool hasSources,
     required bool needsGrouping,
   }) {
+    if (!hasSources && !needsGrouping) return 0.0;
     double h = dividerHeight;
     if (hasSources) {
       h += sourceRowMarginTop + sourceRowHeight;
     }
     if (needsGrouping) {
       h += groupRowMarginTop + groupRowHeight + groupBottomSpacing;
-    } else {
+    } else if (hasSources) {
       h += sourceBottomSpacing;
     }
     return h;
@@ -128,6 +129,10 @@ class PlayGroupBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasSources = sources.length > 1;
+    if (!hasSources && !needsGrouping) {
+      return const SizedBox.shrink();
+    }
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -135,7 +140,7 @@ class PlayGroupBar extends StatelessWidget {
         const Divider(color: AppTheme.borderSolid, height: dividerHeight),
 
         // 播放源横滑栏 (sourceRow)
-        if (sources.isNotEmpty)
+        if (hasSources)
           Container(
             height: sourceRowHeight,
             margin: const EdgeInsets.only(top: sourceRowMarginTop),

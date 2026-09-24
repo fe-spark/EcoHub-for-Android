@@ -88,11 +88,25 @@ class HttpClient {
     return _send(url, timeoutMs);
   }
 
-  void trackView(String action, [String resource = '', String page = '', String deviceModel = '']) {
-    _sendTrack(action, resource, page, deviceModel).catchError((_) {});
+  void trackView(
+    String action, [
+    String resource = '',
+    String page = '',
+    String deviceModel = '',
+    String resourceCat = '',
+    String resourceTitle = '',
+  ]) {
+    _sendTrack(action, resource, page, deviceModel, resourceCat, resourceTitle).catchError((_) {});
   }
 
-  Future<void> _sendTrack(String action, String resource, String page, String deviceModel) async {
+  Future<void> _sendTrack(
+    String action,
+    String resource,
+    String page,
+    String deviceModel,
+    String resourceCat,
+    String resourceTitle,
+  ) async {
     final manager = ServerConfigManager.instance;
     String url;
     try {
@@ -114,6 +128,7 @@ class HttpClient {
     final resolvedModel = deviceModel.trim().isNotEmpty
         ? deviceModel.trim()
         : '${Platform.operatingSystem} ${Platform.operatingSystemVersion}'.trim();
+    final provideKey = manager.provideKey;
 
     try {
       await http.post(
@@ -124,12 +139,15 @@ class HttpClient {
           'User-Agent': userAgent,
           if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
           if (deviceId.isNotEmpty) 'Device-Id': deviceId,
+          if (provideKey.isNotEmpty) 'X-Provide-Key': provideKey,
         },
         body: jsonEncode({
           'source': source,
           'action': action,
           'resource': resource,
           'page': page.isNotEmpty ? page : action,
+          if (resourceCat.isNotEmpty) 'resource_cat': resourceCat,
+          if (resourceTitle.isNotEmpty) 'resource_title': resourceTitle,
           'app_version': version,
           'device_model': resolvedModel,
           'device_id': deviceId,

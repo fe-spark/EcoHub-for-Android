@@ -6,6 +6,7 @@ import '../utils/format_util.dart';
 import '../utils/history_manager.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
+import '../utils/nav_util.dart';
 import '../components/page_header.dart';
 import '../components/empty_state.dart';
 
@@ -103,15 +104,12 @@ class _HistoryPageState extends State<HistoryPage> {
   }
 
   void _openPlay(HistoryItem item) {
-    Navigator.pushNamed(
+    NavUtil.openPlay(
       context,
-      '/play',
-      arguments: {
-        'id': item.id,
-        'sourceId': item.sourceId,
-        'episodeIndex': '${item.episodeIndex}',
-        'currentTime': '${item.currentTime}',
-      },
+      item.id,
+      sourceId: item.sourceId,
+      episodeIndex: item.episodeIndex,
+      currentTime: item.currentTime,
     ).then((_) => _reload());
   }
 

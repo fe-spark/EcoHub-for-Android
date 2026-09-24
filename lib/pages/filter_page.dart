@@ -4,6 +4,7 @@ import '../models/film_models.dart';
 import '../api/film_api.dart';
 import '../api/http_client.dart';
 import '../utils/source_guard.dart';
+import '../utils/favorite_manager.dart';
 import '../utils/breakpoint.dart';
 import '../components/film_card.dart';
 import '../components/loading_view.dart';
@@ -63,8 +64,9 @@ class _FilterPageState extends State<FilterPage> {
   @override
   void initState() {
     super.initState();
+    FavoriteManager.preload();
     _pid = widget.pid;
-    HttpClient.instance.trackView('classify', _pid, 'FilterPage');
+    HttpClient.instance.trackView('classify', _pid, 'FilterPage', '', widget.category);
     if (widget.category.isNotEmpty) _selected['Category'] = widget.category;
     if (widget.sort.isNotEmpty) _selected['Sort'] = widget.sort;
     _scrollController.addListener(_onScroll);
@@ -122,6 +124,9 @@ class _FilterPageState extends State<FilterPage> {
   void _pick(String key, String value) {
     if (_isChipOn(key, value) || _fetchLock) return;
     setState(() => _selected[key] = value);
+    if (key == 'Category') {
+      HttpClient.instance.trackView('classify', _pid, 'FilterPage', '', value);
+    }
     _loadData(true);
     _scrollToTop();
   }

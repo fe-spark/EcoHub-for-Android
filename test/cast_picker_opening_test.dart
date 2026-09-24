@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ecohub_android/components/cast/player_cast_controller.dart';
 import 'package:ecohub_android/components/player/player_playback_controller.dart';
 import 'package:ecohub_android/components/player/player_skin_view.dart';
-import 'package:ecohub_android/types/dlna_types.dart';
 
 class _Host implements PlayerCastHost {
   double currentPos = 0;

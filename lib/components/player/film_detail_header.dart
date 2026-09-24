@@ -13,6 +13,7 @@ class FilmDetailHeader extends StatefulWidget {
   final String subTitle;
   final String actor;
   final String plot;
+  final String sourceName;
   final MovieDescriptor? descriptor;
   final double rightInset;
 
@@ -24,6 +25,7 @@ class FilmDetailHeader extends StatefulWidget {
     this.subTitle = '',
     this.actor = '',
     this.plot = '',
+    this.sourceName = '',
     this.descriptor,
     this.rightInset = 0,
   });
@@ -182,6 +184,7 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
       context,
       name: widget.name,
       scoreText: _scoreText(),
+      sourceName: widget.sourceName,
       tags: _metaTags(),
       director: _directorText(),
       actor: _actorText(),
@@ -257,7 +260,7 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
           ),
         ),
 
-        // 2. 元数据与详情行（纯信息展示，全靠左自然流式排布，整行点击直达详情弹窗）
+        // 2. 元数据与详情行（左侧排列采集源、评分、信息摘要与更多入口）
         Padding(
           padding: EdgeInsets.fromLTRB(12, 2, 12 + widget.rightInset, 8),
           child: InkWell(
@@ -271,7 +274,7 @@ class _FilmDetailHeaderState extends State<FilmDetailHeader> {
                     margin: const EdgeInsets.only(right: 6),
                     padding: const EdgeInsets.fromLTRB(6, 2, 6, 2),
                     decoration: BoxDecoration(
-                       color: AppTheme.accentSoft,
+                      color: AppTheme.accentSoft,
                       borderRadius: BorderRadius.circular(AppTheme.radiusSm),
                     ),
                     child: Row(

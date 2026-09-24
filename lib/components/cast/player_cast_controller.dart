@@ -57,7 +57,7 @@ class PlayerCastController {
 
   bool get isCasting => connectedUsn.isNotEmpty || deviceName.isNotEmpty || session.active;
 
-  void openCastDialog(BuildContext context) {
+  void openCastDialog(BuildContext context, {bool autoStartScan = true}) {
     final host = _host;
     if (host == null || host.videoUrl.trim().isEmpty) return;
     // 只走 openCastSheet：它会快照 wasPlaying 并 pause。这里先 pause 会把
@@ -68,6 +68,7 @@ class PlayerCastController {
       mediaTitle: host.title,
       currentPosition: host.currentPosition,
       totalDuration: host.totalDuration,
+      autoStartScan: autoStartScan,
     );
   }
 

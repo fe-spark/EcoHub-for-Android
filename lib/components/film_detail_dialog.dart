@@ -6,6 +6,7 @@ import '../utils/format_util.dart';
 class FilmDetailDialog extends StatelessWidget {
   final String name;
   final String scoreText;
+  final String sourceName;
   final List<String> tags;
   final String director;
   final String actor;
@@ -15,6 +16,7 @@ class FilmDetailDialog extends StatelessWidget {
     super.key,
     required this.name,
     this.scoreText = '',
+    this.sourceName = '',
     this.tags = const [],
     this.director = '',
     this.actor = '',
@@ -25,6 +27,7 @@ class FilmDetailDialog extends StatelessWidget {
     BuildContext context, {
     required String name,
     String scoreText = '',
+    String sourceName = '',
     List<String> tags = const [],
     String director = '',
     String actor = '',
@@ -38,6 +41,7 @@ class FilmDetailDialog extends StatelessWidget {
       builder: (ctx) => FilmDetailDialog(
         name: name,
         scoreText: scoreText,
+        sourceName: sourceName,
         tags: tags,
         director: director,
         actor: actor,
@@ -177,23 +181,43 @@ class FilmDetailDialog extends StatelessWidget {
                                   ),
                               ],
                             ),
-                            if (tags.isNotEmpty) ...[
+                            if (tags.isNotEmpty || sourceName.isNotEmpty) ...[
                               const SizedBox(height: 8),
                               Wrap(
                                 spacing: 6,
                                 runSpacing: 6,
-                                children: tags
-                                    .map(
-                                      (tag) => Container(
-                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                        decoration: BoxDecoration(
-                                          color: AppTheme.bgChip,
-                                          borderRadius: BorderRadius.circular(AppTheme.radiusSm),
-                                        ),
-                                        child: Text(tag, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                                children: [
+                                  if (sourceName.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0x1FFA8C16),
+                                        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                        border: Border.all(width: 0.5, color: const Color(0x59FA8C16)),
                                       ),
-                                    )
-                                    .toList(),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.link_rounded, size: 11, color: Color(0xFFFA8C16)),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            '来源: $sourceName',
+                                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Color(0xFFFA8C16)),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ...tags.map(
+                                    (tag) => Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.bgChip,
+                                        borderRadius: BorderRadius.circular(AppTheme.radiusSm),
+                                      ),
+                                      child: Text(tag, style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary)),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ],

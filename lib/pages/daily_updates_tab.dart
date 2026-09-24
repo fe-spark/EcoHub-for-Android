@@ -7,6 +7,8 @@ import '../utils/source_guard.dart';
 import '../utils/breakpoint.dart';
 import '../components/loading_view.dart';
 import '../components/empty_state.dart';
+import '../api/http_client.dart';
+import '../utils/favorite_manager.dart';
 import 'daily_update_pane.dart';
 
 const int _pageSize = 21;
@@ -41,8 +43,10 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with TickerProviderSt
   @override
   void initState() {
     super.initState();
+    FavoriteManager.preload();
     _pageController = PageController(initialPage: _currentIndex);
     _reconnectCb = () {
+      FavoriteManager.preload();
       _loadMeta(fromPull: false);
     };
     SourceGuard.onReconnect(_reconnectCb!);
@@ -147,6 +151,20 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with TickerProviderSt
     });
   }
 
+  void _trackCategory(int index) {
+    if (index < 0 || index >= _categories.length) return;
+    final cat = _categories[index];
+    if (cat.pid > 0 || (cat.name.isNotEmpty && cat.name != '全部')) {
+      HttpClient.instance.trackView(
+        'classify',
+        '${cat.pid}',
+        'DailyUpdatesTab',
+        '',
+        cat.name,
+      );
+    }
+  }
+
   void _selectIndex(int index) {
     if (index < 0 || index >= _categories.length || index == _currentIndex) return;
     setState(() {
@@ -160,6 +178,7 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with TickerProviderSt
       );
     }
     _focusChip(index);
+    _trackCategory(index);
   }
 
   void _focusChip(int index) {
@@ -423,6 +442,7 @@ class _DailyUpdatesTabState extends State<DailyUpdatesTab> with TickerProviderSt
               _currentIndex = index;
             });
             _focusChip(index);
+            _trackCategory(index);
           }
         },
         itemBuilder: (context, index) {

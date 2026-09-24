@@ -3,7 +3,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../common/app_theme.dart';
 import '../models/film_models.dart';
 import '../utils/format_util.dart';
+import '../utils/nav_util.dart';
 import '../utils/server_config_manager.dart';
+import '../utils/favorite_manager.dart';
 
 /// 搜索结果横向图文卡片组件
 class SearchResultItem extends StatelessWidget {
@@ -27,7 +29,43 @@ class SearchResultItem extends StatelessWidget {
       return;
     }
     final filmId = FormatUtil.filmId(film);
-    Navigator.pushNamed(context, '/play', arguments: {'id': filmId});
+    NavUtil.openPlay(
+      context,
+      filmId,
+      sourceId: film.sourceId,
+      sourceMid: film.sourceMid > 0 ? '${film.sourceMid}' : '',
+    );
+  }
+
+  Widget _buildFavoriteTag() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+      decoration: BoxDecoration(
+        color: const Color(0xE60A0B10),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: const Color(0x66FA8C16), width: 0.5),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.star_rounded,
+            size: 10,
+            color: Color(0xFFFA8C16),
+          ),
+          SizedBox(width: 2),
+          Text(
+            '已收藏',
+            style: TextStyle(
+              fontSize: 9,
+              color: Color(0xFFFA8C16),
+              fontWeight: FontWeight.w600,
+              height: 1.2,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -75,66 +113,81 @@ class SearchResultItem extends StatelessWidget {
                         ),
                       ),
                     ),
+                    Positioned(
+                      top: 4,
+                      left: 4,
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: FavoriteManager.favoriteVersion,
+                        builder: (context, _, child) {
+                          final isFav = FavoriteManager.isFavoriteSync(FormatUtil.filmId(film));
+                          if (!isFav) return const SizedBox.shrink();
+                          return _buildFavoriteTag();
+                        },
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(width: AppTheme.spaceMd),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    film.name,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.textPrimary,
+              child: ClipRect(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      film.name,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.textPrimary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    FormatUtil.joinMeta([film.cName, film.year, film.area, film.remarks]),
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
+                    const SizedBox(height: 6),
+                    Text(
+                      FormatUtil.joinMeta([film.cName, film.year, film.area, film.remarks]),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '导演 ${film.director.isNotEmpty ? film.director : '未知'}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textMuted,
+                    const SizedBox(height: 4),
+                    Text(
+                      '导演 ${film.director.isNotEmpty ? film.director : '未知'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '主演 ${film.actor.isNotEmpty ? film.actor : '未知'}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textMuted,
+                    const SizedBox(height: 2),
+                    Text(
+                      '主演 ${film.actor.isNotEmpty ? film.actor : '未知'}',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textMuted,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    film.blurb.isNotEmpty ? film.blurb : '暂无简介',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
+                    const SizedBox(height: 6),
+                    Text(
+                      film.blurb.isNotEmpty ? film.blurb : '暂无简介',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppTheme.textSecondary,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

@@ -9,6 +9,7 @@ import '../components/loading_view.dart';
 import '../components/empty_state.dart';
 import '../components/film_row.dart';
 import '../components/home_banner.dart';
+import '../utils/favorite_manager.dart';
 
 /// 首页推荐 Tab，对齐 OHOS `RecommendTab.ets`
 class RecommendTab extends StatefulWidget {
@@ -51,6 +52,7 @@ class _RecommendTabState extends State<RecommendTab> {
   @override
   void initState() {
     super.initState();
+    FavoriteManager.preload();
     _scrollController.addListener(_onScroll);
     SourceGuard.onReconnect(_onReconnect);
     _loadHome(fromPull: false);
@@ -65,6 +67,7 @@ class _RecommendTabState extends State<RecommendTab> {
   }
 
   void _onReconnect() {
+    FavoriteManager.preload();
     _loadHome(fromPull: false);
   }
 
