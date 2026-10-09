@@ -70,6 +70,7 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   bool _persistEnabled = true;
   bool _isPipActive = false;
   bool _isFav = false;
+  bool _trackedEntry = false;
 
   String get _historyId => PlayNavigation.livePlayHistoryId(widget.sourceId, _sourceMid);
 
@@ -84,7 +85,6 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     _initialTime = widget.currentTime ?? 0;
     _lastCurrentTime = _initialTime;
     if (widget.title.isNotEmpty) _name = widget.title;
-    HttpClient.instance.trackView('play', _historyId, 'LivePlayPage');
     SourceGuard.onReconnect(_onReconnect);
     FavoriteManager.onFavoriteChange(_syncFavoriteState);
     _syncFavoriteState();
@@ -215,6 +215,10 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
         _persistEnabled = true;
       });
       _persistHistory();
+      if (!_trackedEntry) {
+        _trackedEntry = true;
+        HttpClient.instance.trackView('play', _historyId, 'LivePlayPage', '', '', '', widget.sourceId);
+      }
       final cid = detail.rawCid > 0 ? detail.rawCid : detail.cid;
       _loadRelate(cid);
     } catch (e) {
@@ -315,7 +319,7 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     if (newSid.isEmpty || newSid == _sourceMid) return;
 
     _sourceMid = newSid;
-    HttpClient.instance.trackView('play', _historyId, 'LivePlayPage');
+    HttpClient.instance.trackView('play', _historyId, 'LivePlayPage', '', '', '', widget.sourceId);
     final resume = await PlayResume.fromHistory(_historyId);
     if (!mounted) return;
     setState(() {

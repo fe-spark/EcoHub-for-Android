@@ -166,6 +166,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
 
       final detail = info.detail;
       if (_name.isEmpty) {
+        final openedSource = sourceId.isNotEmpty ? sourceId : info.currentPlayFrom;
         HttpClient.instance.trackView(
           'play',
           _filmId,
@@ -173,6 +174,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
           '',
           detail.descriptor.cName,
           detail.name,
+          openedSource,
         );
       }
       setState(() {

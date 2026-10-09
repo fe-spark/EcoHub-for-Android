@@ -97,8 +97,10 @@ class HttpClient {
     String deviceModel = '',
     String resourceCat = '',
     String resourceTitle = '',
+    String collectSource = '',
   ]) {
-    _sendTrack(action, resource, page, deviceModel, resourceCat, resourceTitle).catchError((_) {});
+    _sendTrack(action, resource, page, deviceModel, resourceCat, resourceTitle, collectSource)
+        .catchError((_) {});
   }
 
   Future<void> _sendTrack(
@@ -108,6 +110,7 @@ class HttpClient {
     String deviceModel,
     String resourceCat,
     String resourceTitle,
+    String collectSource,
   ) async {
     final manager = ServerConfigManager.instance;
     String url;
@@ -145,6 +148,7 @@ class HttpClient {
         },
         body: jsonEncode({
           'source': source,
+          if (collectSource.trim().isNotEmpty) 'collect_source': collectSource.trim(),
           'action': action,
           'resource': resource,
           'page': page.isNotEmpty ? page : action,
