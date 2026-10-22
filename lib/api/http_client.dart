@@ -5,7 +5,6 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
-import '../utils/site_heartbeat.dart';
 import '../utils/app_version_util.dart';
 
 class ApiResponse {
@@ -13,15 +12,13 @@ class ApiResponse {
   final String msg;
   final dynamic data;
 
-  ApiResponse({
-    required this.code,
-    required this.msg,
-    this.data,
-  });
+  ApiResponse({required this.code, required this.msg, this.data});
 
   factory ApiResponse.fromJson(Map<String, dynamic> json) {
     return ApiResponse(
-      code: json['code'] is int ? json['code'] : (int.tryParse('${json['code']}') ?? -1),
+      code: json['code'] is int
+          ? json['code']
+          : (int.tryParse('${json['code']}') ?? -1),
       msg: '${json['msg'] ?? ''}',
       data: json['data'],
     );
@@ -79,7 +76,9 @@ class HttpClient {
       final queryPairs = <String>[];
       params.forEach((k, v) {
         if (v != null && '$v'.trim().isNotEmpty) {
-          queryPairs.add('${Uri.encodeComponent(k)}=${Uri.encodeComponent('$v')}');
+          queryPairs.add(
+            '${Uri.encodeComponent(k)}=${Uri.encodeComponent('$v')}',
+          );
         }
       });
       if (queryPairs.isNotEmpty) {
@@ -99,8 +98,15 @@ class HttpClient {
     String resourceTitle = '',
     String collectSource = '',
   ]) {
-    _sendTrack(action, resource, page, deviceModel, resourceCat, resourceTitle, collectSource)
-        .catchError((_) {});
+    _sendTrack(
+      action,
+      resource,
+      page,
+      deviceModel,
+      resourceCat,
+      resourceTitle,
+      collectSource,
+    ).catchError((_) {});
   }
 
   Future<void> _sendTrack(
@@ -125,40 +131,46 @@ class HttpClient {
       version = await AppVersionUtil.getVersionName();
     } catch (_) {}
 
-    final source = Platform.isAndroid ? 'android' : (Platform.isIOS ? 'ios' : 'app');
+    final source = Platform.isAndroid
+        ? 'android'
+        : (Platform.isIOS ? 'ios' : 'app');
     String deviceId = '';
     try {
       deviceId = await manager.getDeviceId();
     } catch (_) {}
     final resolvedModel = deviceModel.trim().isNotEmpty
         ? deviceModel.trim()
-        : '${Platform.operatingSystem} ${Platform.operatingSystemVersion}'.trim();
+        : '${Platform.operatingSystem} ${Platform.operatingSystemVersion}'
+              .trim();
     final provideKey = manager.provideKey;
 
     try {
-      await http.post(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': userAgent,
-          if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
-          if (deviceId.isNotEmpty) 'Device-Id': deviceId,
-          if (provideKey.isNotEmpty) 'X-Provide-Key': provideKey,
-        },
-        body: jsonEncode({
-          'source': source,
-          if (collectSource.trim().isNotEmpty) 'collect_source': collectSource.trim(),
-          'action': action,
-          'resource': resource,
-          'page': page.isNotEmpty ? page : action,
-          if (resourceCat.isNotEmpty) 'resource_cat': resourceCat,
-          if (resourceTitle.isNotEmpty) 'resource_title': resourceTitle,
-          'app_version': version,
-          'device_model': resolvedModel,
-          'device_id': deviceId,
-        }),
-      ).timeout(const Duration(seconds: 5));
+      await http
+          .post(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': userAgent,
+              if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
+              if (deviceId.isNotEmpty) 'Device-Id': deviceId,
+              if (provideKey.isNotEmpty) 'X-Provide-Key': provideKey,
+            },
+            body: jsonEncode({
+              'source': source,
+              if (collectSource.trim().isNotEmpty)
+                'collect_source': collectSource.trim(),
+              'action': action,
+              'resource': resource,
+              'page': page.isNotEmpty ? page : action,
+              if (resourceCat.isNotEmpty) 'resource_cat': resourceCat,
+              if (resourceTitle.isNotEmpty) 'resource_title': resourceTitle,
+              'app_version': version,
+              'device_model': resolvedModel,
+              'device_id': deviceId,
+            }),
+          )
+          .timeout(const Duration(seconds: 5));
     } catch (_) {}
   }
 
@@ -207,7 +219,9 @@ class HttpClient {
       return const ConnectionResult(ok: false, message: '请输入有效的软件源地址');
     }
     final manager = ServerConfigManager.instance;
-    final origin = ServerConfigManager.stripApiSuffix(manager.normalizeRaw(baseUrl));
+    final origin = ServerConfigManager.stripApiSuffix(
+      manager.normalizeRaw(baseUrl),
+    );
     if (origin.isEmpty || origin == 'https://' || origin == 'http://') {
       return const ConnectionResult(ok: false, message: '请输入有效的软件源地址');
     }
@@ -218,7 +232,11 @@ class HttpClient {
       final query = key.isNotEmpty ? '?key=${Uri.encodeComponent(key)}' : '';
       // 优先探测专有端点 /api/provide/app，可直接检验私有化与订阅密钥
       try {
-        final response = await _send('$origin/api/provide/app$query', 5000, customKey: key);
+        final response = await _send(
+          '$origin/api/provide/app$query',
+          5000,
+          customKey: key,
+        );
         if (response.code == 1 || response.code == 0) {
           return const ConnectionResult(ok: true);
         }
@@ -236,7 +254,10 @@ class HttpClient {
             lower.contains('connection refused') ||
             lower.contains('connection reset') ||
             lower.contains('socketexception')) {
-          return ConnectionResult(ok: false, message: _formatConnectionError(appErr));
+          return ConnectionResult(
+            ok: false,
+            message: _formatConnectionError(appErr),
+          );
         }
 
         // 明确包含私有化或订阅密钥提示
@@ -247,7 +268,11 @@ class HttpClient {
         // 过渡兼容逻辑：若 404 说明为早期未支持 /api/provide/app 的旧版服务端，尝试兜底探测 /api/health。
         // 注意：服务端 /api/health 未来大版本将废弃移除，届时将仅支持 /api/provide/app 探测。
         if (msg.contains('404')) {
-          final healthRes = await _send('$origin/api/health$query', 5000, customKey: key);
+          final healthRes = await _send(
+            '$origin/api/health$query',
+            5000,
+            customKey: key,
+          );
           if (healthRes.code == 0) {
             return const ConnectionResult(ok: true);
           }
@@ -262,32 +287,42 @@ class HttpClient {
     }
   }
 
-  Future<ApiResponse> _send(String url, int timeoutMs, {String? customKey}) async {
+  Future<ApiResponse> _send(
+    String url,
+    int timeoutMs, {
+    String? customKey,
+  }) async {
     final userAgent = await _resolveUserAgent();
     final manager = ServerConfigManager.instance;
     String deviceId = '';
     try {
       deviceId = await manager.getDeviceId();
     } catch (_) {}
-    final key = customKey ?? (manager.provideKey.isNotEmpty ? manager.provideKey : null);
+    final key =
+        customKey ??
+        (manager.provideKey.isNotEmpty ? manager.provideKey : null);
     try {
-      final res = await http.get(
-        Uri.parse(url),
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-          'User-Agent': userAgent,
-          if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
-          if (deviceId.isNotEmpty) 'Device-Id': deviceId,
-          if (key != null && key.isNotEmpty) 'X-Provide-Key': key,
-        },
-      ).timeout(Duration(milliseconds: timeoutMs));
+      final res = await http
+          .get(
+            Uri.parse(url),
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'User-Agent': userAgent,
+              if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
+              if (deviceId.isNotEmpty) 'Device-Id': deviceId,
+              if (key != null && key.isNotEmpty) 'X-Provide-Key': key,
+            },
+          )
+          .timeout(Duration(milliseconds: timeoutMs));
 
       if (res.statusCode != 200) {
         String errMsg = 'HTTP ${res.statusCode}';
         try {
           final body = jsonDecode(utf8.decode(res.bodyBytes));
-          if (body is Map && body['msg'] != null && body['msg'].toString().isNotEmpty) {
+          if (body is Map &&
+              body['msg'] != null &&
+              body['msg'].toString().isNotEmpty) {
             errMsg = body['msg'].toString();
           }
         } catch (_) {}

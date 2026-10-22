@@ -77,10 +77,7 @@ class AppMarkdownView extends StatelessWidget {
           fontWeight: FontWeight.bold,
           color: AppTheme.textPrimary,
         ),
-        em: TextStyle(
-          fontStyle: FontStyle.italic,
-          color: effectiveTextColor,
-        ),
+        em: TextStyle(fontStyle: FontStyle.italic, color: effectiveTextColor),
         h1: const TextStyle(
           fontSize: 17,
           fontWeight: FontWeight.bold,
@@ -105,10 +102,7 @@ class AppMarkdownView extends StatelessWidget {
           color: AppTheme.textPrimary,
           height: 1.4,
         ),
-        listBullet: TextStyle(
-          fontSize: fontSize,
-          color: AppTheme.accent,
-        ),
+        listBullet: TextStyle(fontSize: fontSize, color: AppTheme.accent),
         listBulletPadding: const EdgeInsets.only(right: 6),
         a: const TextStyle(
           color: AppTheme.accent,
@@ -126,14 +120,9 @@ class AppMarkdownView extends StatelessWidget {
           border: Border.all(color: AppTheme.border),
         ),
         codeblockPadding: const EdgeInsets.all(12),
-        blockquote: TextStyle(
-          fontSize: fontSize,
-          color: AppTheme.textMuted,
-        ),
+        blockquote: TextStyle(fontSize: fontSize, color: AppTheme.textMuted),
         blockquoteDecoration: const BoxDecoration(
-          border: Border(
-            left: BorderSide(color: AppTheme.accent, width: 3),
-          ),
+          border: Border(left: BorderSide(color: AppTheme.accent, width: 3)),
         ),
         pPadding: const EdgeInsets.only(bottom: 8),
         h1Padding: const EdgeInsets.only(top: 10, bottom: 6),
@@ -161,7 +150,9 @@ class _AppMarkdownImage extends StatelessWidget {
         } else if (!path.endsWith('.png')) {
           path = '$path.png';
         }
-        return parsed.replace(scheme: 'https', host: 'raster.shields.io', path: path).toString();
+        return parsed
+            .replace(scheme: 'https', host: 'raster.shields.io', path: path)
+            .toString();
       } catch (_) {}
     }
     return raw;
@@ -169,7 +160,10 @@ class _AppMarkdownImage extends StatelessWidget {
 
   Widget _altFallback() {
     if (alt != null && alt!.isNotEmpty) {
-      return Text(alt!, style: const TextStyle(fontSize: 12, color: AppTheme.textMuted));
+      return Text(
+        alt!,
+        style: const TextStyle(fontSize: 12, color: AppTheme.textMuted),
+      );
     }
     return const SizedBox.shrink();
   }
@@ -183,7 +177,8 @@ class _AppMarkdownImage extends StatelessWidget {
     }
     final lower = url.toLowerCase();
     final isShields = rawUrl.contains('shields.io');
-    final isSvg = !isShields && (lower.contains('.svg') || url.contains('badgen.net'));
+    final isSvg =
+        !isShields && (lower.contains('.svg') || url.contains('badgen.net'));
     final isBadge = isShields || isSvg || url.contains('badge');
     final imageHeight = isBadge ? 20.0 : _markdownImageMaxHeight;
 
@@ -193,20 +188,24 @@ class _AppMarkdownImage extends StatelessWidget {
         url,
         height: imageHeight,
         fit: BoxFit.contain,
-        placeholderBuilder: (_) => SizedBox(width: isBadge ? 60 : 20, height: 20),
+        placeholderBuilder: (_) =>
+            SizedBox(width: isBadge ? 60 : 20, height: 20),
       );
     } else {
       imageWidget = CachedNetworkImage(
         imageUrl: url,
         height: isBadge ? 20 : null,
         fit: BoxFit.contain,
-        placeholder: (_, __) => SizedBox(width: isBadge ? 60 : 20, height: 20),
-        errorWidget: (_, __, ___) => _altFallback(),
+        placeholder: (_, _) => SizedBox(width: isBadge ? 60 : 20, height: 20),
+        errorWidget: (_, _, _) => _altFallback(),
       );
     }
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: 2.0, vertical: isBadge ? 2.0 : 4.0),
+      padding: EdgeInsets.symmetric(
+        horizontal: 2.0,
+        vertical: isBadge ? 2.0 : 4.0,
+      ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(isBadge ? 3.0 : AppTheme.radiusSm),
         child: ConstrainedBox(
