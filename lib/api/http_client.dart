@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
 import '../utils/app_version_util.dart';
+import '../services/server_compat.dart';
 
 class ApiResponse {
   final int code;
@@ -121,7 +122,7 @@ class HttpClient {
     final manager = ServerConfigManager.instance;
     String url;
     try {
-      url = manager.buildApiUrl('/stat/view');
+      url = manager.buildApiUrl(ServerCompat.instance.endpoint(ApiEndpoint.statsView));
     } catch (_) {
       return;
     }
@@ -238,6 +239,10 @@ class HttpClient {
           customKey: key,
         );
         if (response.code == 1 || response.code == 0) {
+          await ServerCompat.instance.updateFromProvideApp(
+            response.data,
+            ServerConfigManager.hostScope(origin),
+          );
           return const ConnectionResult(ok: true);
         }
       } catch (appErr) {
@@ -274,6 +279,9 @@ class HttpClient {
             customKey: key,
           );
           if (healthRes.code == 0) {
+            await ServerCompat.instance.markFallbackV2(
+              ServerConfigManager.hostScope(origin),
+            );
             return const ConnectionResult(ok: true);
           }
         }

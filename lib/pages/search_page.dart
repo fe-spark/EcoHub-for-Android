@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../common/app_theme.dart';
+import '../services/server_compat.dart';
 import '../models/film_models.dart';
 import '../api/film_api.dart';
 import '../api/http_client.dart';
@@ -266,15 +267,16 @@ class _SearchPageState extends State<SearchPage> {
         _submitted = kw;
         _cache[''] = _CachedSource(list: res.list, page: res.page, error: res.error);
         _sources = [
-          for (final tab in res.sources)
-            SearchSourceTab(
-              id: tab.id,
-              name: tab.name,
-              count: tab.id.isEmpty
-                  ? (tab.count > 0 ? tab.count : res.page.total)
-                  : (_cache[tab.id]?.page.total ?? tab.count),
-              loading: tab.id.isNotEmpty && !_cache.containsKey(tab.id),
-            ),
+          if (ServerCompat.instance.canCmsDirectSearch)
+            for (final tab in res.sources)
+              SearchSourceTab(
+                id: tab.id,
+                name: tab.name,
+                count: tab.id.isEmpty
+                    ? (tab.count > 0 ? tab.count : res.page.total)
+                    : (_cache[tab.id]?.page.total ?? tab.count),
+                loading: tab.id.isNotEmpty && !_cache.containsKey(tab.id),
+              ),
         ];
         if (_source.isEmpty) {
           _list = res.list;
@@ -285,10 +287,12 @@ class _SearchPageState extends State<SearchPage> {
           _applySource(_source);
         }
       });
-      await Future.wait([
-        for (final tab in res.sources)
-          if (tab.id.isNotEmpty) _fetchSource(gen, kw, tab.id),
-      ]);
+      if (ServerCompat.instance.canCmsDirectSearch) {
+        await Future.wait([
+          for (final tab in res.sources)
+            if (tab.id.isNotEmpty) _fetchSource(gen, kw, tab.id),
+        ]);
+      }
       if (!mounted || gen != _searchGen) return;
       setState(() {
         _sources = [
