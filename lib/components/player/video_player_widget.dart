@@ -17,6 +17,7 @@ class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
   final String filmId;
   final int episode;
+  final String filmTitle;
   final String title;
   final String poster;
   final double initialTime;
@@ -43,6 +44,7 @@ class VideoPlayerWidget extends StatefulWidget {
     required this.videoUrl,
     this.filmId = '',
     this.episode = 1,
+    this.filmTitle = '',
     this.title = '',
     this.poster = '',
     this.initialTime = 0,
@@ -363,7 +365,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                   child: PlayerDanmakuLayer(
                     filmId: widget.filmId,
                     episode: widget.episode,
-                    filmTitle: widget.title,
+                    filmTitle: widget.filmTitle.isNotEmpty ? widget.filmTitle : widget.title,
                     currentTime: _playback.currentPositionSec,
                     isPlaying: _playback.isPlaying,
                     playbackSpeed: _playback.currentSpeed,

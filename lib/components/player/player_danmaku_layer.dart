@@ -4,7 +4,7 @@ import 'package:flutter/scheduler.dart';
 import '../../api/film_api.dart';
 import '../../models/film_models.dart';
 
-/// 弹幕渲染层组件，对齐鸿蒙端 `PlayerDanmakuLayer.ets`
+/// 弹幕渲染层组件，对齐鸿蒙端 `PlayerDanmakuLayer.ets` 与 Web 端 `artplayer-plugin-danmuku`
 class PlayerDanmakuLayer extends StatefulWidget {
   final String filmId;
   final int episode;
@@ -70,15 +70,24 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
 
   Ticker? _ticker;
   Duration _lastTick = Duration.zero;
-  double _lastTime = 0.0;
+  double _currentVideoTime = 0.0;
   int _nextIndex = 0;
   String _loadKey = '';
   Size _layoutSize = Size.zero;
 
+  static String cleanTitle(String raw) {
+    var s = raw.trim();
+    final dotIdx = s.indexOf('·');
+    if (dotIdx > 0) {
+      s = s.substring(0, dotIdx).trim();
+    }
+    return s;
+  }
+
   @override
   void initState() {
     super.initState();
-    _lastTime = widget.currentTime;
+    _currentVideoTime = widget.currentTime;
     _ticker = createTicker(_onTick);
     _loadDanmaku();
     _syncTickerState();
@@ -89,19 +98,18 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
     super.didUpdateWidget(oldWidget);
     final keyChanged = oldWidget.filmId != widget.filmId ||
         oldWidget.episode != widget.episode ||
-        oldWidget.filmTitle != widget.filmTitle;
+        cleanTitle(oldWidget.filmTitle) != cleanTitle(widget.filmTitle);
 
     if (keyChanged) {
       _loadDanmaku();
     }
 
-    // 进度跳转超过 2.5 秒，清空当前活跃弹幕并重新对齐游标
-    if ((widget.currentTime - _lastTime).abs() > 2.5) {
-      _handleSeek(widget.currentTime);
-    } else if (widget.currentTime > _lastTime) {
-      _spawnBetween(_lastTime, widget.currentTime);
+    // 播放器时间漂移（快进/快退/切集大于 1.2 秒）时重对齐游标
+    final drift = (widget.currentTime - _currentVideoTime).abs();
+    if (drift > 1.2) {
+      _currentVideoTime = widget.currentTime;
+      _handleSeek(_currentVideoTime);
     }
-    _lastTime = widget.currentTime;
 
     if (oldWidget.isPlaying != widget.isPlaying || oldWidget.enabled != widget.enabled) {
       _syncTickerState();
@@ -129,7 +137,8 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
   }
 
   Future<void> _loadDanmaku() async {
-    final curKey = '${widget.filmId}_${widget.episode}_${widget.filmTitle}';
+    final title = cleanTitle(widget.filmTitle);
+    final curKey = '${widget.filmId}_${widget.episode}_$title';
     if (_loadKey == curKey) return;
     _loadKey = curKey;
 
@@ -138,30 +147,31 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
     _nextIndex = 0;
     _allComments = [];
 
-    if (widget.filmId.trim().isEmpty) return;
+    if (widget.filmId.trim().isEmpty && title.isEmpty) return;
 
     try {
       final list = await FilmApi.getDanmaku(
         widget.filmId,
         widget.episode,
-        widget.filmTitle,
+        title,
       );
       if (!mounted || _loadKey != curKey) return;
 
       list.sort((a, b) => a.time.compareTo(b.time));
       setState(() {
         _allComments = list;
-        _handleSeek(widget.currentTime);
+        _handleSeek(_currentVideoTime);
+        _spawnBetween(math.max(0.0, _currentVideoTime - 1.0), _currentVideoTime);
       });
+      _syncTickerState();
     } catch (_) {}
   }
 
   void _handleSeek(double seekTime) {
     _activeList.clear();
     _trackTail.clear();
-    _lastTime = seekTime;
 
-    // 二分查找最近的待发射弹幕
+    // 二分查找待发射弹幕起始位置
     var low = 0;
     var high = _allComments.length;
     while (low < high) {
@@ -291,6 +301,11 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
     if (dt <= 0 || dt > 0.1) return;
 
     final speedFactor = math.max(0.2, widget.playbackSpeed);
+    final lastTime = _currentVideoTime;
+    _currentVideoTime += dt * speedFactor;
+
+    // 每一帧在时间线上发射新出现的弹幕（对齐 Web 与鸿蒙时钟引擎）
+    _spawnBetween(lastTime, _currentVideoTime);
 
     for (var i = _activeList.length - 1; i >= 0; i--) {
       final item = _activeList[i];
