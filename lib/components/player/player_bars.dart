@@ -224,6 +224,7 @@ class PlayerBottomBar extends StatefulWidget {
   final bool hasNext;
   final VoidCallback? onNext;
   final bool danmakuEnabled;
+  final bool canDanmaku;
   final VoidCallback? onToggleDanmaku;
   final String castDeviceName;
   final VoidCallback onTogglePlay;
@@ -256,6 +257,7 @@ class PlayerBottomBar extends StatefulWidget {
     this.hasNext = false,
     this.onNext,
     this.danmakuEnabled = true,
+    this.canDanmaku = false,
     this.onToggleDanmaku,
     this.castDeviceName = '',
     required this.onTogglePlay,
@@ -427,12 +429,14 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                           onTap: widget.onScale,
                         ),
                       ],
-                      const SizedBox(width: 8),
-                      PlayerChip(
-                        label: '弹幕',
-                        highlight: widget.danmakuEnabled,
-                        onTap: widget.onToggleDanmaku,
-                      ),
+                      if (widget.canDanmaku) ...[
+                        const SizedBox(width: 8),
+                        PlayerChip(
+                          label: '弹幕',
+                          highlight: widget.danmakuEnabled,
+                          onTap: widget.onToggleDanmaku,
+                        ),
+                      ],
                       const SizedBox(width: 2),
                       IconButton(
                         icon: Icon(

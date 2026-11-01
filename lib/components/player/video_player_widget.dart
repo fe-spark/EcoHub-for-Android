@@ -11,6 +11,7 @@ import '../cast/player_cast_controller.dart';
 import '../cast/player_cast_hud.dart';
 import '../../types/dlna_types.dart';
 import '../../utils/app_settings_manager.dart';
+import '../../services/server_compat.dart';
 
 /// 跨平台视频播放器，全量对齐 OHOS `VideoPlayer.ets`
 class VideoPlayerWidget extends StatefulWidget {
@@ -38,6 +39,7 @@ class VideoPlayerWidget extends StatefulWidget {
   final VoidCallback? onNext;
   final void Function(bool full, {bool isPortrait})? onFullscreenChange;
   final void Function(double current, double duration)? onProgress;
+  final bool allowDanmaku;
 
   const VideoPlayerWidget({
     super.key,
@@ -55,6 +57,7 @@ class VideoPlayerWidget extends StatefulWidget {
     this.pageActive = true,
     this.edgeHud = false,
     this.reloadToken = 0,
+    this.allowDanmaku = true,
     this.topInset = 0,
     this.leftInset = 0,
     this.rightInset = 0,
@@ -79,6 +82,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   late final PlayerPipCoordinator _pipCoord;
   bool _danmakuEnabled = true;
   int _lastCastPersistMs = 0;
+
+  bool get _canDanmaku => widget.allowDanmaku && ServerCompat.instance.canDanmaku && widget.filmId.trim().isNotEmpty;
 
   @override
   double get currentPosition => _castCtrl.isCasting
@@ -212,6 +217,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   }
 
   void _toggleDanmaku() {
+    if (!_canDanmaku) return;
     setState(() {
       _danmakuEnabled = !_danmakuEnabled;
     });
@@ -361,7 +367,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                   isReady: _playback.isReady,
                 ),
               ),
-              if (!_castCtrl.isCasting && !_playback.isOpening)
+              if (!_castCtrl.isCasting && !_playback.isOpening && _canDanmaku)
                 Positioned.fill(
                   child: PlayerDanmakuLayer(
                     filmId: widget.filmId,
@@ -395,7 +401,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                 showBack: widget.showBack,
                 title: widget.title,
                 danmakuEnabled: _danmakuEnabled,
-                onToggleDanmaku: _toggleDanmaku,
+                canDanmaku: _canDanmaku,
+                onToggleDanmaku: _canDanmaku ? _toggleDanmaku : null,
                 isPlaying: _castCtrl.isCasting
                     ? (_castCtrl.session.phase == CastPhase.playing)
                     : _playback.isPlaying,
