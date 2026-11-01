@@ -370,12 +370,6 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
             ),
             onPressed: widget.onTogglePlay,
           ),
-          if (widget.hasNext && widget.onNext != null)
-            IconButton(
-              icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 20),
-              tooltip: '下一集',
-              onPressed: widget.onNext,
-            ),
           Expanded(child: _buildSlider(context)),
           Text(
             timeStr,
