@@ -11,13 +11,14 @@ import '../utils/play_resume.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
 import '../utils/format_util.dart';
-import '../utils/split_cutout_insets.dart';
 import '../utils/app_settings_manager.dart';
 import '../components/player/video_player_widget.dart';
 import '../components/player/live_play_body.dart';
 import '../components/loading_view.dart';
 import '../components/empty_state.dart';
 import '../services/pip_manager.dart';
+import '../main.dart';
+import '../components/player/player_bars.dart';
 
 /// 影片播放主页面
 class PlayPage extends StatefulWidget {
@@ -60,7 +61,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   bool _relateLoading = false;
   int _activeTab = 0;
   bool _playerFull = false;
-  bool _wasPortraitBeforeFull = true;
   final GlobalKey _videoKey = GlobalKey();
   String _sourceName = '默认源';
   double _lastCurrentTime = 0;
@@ -339,37 +339,14 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
 
   void _setFullscreen(bool full, {bool isPortrait = false}) {
     if (_playerFull == full) return;
-    if (full) {
-      final size = MediaQuery.sizeOf(context);
-      _wasPortraitBeforeFull = size.width <= size.height;
-    }
     setState(() => _playerFull = full);
-    try {
-      if (full) {
-        // 全量对齐 OHOS：竖屏视频（短剧等）全屏必须按竖屏方向（portraitUp）播放；
-        // 横屏视频必须按横屏方向（landscapeLeft / landscapeRight）播放。
-        SystemChrome.setPreferredOrientations(isPortrait
-            ? [DeviceOrientation.portraitUp]
-            : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      } else {
-        if (_wasPortraitBeforeFull || !AppOrientation.isTablet(context)) {
-          // 手机端退出全屏必须强制回正到竖屏并锁定，绝不在延时后因手机横持再次自动弹回横屏全屏
-          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-        } else {
-          SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
-        }
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      }
-    } catch (_) {}
+    AppOrientation.setFullscreen(full, isPortraitVideo: isPortrait, context: context);
   }
 
   Widget _buildVideoPlayer({
     required bool isFull,
     bool edgeHud = false,
-    double? overrideLeftInset,
   }) {
-    // 对齐 OHOS hud inset：全屏/分屏时把安全区传给播放器控件，竖屏时归零（视频已在 SafeArea 内）。
     final viewPadding = MediaQuery.viewPaddingOf(context);
     final useInset = isFull || edgeHud;
     return VideoPlayerWidget(
@@ -385,14 +362,10 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       showBack: true,
       isFull: isFull,
       edgeHud: edgeHud,
-      topInset: useInset ? viewPadding.top : 0,
-      bottomInset: useInset ? viewPadding.bottom : 0,
-      leftInset: overrideLeftInset != null
-          ? math.max(overrideLeftInset, (edgeHud ? AppTheme.safeEdge : 0.0))
-          : (useInset ? math.max(viewPadding.left, (edgeHud ? AppTheme.safeEdge : 0.0)) : 0.0),
-      rightInset: isFull
-          ? viewPadding.right
-          : (edgeHud ? AppTheme.safeEdge : 0),
+      topInset: useInset ? math.max(viewPadding.top, AppTheme.safeEdge) : 0.0,
+      bottomInset: isFull ? math.max(viewPadding.bottom, AppTheme.safeEdge) : (edgeHud ? viewPadding.bottom : 0.0),
+      leftInset: useInset ? math.max(viewPadding.left, AppTheme.safeEdge) : 0.0,
+      rightInset: isFull ? math.max(viewPadding.right, AppTheme.safeEdge) : 0.0,
       hasPrev: _hasPrev(),
       hasNext: _hasNext(),
       onBack: () => _playerFull ? _setFullscreen(false) : Navigator.pop(context),
@@ -412,12 +385,6 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    // 对齐 OHOS isLandscape()：横屏时进入双栏分栏（非全屏状态下），确保手机横屏与平板/iPad均享有满高影院画幅与右侧专属选集
-    final isLandscape = size.width > size.height && size.height > 0;
-    final isTablet = math.min(size.width, size.height) >= 560;
-    // 只有在平板/iPad（最小边>=560）且处于横屏时才进入双栏分屏；手机横屏专注全屏沉浸，竖屏专注单栏详情
-    final split = !_playerFull && isTablet && isLandscape;
     final isFullMode = _playerFull;
 
     return PopScope(
@@ -428,35 +395,62 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
           _setFullscreen(false);
         }
       },
-      child: Scaffold(
-        backgroundColor: (_isPipActive || isFullMode) ? Colors.black : AppTheme.bg,
-        resizeToAvoidBottomInset: false,
-        body: SafeArea(
-          top: !_isPipActive && !isFullMode && !split,
-          bottom: !_isPipActive && !isFullMode && !split,
-          left: !_isPipActive && !isFullMode && !split,
-          right: !_isPipActive && !isFullMode && !split,
-          child: _buildPlayBody(isFullMode: isFullMode, split: split),
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: kDefaultSystemUiOverlayStyle,
+        child: Scaffold(
+          backgroundColor: (_isPipActive || isFullMode) ? Colors.black : AppTheme.bg,
+          resizeToAvoidBottomInset: false,
+          body: _buildPlayBody(isFullMode: isFullMode),
         ),
       ),
     );
   }
 
-  Widget _buildPlayBody({required bool isFullMode, required bool split}) {
-    // 对齐 OHOS 顶层 build：先按 loading/error 守卫，避免 playUrl 为空时渲染播放器报错。
+  Widget _buildPlayBody({required bool isFullMode}) {
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    final topInset = viewPadding.top;
+    final bottomInset = viewPadding.bottom;
+    final leftInset = viewPadding.left;
+    final rightInset = viewPadding.right;
+
     if (_loading && _sources.isEmpty) {
-      return const LoadingView(label: '正在打开播放页');
+      return Stack(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(leftInset, topInset, rightInset, bottomInset),
+            child: const LoadingView(label: '正在打开播放页'),
+          ),
+          if (!isFullMode)
+            Positioned(
+              left: math.max(8.0, leftInset + 4.0),
+              top: topInset + 4.0,
+              child: PlayerBackBtn(onTap: () => Navigator.pop(context)),
+            ),
+        ],
+      );
     }
     if (_errorText.isNotEmpty && _sources.isEmpty) {
-      return EmptyState(
-        title: '当前内容无法播放',
-        subtitle: _errorText,
-        icon: Icons.play_disabled_rounded,
+      return Stack(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(leftInset, topInset, rightInset, bottomInset),
+            child: EmptyState(
+              title: '当前内容无法播放',
+              subtitle: _errorText,
+              icon: Icons.play_disabled_rounded,
+            ),
+          ),
+          if (!isFullMode)
+            Positioned(
+              left: math.max(8.0, leftInset + 4.0),
+              top: topInset + 4.0,
+              child: PlayerBackBtn(onTap: () => Navigator.pop(context)),
+            ),
+        ],
       );
     }
 
     if (_isPipActive) {
-      // 画中画模式：整屏独占渲染播放器画面，其它详情与选集等 UI 彻底隐藏，避免在系统浮窗中呈现缩略图
       return SizedBox.expand(
         child: _buildVideoPlayer(isFull: false),
       );
@@ -468,12 +462,15 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       );
     }
 
+    final size = MediaQuery.sizeOf(context);
+    final isLandscape = size.width > size.height && size.height > 0;
+
     return LivePlayBody(
-      isSplit: split,
+      isFull: false,
+      isSplit: isLandscape,
       playerWidget: _buildVideoPlayer(
         isFull: false,
-        edgeHud: split,
-        overrideLeftInset: split ? SplitCutoutInsets.resolve(MediaQuery.viewPaddingOf(context), padding: MediaQuery.paddingOf(context), displayFeatures: MediaQuery.displayFeaturesOf(context), size: MediaQuery.sizeOf(context)).left : null,
+        edgeHud: isLandscape,
       ),
       activeTab: _activeTab,
       onTabChange: (tab) => setState(() => _activeTab = tab),

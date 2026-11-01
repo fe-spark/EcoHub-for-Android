@@ -2,6 +2,7 @@ import 'dart:async';
 import 'http_client.dart';
 import '../models/film_models.dart';
 import '../models/api_parser.dart';
+import '../services/server_compat.dart';
 
 typedef ConfigListener = void Function(BasicConfig config);
 
@@ -22,7 +23,7 @@ class FilmApi {
   }
 
   static Future<HomeData> getHome() async {
-    final res = await HttpClient.instance.get('/index');
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.home));
     if (res.code != 0 || res.data == null) {
       throw Exception(res.msg.isNotEmpty ? res.msg : '首页数据获取失败');
     }
@@ -39,7 +40,7 @@ class FilmApi {
       'current': current,
       'pageSize': pageSize,
     };
-    final res = await HttpClient.instance.get('/dailyUpdates', params: params);
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.dailyUpdates), params: params);
     if (res.code != 0 || res.data == null) {
       throw Exception(res.msg.isNotEmpty ? res.msg : '每日更新获取失败');
     }
@@ -81,8 +82,7 @@ class FilmApi {
   }
 
   static Future<List<String>> getHotKeywords({int limit = 8}) async {
-    final res = await HttpClient.instance.get('/hotKeywords', params: {'limit': limit});
-    if (res.code != 0 || res.data == null) return [];
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.hotKeywords), params: {'limit': limit});
     return ApiParser.parseStringList(res.data);
   }
 
@@ -92,7 +92,7 @@ class FilmApi {
       'current': current,
       if (source.isNotEmpty) 'source': source,
     };
-    final res = await HttpClient.instance.get('/searchFilm', params: params);
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.search), params: params);
     if (res.code != 0 || res.data == null) {
       return SearchResult(
         list: [],
@@ -104,7 +104,7 @@ class FilmApi {
   }
 
   static Future<FilterResult> getFilter(Map<String, dynamic> query) async {
-    final res = await HttpClient.instance.get('/filmClassifySearch', params: query);
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.filter), params: query);
     if (res.code != 0 || res.data == null) {
       throw Exception(res.msg.isNotEmpty ? res.msg : '筛选数据获取失败');
     }
@@ -126,7 +126,7 @@ class FilmApi {
       'episode': episode,
       if (sid.isNotEmpty) 'sid': sid,
     };
-    final res = await HttpClient.instance.get('/filmPlayInfo', params: params, timeoutMs: 20000);
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.playInfo), params: params, timeoutMs: 20000);
     if (res.code != 0 || res.data == null) {
       throw Exception(res.msg.isNotEmpty ? res.msg : '播放数据获取失败');
     }
@@ -143,7 +143,7 @@ class FilmApi {
       'sid': sid,
       'episode': episode,
     };
-    final res = await HttpClient.instance.get('/liveFilmPlayInfo', params: params, timeoutMs: 20000);
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.livePlayInfo), params: params, timeoutMs: 20000);
     if (res.code != 0 || res.data == null) {
       throw Exception(res.msg.isNotEmpty ? res.msg : '现场播放数据获取失败');
     }
@@ -151,7 +151,7 @@ class FilmApi {
   }
 
   static Future<List<MovieBasicInfo>> getRelate(String id) async {
-    final res = await HttpClient.instance.get('/filmRelate', params: {'id': id});
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.related), params: {'id': id});
     if (res.code != 0 || res.data == null) return [];
     if (res.data is List) {
       return ApiParser.parseMovies(res.data);
@@ -169,8 +169,7 @@ class FilmApi {
       'cid': cid ?? 0,
       'sid': sid ?? 0,
     };
-    final res = await HttpClient.instance.get('/liveFilmRelate', params: params);
-    if (res.code != 0 || res.data == null) return [];
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.liveRelate), params: params);
     if (res.data is List) {
       return ApiParser.parseMovies(res.data);
     }
@@ -188,7 +187,7 @@ class FilmApi {
       'episode': episode,
       'title': title,
     };
-    final res = await HttpClient.instance.get('/film/danmaku', params: params, timeoutMs: 10000);
+    final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.danmaku), params: params, timeoutMs: 10000);
     if ((res.code != 0 && res.code != 1) || res.data == null) return [];
     if (res.data is List) {
       final list = <DanmakuComment>[];
@@ -226,7 +225,7 @@ class FilmApi {
       'color': color,
       'mode': mode,
     };
-    final res = await HttpClient.instance.post('/film/danmaku', data: body);
+    final res = await HttpClient.instance.post(ServerCompat.instance.endpoint(ApiEndpoint.danmaku), data: body);
     return res.code == 0;
   }
 }

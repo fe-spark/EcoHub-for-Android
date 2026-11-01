@@ -23,7 +23,6 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
   String _playUrl = '';
   int _reloadToken = 0;
   bool _isFull = false;
-  bool _wasPortraitBeforeFull = true;
   bool _isPipActive = false;
   final GlobalKey _videoKey = GlobalKey();
 
@@ -63,31 +62,10 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
 
   void _setFullscreen(bool full, {bool isPortrait = false}) {
     if (_isFull == full) return;
-    if (full) {
-      final size = MediaQuery.sizeOf(context);
-      _wasPortraitBeforeFull = size.width <= size.height;
-    }
     setState(() {
       _isFull = full;
     });
-    try {
-      if (full) {
-        SystemChrome.setPreferredOrientations(
-          isPortrait
-              ? [DeviceOrientation.portraitUp]
-              : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight],
-        );
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      } else {
-        if (_wasPortraitBeforeFull || !AppOrientation.isTablet(context)) {
-          // 手机端退出全屏必须强制回正到竖屏并锁定，绝不在延时后因手机横持再次自动弹回横屏全屏
-          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-        } else {
-          SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
-        }
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      }
-    } catch (_) {}
+    AppOrientation.setFullscreen(full, isPortraitVideo: isPortrait, context: context);
   }
 
   void _toast(String message) {

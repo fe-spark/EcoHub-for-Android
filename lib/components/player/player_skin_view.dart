@@ -232,22 +232,6 @@ class PlayerSkinView extends StatelessWidget {
     );
   }
 
-  Widget _buildRoundBtn({required IconData icon, Color color = Colors.white, VoidCallback? onTap}) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: const BoxDecoration(
-          color: Color(0x33000000),
-          shape: BoxShape.circle,
-        ),
-        alignment: Alignment.center,
-        child: Icon(icon, color: color, size: 18),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -358,30 +342,59 @@ class PlayerSkinView extends StatelessWidget {
           ),
         if (!isFull && (showBack || canCast || onPip != null))
           Positioned(
-            left: _edge(6, leftInset),
-            right: _edge(6, rightInset),
-            top: _edge(6, topInset),
-            child: Row(
-              children: [
-                if (showBack)
-                  _buildRoundBtn(icon: Icons.arrow_back_ios_new_rounded, onTap: onBack)
-                else
-                  const SizedBox.shrink(),
-                const Spacer(),
-                if (canCast && onCast != null) ...[
-                  _buildRoundBtn(
-                    icon: castDeviceName.isNotEmpty ? Icons.power_settings_new_rounded : Icons.cast_rounded,
-                    color: castDeviceName.isNotEmpty ? AppTheme.danger : Colors.white,
-                    onTap: castDeviceName.isNotEmpty ? onStopCast : onCast,
+            top: 0,
+            left: 0,
+            right: 0,
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 200),
+              opacity: (!isFull && showBack) ? 1.0 : (showHud ? 1.0 : 0.0),
+              child: Container(
+                width: double.infinity,
+                height: 44.0 + topInset,
+                alignment: Alignment.bottomCenter,
+                padding: EdgeInsets.only(
+                  left: leftInset > 0 ? leftInset : 6.0,
+                  right: isFull ? (rightInset > 0 ? rightInset : 6.0) : 6.0,
+                  top: topInset,
+                  bottom: 4.0,
+                ),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x99000000), Color(0x33000000), Colors.transparent],
                   ),
-                  const SizedBox(width: 8),
-                ],
-                if (onPip != null && castDeviceName.isEmpty)
-                  _buildRoundBtn(
-                    icon: Icons.picture_in_picture_alt_rounded,
-                    onTap: onPip,
-                  ),
-              ],
+                ),
+                child: Row(
+                  children: [
+                    if (showBack)
+                      PlayerBackBtn(onTap: onBack),
+                    const Spacer(),
+                    if (castDeviceName.isNotEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.power_settings_new_rounded, color: AppTheme.danger, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                        onPressed: onStopCast,
+                      )
+                    else if (canCast && onCast != null)
+                      IconButton(
+                        icon: const Icon(Icons.cast_rounded, color: Colors.white, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                        onPressed: onCast,
+                      ),
+                    if (onPip != null && castDeviceName.isEmpty)
+                      IconButton(
+                        icon: const Icon(Icons.picture_in_picture_alt_rounded, color: Colors.white, size: 20),
+                        tooltip: '画中画',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                        onPressed: onPip,
+                      ),
+                  ],
+                ),
+              ),
             ),
           ),
       ],

@@ -3,11 +3,11 @@ import '../../common/app_theme.dart';
 import '../../components/player/play_side_tabs.dart';
 import '../../models/film_models.dart';
 import '../../utils/breakpoint.dart';
-import '../../utils/split_cutout_insets.dart';
 
 /// 现场播放页的主体布局（分屏与非分屏），对齐 PlayPage
 class LivePlayBody extends StatelessWidget {
   final bool isSplit;
+  final bool isFull;
   final Widget playerWidget;
   final int activeTab;
   final ValueChanged<int> onTabChange;
@@ -31,7 +31,8 @@ class LivePlayBody extends StatelessWidget {
 
   const LivePlayBody({
     super.key,
-    required this.isSplit,
+    this.isSplit = false,
+    this.isFull = false,
     required this.playerWidget,
     required this.activeTab,
     required this.onTabChange,
@@ -54,12 +55,10 @@ class LivePlayBody extends StatelessWidget {
     required this.sourceName,
   });
 
-  /// 横屏/平板专属侧边栏宽度计算，对齐 OHOS: min(380, max(260, windowWidth * 0.35))
+  /// 横屏/平板专属侧边栏宽度计算，对齐 OHOS: min(360, max(280, windowWidth * 0.38))
   static double sidebarWidthOf(double screenWidth) {
     if (screenWidth <= 0) return 280.0;
-    final target = screenWidth * 0.35;
-    final minW = screenWidth < 700 ? 240.0 : 280.0;
-    return target.clamp(minW, 380.0);
+    return (screenWidth * 0.38).clamp(280.0, 360.0);
   }
 
   Widget _buildSideTabs(BuildContext context, {required int columns, bool split = false, double rightInset = 0}) {
@@ -93,65 +92,72 @@ class LivePlayBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
     final isLandscape = media.size.width > media.size.height && media.size.height > 0;
+    final viewPadding = media.viewPadding;
+    final topInset = viewPadding.top;
+    final bottomInset = viewPadding.bottom;
+    final leftInset = viewPadding.left;
+    final rightInset = viewPadding.right;
+    final showSplit = (isSplit || isLandscape) && !isFull;
 
-    // 只要处于横屏状态（无论是分屏还是过渡帧），一律采用水平 Row 双栏排版；
-    // 绝不能在横屏仅 300~400dp 高度下使用 AspectRatio(16/9) 竖向 Column，否则必产生 RenderFlex overflow 溢出！
-    if (isSplit || isLandscape) {
-      final cutout = SplitCutoutInsets.resolve(
-        media.viewPadding,
-        padding: media.padding,
-        displayFeatures: media.displayFeatures,
-        size: media.size,
-      );
-      final sidebarWidth = sidebarWidthOf(media.size.width);
-
-      return Row(
-        children: [
-          // 1. 左侧主体播放器：撑满高度与剩余宽度，100% 满高影院画幅，彻底消灭上下挤压黑边
-          Expanded(
-            child: SizedBox.expand(
-              child: playerWidget,
+    return Row(
+      children: [
+        // 1. 左侧主区域 (所有模式下单例常驻播放器；竖屏或平板横屏时下方自适应内容)
+        Expanded(
+          child: Container(
+            height: double.infinity,
+            color: isFull ? Colors.black : AppTheme.bg,
+            padding: EdgeInsets.only(
+              top: (isFull || isLandscape) ? 0.0 : topInset,
+            ),
+            child: Column(
+              children: [
+                (isFull || isLandscape)
+                    ? Expanded(child: SizedBox.expand(child: playerWidget))
+                    : AspectRatio(aspectRatio: 16 / 9, child: playerWidget),
+                if (!isLandscape && !isFull) ...[
+                  Container(height: 8, color: AppTheme.bgElevated),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        left: leftInset,
+                        right: rightInset,
+                        bottom: bottomInset,
+                      ),
+                      child: _buildSideTabs(
+                        context,
+                        columns: Breakpoint.gridColsOf(media.size.width),
+                        split: false,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          Container(width: 0.5, color: const Color(0x24FFFFFF)),
-          // 2. 右侧专属全高侧边栏：自适应 260~380dp，与竖屏 100% 一致的 sideTabs 选集推荐
-          SizedBox(
-            width: sidebarWidth,
+        ),
+
+        // 2. 右侧全高侧边栏 (仅在横屏且未全屏时出现，对齐 OHOS)
+        if (showSplit)
+          Container(
+            width: sidebarWidthOf(media.size.width),
             height: double.infinity,
-            child: Container(
+            decoration: const BoxDecoration(
               color: AppTheme.bgElevated,
-              child: SafeArea(
-                top: true,
-                bottom: true,
-                left: false,
-                right: false,
-                child: _buildSideTabs(
-                  context,
-                  columns: sidebarWidth > 320 ? 3 : 2,
-                  split: true,
-                  rightInset: cutout.right,
-                ),
+              border: Border(
+                left: BorderSide(width: 0.5, color: Color(0x1AFFFFFF)),
               ),
             ),
+            padding: EdgeInsets.only(
+              top: topInset,
+              bottom: bottomInset,
+            ),
+            child: _buildSideTabs(
+              context,
+              columns: 2,
+              split: true,
+              rightInset: rightInset,
+            ),
           ),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        AspectRatio(
-          aspectRatio: 16 / 9,
-          child: playerWidget,
-        ),
-        Container(height: 8, color: AppTheme.bgElevated),
-        Expanded(
-          child: _buildSideTabs(
-            context,
-            columns: Breakpoint.gridColsOf(MediaQuery.sizeOf(context).width),
-            split: false,
-          ),
-        ),
       ],
     );
   }

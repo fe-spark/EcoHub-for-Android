@@ -66,7 +66,7 @@ class AppMarkdownView extends StatelessWidget {
       fitContent: false,
       extensionSet: _safeMarkdownExtensions,
       onTapLink: (text, href, title) => _handleLinkTap(href),
-      imageBuilder: (uri, title, alt) => _AppMarkdownImage(uri: uri, alt: alt),
+      sizedImageBuilder: (config) => _AppMarkdownImage(uri: config.uri, alt: config.alt),
       styleSheet: MarkdownStyleSheet(
         p: TextStyle(
           fontSize: fontSize,

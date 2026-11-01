@@ -326,7 +326,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
 
         return Container(
           color: Colors.black,
-          child: Stack(
+          child: ClipRect(
+            child: Stack(
             fit: StackFit.expand,
             children: [
               PlayerGestureHandler(
@@ -368,6 +369,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                     filmTitle: widget.filmTitle.isNotEmpty ? widget.filmTitle : widget.title,
                     currentTime: _playback.currentPositionSec,
                     isPlaying: _playback.isPlaying,
+                    isBuffering: _playback.isBuffering || _playback.isOpening,
                     playbackSpeed: _playback.currentSpeed,
                     enabled: _danmakuEnabled,
                   ),
@@ -475,7 +477,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
               ),
             ],
           ),
-        );
+        ),
+      );
       },
     );
   }

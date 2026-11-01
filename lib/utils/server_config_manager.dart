@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../services/server_compat.dart';
 
 const String _keyServerUrl = 'server_base_url';
 const String _keyServerHistory = 'server_url_history';
@@ -23,6 +24,7 @@ class ServerConfigManager {
     try {
       _pref = await SharedPreferences.getInstance();
       _cachedUrl = _pref?.getString(_keyServerUrl) ?? '';
+      await ServerCompat.instance.attachPreferences(storageScope());
     } catch (_) {}
   }
 
@@ -145,6 +147,7 @@ class ServerConfigManager {
     if (_pref == null) await init();
     await _pref?.setString(_keyServerUrl, cleanUrl);
     await addServerHistory(cleanUrl);
+    await ServerCompat.instance.switchHostScope(storageScope());
   }
 
   Future<void> clearServerUrl() async {

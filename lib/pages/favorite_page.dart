@@ -90,19 +90,63 @@ class _FavoritePageState extends State<FavoritePage> {
 
   Widget _poster(FavoriteItem item) {
     final url = ServerConfigManager.instance.resolveMediaUrl(item.picture);
+    final letter = item.name.trim().isNotEmpty ? item.name.trim().substring(0, 1) : '影';
     return ClipRRect(
       borderRadius: BorderRadius.circular(AppTheme.radiusMd),
       child: SizedBox(
         width: 80,
         height: 116,
-        child: url.isNotEmpty
-            ? CachedNetworkImage(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              color: const Color(0x0AFFFFFF),
+              child: Center(
+                child: Icon(
+                  Icons.movie_outlined,
+                  size: 28,
+                  color: Colors.white.withValues(alpha: 0.12),
+                ),
+              ),
+            ),
+            if (url.isNotEmpty)
+              CachedNetworkImage(
                 imageUrl: url,
                 httpHeaders: FormatUtil.imageHeaders(url),
                 fit: BoxFit.cover,
-                errorWidget: (context, url, error) => const ColoredBox(color: AppTheme.bgElevated),
+                placeholder: (context, url) => const SizedBox.shrink(),
+                errorWidget: (context, url, error) => _buildPlaceholder(letter),
               )
-            : const ColoredBox(color: AppTheme.bgElevated),
+            else
+              _buildPlaceholder(letter),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder(String letter) {
+    return Container(
+      color: const Color(0x0FFFFFFF),
+      child: Center(
+        child: Container(
+          width: 36,
+          height: 36,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0x14FFFFFF),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0x24FFFFFF), width: 0.5),
+          ),
+          child: Text(
+            letter,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xD9FFFFFF),
+            ),
+          ),
+        ),
       ),
     );
   }

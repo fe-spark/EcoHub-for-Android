@@ -143,7 +143,7 @@ class PlaySideTabs extends StatelessWidget {
                   viewingSourceId: viewingSourceId,
                   episodeIndex: episodeIndex,
                   isSplit: isSplit,
-                  episodeColumns: isSplit ? 3 : null,
+                  episodeColumns: null,
                   rightInset: rightInset,
                   onViewSource: onViewSource,
                   onSelectEpisode: onSelectEpisode,

@@ -37,13 +37,35 @@ class AppOrientation {
     return false;
   }
 
-  /// 恢复页面或应用默认屏幕方向：
-  /// - 手机端：锁定竖屏，杜绝从播放页返回首页时意外旋转成横屏
-  /// - 平板端：支持自动旋转
+  /// 恢复页面或应用默认屏幕方向
   static Future<void> restoreDefaultOrientation([BuildContext? context]) async {
-    final orientations = isTablet(context) ? kAutoRotationOrientations : kPhoneDefaultOrientations;
     try {
-      await SystemChrome.setPreferredOrientations(orientations);
+      await SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
+    } catch (_) {}
+  }
+
+  /// 请求切换全屏方向（完美解决 iOS UISceneErrorDomain 101 问题）：
+  /// 必须先开放包含目标朝向的超集（kAutoRotationOrientations），让 iOS FlutterViewController 更新支持掩码，再锁定目标朝向
+  static Future<void> setFullscreen(bool full, {bool isPortraitVideo = false, BuildContext? context}) async {
+    final isPhone = !isTablet(context);
+    try {
+      if (full) {
+        await SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
+        final target = isPortraitVideo
+            ? const [DeviceOrientation.portraitUp]
+            : const [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight];
+        await SystemChrome.setPreferredOrientations(target);
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+      } else {
+        await SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
+        if (isPhone) {
+          await SystemChrome.setPreferredOrientations(const [DeviceOrientation.portraitUp]);
+          Future.delayed(const Duration(milliseconds: 600), () {
+            SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
+          });
+        }
+        await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+      }
     } catch (_) {}
   }
 }

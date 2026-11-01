@@ -3,6 +3,82 @@ import 'package:flutter/material.dart';
 import '../../common/app_theme.dart';
 import '../../utils/format_util.dart';
 
+/// 播放器返回按钮，对齐 OHOS `PlayerBackBtn`
+class PlayerBackBtn extends StatelessWidget {
+  final VoidCallback? onTap;
+  final double iconSize;
+  final double boxSize;
+
+  const PlayerBackBtn({
+    super.key,
+    this.onTap,
+    this.iconSize = 18,
+    this.boxSize = 36,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: boxSize,
+        height: boxSize,
+        alignment: Alignment.center,
+        child: Icon(
+          Icons.arrow_back_ios_new_rounded,
+          size: iconSize,
+          color: Colors.white,
+        ),
+      ),
+    );
+  }
+}
+
+/// 播放器操作胶囊标签（倍速、画面比例、弹幕开关），对齐 OHOS `PlayerChip`
+class PlayerChip extends StatelessWidget {
+  final String label;
+  final bool highlight;
+  final bool canTap;
+  final VoidCallback? onTap;
+
+  const PlayerChip({
+    super.key,
+    required this.label,
+    this.highlight = false,
+    this.canTap = true,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: canTap ? onTap : null,
+      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+      child: Container(
+        height: 28,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: highlight ? const Color(0x38FA8C16) : Colors.white.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+          border: Border.all(
+            color: highlight ? const Color(0x99FA8C16) : Colors.white.withValues(alpha: 0.20),
+            width: 0.5,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: highlight ? AppTheme.accent : Colors.white,
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
 /// 播放器顶部控制栏（全屏模式），对齐 OHOS `PlayerSkin.topBar`
 class PlayerTopBar extends StatelessWidget {
   final bool isFull;
@@ -44,7 +120,6 @@ class PlayerTopBar extends StatelessWidget {
     this.onPip,
   });
 
-  double _edge(double base, double inset) => base > inset ? base : inset;
 
   @override
   Widget build(BuildContext context) {
@@ -53,50 +128,74 @@ class PlayerTopBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.only(
-        top: math.max(8.0, topInset),
-        left: _edge(8, leftInset),
-        right: _edge(8, rightInset),
+        top: math.max(8.0, topInset + 4.0),
+        left: math.max(8.0, leftInset + 4.0),
+        right: math.max(8.0, rightInset + 4.0),
         bottom: 8,
       ),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xAA000000), Color(0x55000000), Colors.transparent],
+          colors: [Color(0xAD000000), Color(0x57000000), Colors.transparent],
         ),
       ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 18),
-            onPressed: onBack,
-          ),
+          PlayerBackBtn(onTap: onBack),
           Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
+            child: Padding(
+              padding: const EdgeInsets.only(left: 4, right: 8),
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
           ),
-          if (hasPrev)
+          if (hasPrev || hasNext) ...[
             TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              style: TextButton.styleFrom(
+                foregroundColor: hasPrev ? Colors.white : Colors.white38,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: const Size(0, 36),
+              ),
               icon: const Icon(Icons.skip_previous_rounded, size: 16),
               label: const Text('上集', style: TextStyle(fontSize: 13)),
-              onPressed: onPrev,
+              onPressed: hasPrev ? onPrev : null,
             ),
-          if (hasNext)
             TextButton.icon(
-              style: TextButton.styleFrom(foregroundColor: Colors.white),
+              style: TextButton.styleFrom(
+                foregroundColor: hasNext ? Colors.white : Colors.white38,
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: const Size(0, 36),
+              ),
               icon: const Icon(Icons.skip_next_rounded, size: 16),
               label: const Text('下集', style: TextStyle(fontSize: 13)),
-              onPressed: onNext,
+              onPressed: hasNext ? onNext : null,
+            ),
+          ],
+          if (castDeviceName.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.power_settings_new_rounded, color: AppTheme.danger, size: 20),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              onPressed: onStopCast,
+            )
+          else if (canCast && onCast != null)
+            IconButton(
+              icon: const Icon(Icons.cast_rounded, color: Colors.white, size: 20),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+              onPressed: onCast,
             ),
           if (onPip != null && castDeviceName.isEmpty && errorText.isEmpty)
             IconButton(
               icon: const Icon(Icons.picture_in_picture_alt_rounded, color: Colors.white, size: 20),
               tooltip: '画中画',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
               onPressed: onPip,
             ),
         ],
@@ -178,7 +277,6 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
   bool _isDragging = false;
   double _dragMs = 0;
 
-  double _edge(double base, double inset) => base > inset ? base : inset;
 
   Widget _buildSlider(BuildContext context) {
     final maxMs = widget.totalDuration.inMilliseconds > 0 ? widget.totalDuration.inMilliseconds.toDouble() : 1.0;
@@ -233,241 +331,139 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
     final displaySec = _isDragging ? (_dragMs / 1000.0) : widget.currentPosition.inSeconds.toDouble();
     final timeStr =
         '${FormatUtil.duration(displaySec)} / ${FormatUtil.duration(widget.totalDuration.inSeconds.toDouble())}';
+    final isPortrait = !widget.isFull && !widget.cinemaHud;
 
-    if (widget.cinemaHud) {
-      return Container(
-        width: double.infinity,
-        padding: EdgeInsets.only(
-          left: _edge(12, widget.leftInset),
-          right: _edge(12, widget.rightInset),
-          bottom: math.max(16.0, widget.bottomInset + 4.0),
-          top: 4,
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.only(
+        left: widget.isFull
+            ? math.max(14.0, widget.leftInset + 10.0)
+            : math.max(12.0, widget.leftInset + 6.0),
+        right: widget.isFull
+            ? math.max(14.0, widget.rightInset + 10.0)
+            : 12.0,
+        bottom: widget.isFull
+            ? math.max(12.0, widget.bottomInset)
+            : (widget.cinemaHud ? math.max(20.0, widget.bottomInset + 4.0) : math.max(8.0, widget.bottomInset)),
+        top: isPortrait ? 2.0 : 8.0,
+      ),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Colors.transparent, Color(0x5C000000), Color(0xC7000000)],
         ),
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [Color(0xCC000000), Colors.transparent],
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _buildSlider(context),
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 24),
-                  onPressed: widget.onTogglePlay,
-                ),
-                if (widget.hasNext && widget.onNext != null)
-                  IconButton(
-                    icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 22),
-                    tooltip: '下一集',
-                    onPressed: widget.onNext,
-                  ),
-                RichText(
-                  text: TextSpan(
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final availableWidth = constraints.maxWidth;
+          final isCompact = availableWidth < 460;
+          final isVeryCompact = availableWidth < 380;
+          final showNext = widget.hasNext && widget.onNext != null && !isVeryCompact;
+          final showScale = widget.onScale != null && !isCompact && !isPortrait;
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 1. 顶层通栏进度条（100% 满宽自由拖拽，彻底解决挤压与误触）
+              _buildSlider(context),
+              const SizedBox(height: 2),
+
+              // 2. 底部控制栏（左侧播控与时间，中间弹性留白，右侧功能群组）
+              Row(
+                children: [
+                  // 左侧控制群组：播放/暂停、下一集、时间刻度
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      TextSpan(
-                        text: FormatUtil.duration(displaySec),
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      IconButton(
+                        icon: Icon(
+                          widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 22,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: widget.onTogglePlay,
                       ),
-                      const TextSpan(
-                        text: ' / ',
-                        style: TextStyle(color: Colors.white54, fontSize: 11),
-                      ),
-                      TextSpan(
-                        text: FormatUtil.duration(widget.totalDuration.inSeconds.toDouble()),
-                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      if (showNext)
+                        IconButton(
+                          icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 18),
+                          tooltip: '下一集',
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: widget.onNext,
+                        ),
+                      const SizedBox(width: 4),
+                      Text(
+                        timeStr,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
-                ),
-                const Spacer(),
-                InkWell(
-                  onTap: widget.onSpeed,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: widget.currentSpeed != 1.0
-                          ? AppTheme.accent.withValues(alpha: 0.22)
-                          : Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      border: Border.all(
-                        color: widget.currentSpeed != 1.0
-                            ? AppTheme.accent.withValues(alpha: 0.6)
-                            : Colors.white.withValues(alpha: 0.2),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Text(
-                      '${widget.currentSpeed}x',
-                      style: TextStyle(
-                        color: widget.currentSpeed != 1.0 ? AppTheme.accent : Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                if (widget.onScale != null)
-                  InkWell(
-                    onTap: widget.onScale,
-                    borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                    child: Container(
-                      margin: const EdgeInsets.only(left: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.2),
-                          width: 0.5,
-                        ),
-                      ),
-                      child: Text(
-                        widget.scaleLabel,
-                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                InkWell(
-                  onTap: widget.onToggleDanmaku,
-                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                  child: Container(
-                    margin: const EdgeInsets.only(left: 6),
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: widget.danmakuEnabled
-                          ? AppTheme.accent.withValues(alpha: 0.22)
-                          : Colors.white.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                      border: Border.all(
-                        color: widget.danmakuEnabled
-                            ? AppTheme.accent.withValues(alpha: 0.6)
-                            : Colors.white.withValues(alpha: 0.2),
-                        width: 0.5,
-                      ),
-                    ),
-                    child: Text(
-                      '弹幕',
-                      style: TextStyle(
-                        color: widget.danmakuEnabled ? AppTheme.accent : Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(widget.muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 20),
-                  onPressed: widget.onToggleMute,
-                ),
-                IconButton(
-                  icon: Icon(
-                    widget.isFull ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
-                    color: Colors.white,
-                    size: 22,
-                  ),
-                  onPressed: widget.onToggleFull,
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-    }
 
-    // 竖屏底栏（精简对齐 OHOS：隐藏比例与静音，保留充足进度条宽度）
-    return Container(
-      width: double.infinity,
-      height: 48,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [Color(0xB8000000), Colors.transparent],
-        ),
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: Icon(
-              widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              color: Colors.white,
-              size: 22,
-            ),
-            onPressed: widget.onTogglePlay,
-          ),
-          Expanded(child: _buildSlider(context)),
-          Text(
-            timeStr,
-            style: const TextStyle(color: Colors.white70, fontSize: 10),
-          ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: widget.onToggleDanmaku,
-            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: widget.danmakuEnabled
-                    ? AppTheme.accent.withValues(alpha: 0.20)
-                    : Colors.white.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                border: Border.all(
-                  color: widget.danmakuEnabled
-                      ? AppTheme.accent.withValues(alpha: 0.5)
-                      : Colors.white.withValues(alpha: 0.15),
-                  width: 0.5,
-                ),
+                  const Spacer(),
+
+                  // 右侧功能调节群组：倍速胶囊、比例胶囊、弹幕开关、静音开关、全屏切换
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      PlayerChip(
+                        label: '${widget.currentSpeed}x',
+                        highlight: widget.currentSpeed != 1.0,
+                        onTap: widget.onSpeed,
+                      ),
+                      if (showScale) ...[
+                        const SizedBox(width: 8),
+                        PlayerChip(
+                          label: widget.scaleLabel,
+                          highlight: widget.scaleLabel != '适应',
+                          onTap: widget.onScale,
+                        ),
+                      ],
+                      const SizedBox(width: 8),
+                      PlayerChip(
+                        label: '弹幕',
+                        highlight: widget.danmakuEnabled,
+                        onTap: widget.onToggleDanmaku,
+                      ),
+                      const SizedBox(width: 2),
+                      IconButton(
+                        icon: Icon(
+                          widget.muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        visualDensity: VisualDensity.compact,
+                        onPressed: widget.onToggleMute,
+                      ),
+                      if (widget.castDeviceName.isEmpty)
+                        IconButton(
+                          icon: Icon(
+                            widget.isFull ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                          visualDensity: VisualDensity.compact,
+                          onPressed: widget.onToggleFull,
+                        ),
+                    ],
+                  ),
+                ],
               ),
-              child: Text(
-                '弹幕',
-                style: TextStyle(
-                  color: widget.danmakuEnabled ? AppTheme.accent : Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          InkWell(
-            onTap: widget.onSpeed,
-            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-              decoration: BoxDecoration(
-                color: widget.currentSpeed != 1.0
-                    ? AppTheme.accent.withValues(alpha: 0.20)
-                    : Colors.white.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
-                border: Border.all(
-                  color: widget.currentSpeed != 1.0
-                      ? AppTheme.accent.withValues(alpha: 0.5)
-                      : Colors.white.withValues(alpha: 0.15),
-                  width: 0.5,
-                ),
-              ),
-              child: Text(
-                '${widget.currentSpeed}x',
-                style: TextStyle(
-                  color: widget.currentSpeed != 1.0 ? AppTheme.accent : Colors.white,
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.fullscreen_rounded, color: Colors.white, size: 20),
-            onPressed: widget.onToggleFull,
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }

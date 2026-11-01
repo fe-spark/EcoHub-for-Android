@@ -114,14 +114,25 @@ class FilmCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
+                  // 1. 底座骨架层：加载中显示胶卷水印，保持影院质感，绝不“缺一块”
+                  Container(
+                    width: double.infinity,
+                    height: double.infinity,
+                    color: const Color(0x0AFFFFFF),
+                    child: Center(
+                      child: Icon(
+                        Icons.movie_outlined,
+                        size: 32,
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ),
                   if (posterUrl.isNotEmpty)
                     CachedNetworkImage(
                       imageUrl: posterUrl,
                       httpHeaders: FormatUtil.imageHeaders(posterUrl),
                       fit: BoxFit.cover,
-                      placeholder: (context, url) => const ColoredBox(
-                        color: AppTheme.bgCard,
-                      ),
+                      placeholder: (context, url) => const SizedBox.shrink(),
                       errorWidget: (context, url, error) => _buildPlaceholder(),
                     )
                   else
@@ -221,15 +232,28 @@ class FilmCard extends StatelessWidget {
   }
 
   Widget _buildPlaceholder() {
+    final letter = film.name.trim().isNotEmpty ? film.name.trim().substring(0, 1) : '影';
     return Container(
-      color: AppTheme.bgCard,
+      width: double.infinity,
+      height: double.infinity,
+      color: const Color(0x0FFFFFFF),
       child: Center(
-        child: Text(
-          film.name.isNotEmpty ? film.name.substring(0, 1) : '影',
-          style: const TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: AppTheme.textSecondary,
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: const Color(0x14FFFFFF),
+            shape: BoxShape.circle,
+            border: Border.all(color: const Color(0x24FFFFFF), width: 0.5),
+          ),
+          child: Text(
+            letter,
+            style: const TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Color(0xD9FFFFFF),
+            ),
           ),
         ),
       ),

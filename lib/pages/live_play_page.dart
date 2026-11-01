@@ -18,7 +18,8 @@ import '../utils/play_navigation.dart';
 import '../utils/play_resume.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
-import '../utils/split_cutout_insets.dart';
+import '../main.dart';
+import '../components/player/player_bars.dart';
 
 /// 采集源现场播放页，布局对齐自定义播放页（播放器 + 详情/选集 + 同类推荐）
 class LivePlayPage extends StatefulWidget {
@@ -63,7 +64,6 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   bool _relateLoading = false;
   int _activeTab = 0;
   bool _playerFull = false;
-  bool _wasPortraitBeforeFull = true;
   final GlobalKey _videoKey = GlobalKey();
   String _sourceName = '';
   double _lastCurrentTime = 0;
@@ -363,33 +363,13 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
 
   void _setFullscreen(bool full, {bool isPortrait = false}) {
     if (_playerFull == full) return;
-    if (full) {
-      final size = MediaQuery.sizeOf(context);
-      _wasPortraitBeforeFull = size.width <= size.height;
-    }
     setState(() => _playerFull = full);
-    try {
-      if (full) {
-        SystemChrome.setPreferredOrientations(isPortrait
-            ? [DeviceOrientation.portraitUp]
-            : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-      } else {
-        if (_wasPortraitBeforeFull || !AppOrientation.isTablet(context)) {
-          // 手机端退出全屏必须强制回正到竖屏并锁定，绝不在延时后因手机横持再次自动弹回横屏全屏
-          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
-        } else {
-          SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
-        }
-        SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
-      }
-    } catch (_) {}
+    AppOrientation.setFullscreen(full, isPortraitVideo: isPortrait, context: context);
   }
 
   Widget _buildVideoPlayer({
     required bool isFull,
     bool edgeHud = false,
-    double? overrideLeftInset,
   }) {
     final viewPadding = MediaQuery.viewPaddingOf(context);
     final useInset = isFull || edgeHud;
@@ -406,12 +386,10 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       showBack: true,
       isFull: isFull,
       edgeHud: edgeHud,
-      topInset: useInset ? viewPadding.top : 0,
-      bottomInset: useInset ? viewPadding.bottom : 0,
-      leftInset: overrideLeftInset != null
-          ? math.max(overrideLeftInset, (edgeHud ? AppTheme.safeEdge : 0.0))
-          : (useInset ? math.max(viewPadding.left, (edgeHud ? AppTheme.safeEdge : 0.0)) : 0.0),
-      rightInset: isFull ? viewPadding.right : (edgeHud ? AppTheme.safeEdge : 0),
+      topInset: useInset ? math.max(viewPadding.top, AppTheme.safeEdge) : 0.0,
+      bottomInset: isFull ? math.max(viewPadding.bottom, AppTheme.safeEdge) : (edgeHud ? viewPadding.bottom : 0.0),
+      leftInset: useInset ? math.max(viewPadding.left, AppTheme.safeEdge) : 0.0,
+      rightInset: isFull ? math.max(viewPadding.right, AppTheme.safeEdge) : 0.0,
       hasPrev: _hasPrev,
       hasNext: _hasNext,
       onBack: () => _playerFull ? _setFullscreen(false) : Navigator.pop(context),
@@ -429,11 +407,6 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final isLandscape = size.width > size.height && size.height > 0;
-    final isTablet = math.min(size.width, size.height) >= 560;
-    // 只有在平板/iPad（最小边>=560）且处于横屏时才进入双栏分屏；手机横屏专注全屏沉浸，竖屏专注单栏详情
-    final split = !_playerFull && isTablet && isLandscape;
     final isFullMode = _playerFull;
 
     return PopScope(
@@ -444,35 +417,66 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
           _setFullscreen(false);
         }
       },
-      child: Scaffold(
-        backgroundColor: (_isPipActive || isFullMode) ? Colors.black : AppTheme.bg,
-        resizeToAvoidBottomInset: false,
-        body: SafeArea(
-          top: !_isPipActive && !isFullMode && !split,
-          bottom: !_isPipActive && !isFullMode && !split,
-          left: !_isPipActive && !isFullMode && !split,
-          right: !_isPipActive && !isFullMode && !split,
-          child: _buildPlayBody(isFullMode: isFullMode, split: split),
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: kDefaultSystemUiOverlayStyle,
+        child: Scaffold(
+          backgroundColor: (_isPipActive || isFullMode) ? Colors.black : AppTheme.bg,
+          resizeToAvoidBottomInset: false,
+          body: _buildPlayBody(isFullMode: isFullMode),
         ),
       ),
     );
   }
 
-  Widget _buildPlayBody({required bool isFullMode, required bool split}) {
-    if (_loading && _sources.isEmpty) return const LoadingView(label: '正在打开播放页');
+  Widget _buildPlayBody({required bool isFullMode}) {
+    final viewPadding = MediaQuery.viewPaddingOf(context);
+    final topInset = viewPadding.top;
+    final bottomInset = viewPadding.bottom;
+    final leftInset = viewPadding.left;
+    final rightInset = viewPadding.right;
+
+    if (_loading && _sources.isEmpty) {
+      return Stack(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(leftInset, topInset, rightInset, bottomInset),
+            child: const LoadingView(label: '正在打开播放页'),
+          ),
+          if (!isFullMode)
+            Positioned(
+              left: math.max(8.0, leftInset + 4.0),
+              top: topInset + 4.0,
+              child: PlayerBackBtn(onTap: () => Navigator.pop(context)),
+            ),
+        ],
+      );
+    }
     if (_errorText.isNotEmpty && _sources.isEmpty) {
-      return LivePlayErrorView(
-        filmName: _name,
-        errorText: _errorText,
-        isFavorite: _isFav,
-        onBack: () => Navigator.pop(context),
-        onRetry: _loadPlay,
-        onRemoveFavorite: () async {
-          await FavoriteManager.remove(_historyId);
-          if (!mounted) return;
-          setState(() => _isFav = false);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已移出收藏')));
-        },
+      return Stack(
+        children: [
+          Padding(
+            padding: EdgeInsets.fromLTRB(leftInset, topInset, rightInset, bottomInset),
+            child: LivePlayErrorView(
+              filmName: _name,
+              errorText: _errorText,
+              isFavorite: _isFav,
+              onBack: () => Navigator.pop(context),
+              onRetry: _loadPlay,
+              onRemoveFavorite: () async {
+                await FavoriteManager.remove(_historyId);
+                if (!mounted) return;
+                setState(() => _isFav = false);
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('已移出收藏')));
+              },
+            ),
+          ),
+          if (!isFullMode)
+            Positioned(
+              left: math.max(8.0, leftInset + 4.0),
+              top: topInset + 4.0,
+              child: PlayerBackBtn(onTap: () => Navigator.pop(context)),
+            ),
+        ],
       );
     }
 
@@ -488,12 +492,15 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       );
     }
 
+    final size = MediaQuery.sizeOf(context);
+    final isLandscape = size.width > size.height && size.height > 0;
+
     return LivePlayBody(
-      isSplit: split,
+      isFull: false,
+      isSplit: isLandscape,
       playerWidget: _buildVideoPlayer(
         isFull: false,
-        edgeHud: split,
-        overrideLeftInset: split ? SplitCutoutInsets.resolve(MediaQuery.viewPaddingOf(context), padding: MediaQuery.paddingOf(context), displayFeatures: MediaQuery.displayFeaturesOf(context), size: MediaQuery.sizeOf(context)).left : null,
+        edgeHud: isLandscape,
       ),
       activeTab: _activeTab,
       onTabChange: (tab) => setState(() => _activeTab = tab),
