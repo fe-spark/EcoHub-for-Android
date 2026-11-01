@@ -43,8 +43,8 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(kDefaultSystemUiOverlayStyle);
 
-  // 对齐 OHOS `AUTO_ROTATION_RESTRICTED`：默认自动旋转（竖屏 + 左右横屏，排除倒置）
-  SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
+  // 恢复默认朝向（手机端锁定竖屏，平板端支持自动旋转）
+  await AppOrientation.restoreDefaultOrientation();
 
   SourceGuard.navigatorKey = appNavigatorKey;
 

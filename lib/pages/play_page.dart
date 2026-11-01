@@ -88,8 +88,8 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     PipManager.instance.removeListener(_onPipChanged);
     _persistHistory(_lastCurrentTime, _lastDuration);
+    AppOrientation.restoreDefaultOrientation(context);
     try {
-      SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     } catch (_) {}
     SourceGuard.offReconnect(_onReconnect);
@@ -353,9 +353,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
             : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       } else {
-        final size = MediaQuery.sizeOf(context);
-        final isPhone = math.min(size.width, size.height) < 560;
-        if (_wasPortraitBeforeFull || isPhone) {
+        if (_wasPortraitBeforeFull || !AppOrientation.isTablet(context)) {
           // 手机端退出全屏必须强制回正到竖屏并锁定，绝不在延时后因手机横持再次自动弹回横屏全屏
           SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
         } else {
