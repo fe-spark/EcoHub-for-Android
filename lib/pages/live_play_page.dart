@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../api/film_api.dart';
@@ -11,7 +12,6 @@ import '../models/film_models.dart';
 import '../services/pip_manager.dart';
 import '../utils/app_orientation.dart';
 import '../utils/app_settings_manager.dart';
-import '../utils/breakpoint.dart';
 import '../utils/favorite_manager.dart';
 import '../utils/history_manager.dart';
 import '../utils/play_navigation.dart';
@@ -393,7 +393,9 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
       edgeHud: edgeHud,
       topInset: useInset ? viewPadding.top : 0,
       bottomInset: useInset ? viewPadding.bottom : 0,
-      leftInset: overrideLeftInset ?? (useInset ? viewPadding.left : 0),
+      leftInset: overrideLeftInset != null
+          ? math.max(overrideLeftInset, (edgeHud ? AppTheme.safeEdge : 0.0))
+          : (useInset ? math.max(viewPadding.left, (edgeHud ? AppTheme.safeEdge : 0.0)) : 0.0),
       rightInset: isFull ? viewPadding.right : (edgeHud ? AppTheme.safeEdge : 0),
       hasPrev: _hasPrev,
       hasNext: _hasNext,
@@ -413,7 +415,8 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    final split = !_playerFull && size.width >= Breakpoint.md && size.width > size.height;
+    final isLandscape = size.width > size.height && size.height > 0;
+    final split = !_playerFull && isLandscape;
     final isFullMode = _playerFull;
 
     return PopScope(

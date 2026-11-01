@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../common/app_theme.dart';
@@ -6,7 +7,6 @@ import '../api/film_api.dart';
 import '../api/http_client.dart';
 import '../utils/history_manager.dart';
 import '../utils/app_orientation.dart';
-import '../utils/breakpoint.dart';
 import '../utils/play_resume.dart';
 import '../utils/server_config_manager.dart';
 import '../utils/source_guard.dart';
@@ -374,7 +374,9 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
       edgeHud: edgeHud,
       topInset: useInset ? viewPadding.top : 0,
       bottomInset: useInset ? viewPadding.bottom : 0,
-      leftInset: overrideLeftInset ?? (useInset ? viewPadding.left : 0),
+      leftInset: overrideLeftInset != null
+          ? math.max(overrideLeftInset, (edgeHud ? AppTheme.safeEdge : 0.0))
+          : (useInset ? math.max(viewPadding.left, (edgeHud ? AppTheme.safeEdge : 0.0)) : 0.0),
       rightInset: isFull
           ? viewPadding.right
           : (edgeHud ? AppTheme.safeEdge : 0),
@@ -398,8 +400,9 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.sizeOf(context);
-    // 对齐 OHOS `isWideScreen()`：横屏宽屏（宽>=600 且宽>高）时进入分屏，而非全屏。
-    final split = !_playerFull && size.width >= Breakpoint.md && size.width > size.height;
+    // 对齐 OHOS isLandscape()：横屏时进入双栏分栏（非全屏状态下），确保手机横屏与平板/iPad均享有满高影院画幅与右侧专属选集
+    final isLandscape = size.width > size.height && size.height > 0;
+    final split = !_playerFull && isLandscape;
     final isFullMode = _playerFull;
 
     return PopScope(

@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../common/app_theme.dart';
 import '../../utils/format_util.dart';
@@ -52,7 +53,7 @@ class PlayerTopBar extends StatelessWidget {
     return Container(
       width: double.infinity,
       padding: EdgeInsets.only(
-        top: _edge(8, topInset),
+        top: math.max(8.0, topInset),
         left: _edge(8, leftInset),
         right: _edge(8, rightInset),
         bottom: 8,
@@ -121,6 +122,8 @@ class PlayerBottomBar extends StatefulWidget {
   final double leftInset;
   final double rightInset;
   final double bottomInset;
+  final bool hasNext;
+  final VoidCallback? onNext;
   final String castDeviceName;
   final VoidCallback onTogglePlay;
   final VoidCallback onToggleFull;
@@ -149,6 +152,8 @@ class PlayerBottomBar extends StatefulWidget {
     this.leftInset = 0,
     this.rightInset = 0,
     this.bottomInset = 0,
+    this.hasNext = false,
+    this.onNext,
     this.castDeviceName = '',
     required this.onTogglePlay,
     required this.onToggleFull,
@@ -231,7 +236,7 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
         padding: EdgeInsets.only(
           left: _edge(12, widget.leftInset),
           right: _edge(12, widget.rightInset),
-          bottom: _edge(4, widget.bottomInset),
+          bottom: math.max(16.0, widget.bottomInset + 4.0),
           top: 4,
         ),
         decoration: const BoxDecoration(
@@ -251,7 +256,30 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                   icon: Icon(widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded, color: Colors.white, size: 24),
                   onPressed: widget.onTogglePlay,
                 ),
-                Text(timeStr, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500)),
+                if (widget.hasNext && widget.onNext != null)
+                  IconButton(
+                    icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 22),
+                    tooltip: '下一集',
+                    onPressed: widget.onNext,
+                  ),
+                RichText(
+                  text: TextSpan(
+                    children: [
+                      TextSpan(
+                        text: FormatUtil.duration(displaySec),
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                      const TextSpan(
+                        text: ' / ',
+                        style: TextStyle(color: Colors.white54, fontSize: 11),
+                      ),
+                      TextSpan(
+                        text: FormatUtil.duration(widget.totalDuration.inSeconds.toDouble()),
+                        style: const TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
                 const Spacer(),
                 InkWell(
                   onTap: widget.onSpeed,
@@ -259,10 +287,25 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.15),
+                      color: widget.currentSpeed != 1.0
+                          ? AppTheme.accent.withValues(alpha: 0.22)
+                          : Colors.white.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                      border: Border.all(
+                        color: widget.currentSpeed != 1.0
+                            ? AppTheme.accent.withValues(alpha: 0.6)
+                            : Colors.white.withValues(alpha: 0.2),
+                        width: 0.5,
+                      ),
                     ),
-                    child: Text('${widget.currentSpeed}x', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                    child: Text(
+                      '${widget.currentSpeed}x',
+                      style: TextStyle(
+                        color: widget.currentSpeed != 1.0 ? AppTheme.accent : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
                 if (widget.onScale != null)
@@ -273,10 +316,17 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                       margin: const EdgeInsets.only(left: 6),
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.15),
+                        color: Colors.white.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          width: 0.5,
+                        ),
                       ),
-                      child: Text(widget.scaleLabel, style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold)),
+                      child: Text(
+                        widget.scaleLabel,
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ),
                 IconButton(
@@ -320,6 +370,12 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
             ),
             onPressed: widget.onTogglePlay,
           ),
+          if (widget.hasNext && widget.onNext != null)
+            IconButton(
+              icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 20),
+              tooltip: '下一集',
+              onPressed: widget.onNext,
+            ),
           Expanded(child: _buildSlider(context)),
           Text(
             timeStr,
@@ -328,11 +384,28 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
           const SizedBox(width: 4),
           InkWell(
             onTap: widget.onSpeed,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: widget.currentSpeed != 1.0
+                    ? AppTheme.accent.withValues(alpha: 0.20)
+                    : Colors.white.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                border: Border.all(
+                  color: widget.currentSpeed != 1.0
+                      ? AppTheme.accent.withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.15),
+                  width: 0.5,
+                ),
+              ),
               child: Text(
                 '${widget.currentSpeed}x',
-                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: widget.currentSpeed != 1.0 ? AppTheme.accent : Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),

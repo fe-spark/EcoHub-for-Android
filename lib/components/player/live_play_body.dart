@@ -54,6 +54,14 @@ class LivePlayBody extends StatelessWidget {
     required this.sourceName,
   });
 
+  /// 横屏/平板专属侧边栏宽度计算，对齐 OHOS: min(380, max(260, windowWidth * 0.35))
+  static double sidebarWidthOf(double screenWidth) {
+    if (screenWidth <= 0) return 280.0;
+    final target = screenWidth * 0.35;
+    final minW = screenWidth < 700 ? 240.0 : 280.0;
+    return target.clamp(minW, 380.0);
+  }
+
   Widget _buildSideTabs(BuildContext context, {required int columns, bool split = false, double rightInset = 0}) {
     return PlaySideTabs(
       activeTab: activeTab,
@@ -91,16 +99,21 @@ class LivePlayBody extends StatelessWidget {
         displayFeatures: media.displayFeatures,
         size: media.size,
       );
+      final sidebarWidth = sidebarWidthOf(media.size.width);
 
       return Row(
         children: [
+          // 1. 左侧主体播放器：撑满高度与剩余宽度，100% 满高影院画幅，彻底消灭上下挤压黑边
           Expanded(
-            flex: 7,
-            child: playerWidget,
+            child: SizedBox.expand(
+              child: playerWidget,
+            ),
           ),
-          Container(width: 1, color: const Color(0x24FFFFFF)),
-          Expanded(
-            flex: 5,
+          Container(width: 0.5, color: const Color(0x24FFFFFF)),
+          // 2. 右侧专属全高侧边栏：自适应 260~380dp，与竖屏 100% 一致的 sideTabs 选集推荐
+          SizedBox(
+            width: sidebarWidth,
+            height: double.infinity,
             child: Container(
               color: AppTheme.bgElevated,
               child: SafeArea(
@@ -110,7 +123,7 @@ class LivePlayBody extends StatelessWidget {
                 right: false,
                 child: _buildSideTabs(
                   context,
-                  columns: 3,
+                  columns: sidebarWidth > 320 ? 3 : 2,
                   split: true,
                   rightInset: cutout.right,
                 ),

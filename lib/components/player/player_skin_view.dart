@@ -282,6 +282,8 @@ class PlayerSkinView extends StatelessWidget {
             leftInset: leftInset,
             rightInset: rightInset,
             bottomInset: bottomInset,
+            hasNext: hasNext,
+            onNext: onNext,
             castDeviceName: castDeviceName,
             onTogglePlay: onTogglePlay,
             onToggleFull: onToggleFull,
