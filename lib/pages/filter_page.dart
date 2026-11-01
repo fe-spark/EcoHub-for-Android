@@ -6,6 +6,7 @@ import '../api/http_client.dart';
 import '../utils/source_guard.dart';
 import '../utils/favorite_manager.dart';
 import '../utils/breakpoint.dart';
+import '../utils/filter_params.dart';
 import '../components/film_card.dart';
 import '../components/loading_view.dart';
 import '../components/empty_state.dart';
@@ -97,8 +98,8 @@ class _FilterPageState extends State<FilterPage> {
       'current': page,
       'pageSize': _pageSize,
     };
-    _selected.forEach((k, v) {
-      if (v.isNotEmpty) query[k] = v;
+    FilterParams.fold(_selected).forEach((k, v) {
+      query[k] = v;
     });
     return query;
   }
@@ -114,7 +115,11 @@ class _FilterPageState extends State<FilterPage> {
 
   void _pick(String key, String value) {
     if (_isChipOn(key, value) || _fetchLock) return;
-    setState(() => _selected[key] = value);
+    setState(() {
+      final canon = FilterParams.canonical(key);
+      _selected.removeWhere((k, _) => FilterParams.canonical(k) == canon);
+      if (value.trim().isNotEmpty) _selected[canon] = value.trim();
+    });
     if (key == 'Category') {
       HttpClient.instance.trackView('classify', _pid, 'FilterPage', '', value);
     }
@@ -130,12 +135,10 @@ class _FilterPageState extends State<FilterPage> {
   }
 
   void _applyParams(List<String> keys, List<String> values) {
-    for (var i = 0; i < keys.length; i++) {
-      final k = keys[i];
-      final v = i < values.length ? values[i] : '';
-      if (v.isEmpty) continue;
-      _selected[k] = v;
-    }
+    final next = FilterParams.applyEcho(_selected, keys, values);
+    _selected
+      ..clear()
+      ..addAll(next);
   }
 
   Future<void> _loadData(bool reset, {bool fromPull = false}) async {
