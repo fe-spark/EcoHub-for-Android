@@ -383,6 +383,36 @@ class PlayInfo {
     required this.currentEpisode,
   });
 }
+/// 弹幕评论条目，对齐 OHOS `DanmakuComment`
+class DanmakuComment {
+  final String text;
+  final double time; // 触发时间（秒）
+  final String color;
+  final int mode; // 0: 滚动弹幕(R2L), 1: 顶部固定, 2: 底部固定
+
+  const DanmakuComment({
+    required this.text,
+    required this.time,
+    this.color = '#FFFFFF',
+    this.mode = 0,
+  });
+
+  factory DanmakuComment.fromJson(Map<String, dynamic> json) {
+    return DanmakuComment(
+      text: (json['text'] ?? '').toString(),
+      time: (json['time'] as num?)?.toDouble() ?? 0.0,
+      color: (json['color'] ?? '#FFFFFF').toString(),
+      mode: (json['mode'] as num?)?.toInt() ?? 0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'text': text,
+    'time': time,
+    'color': color,
+    'mode': mode,
+  };
+}
 
 /// 观看历史记录项
 class HistoryItem {

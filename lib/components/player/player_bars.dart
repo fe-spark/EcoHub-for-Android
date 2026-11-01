@@ -124,6 +124,8 @@ class PlayerBottomBar extends StatefulWidget {
   final double bottomInset;
   final bool hasNext;
   final VoidCallback? onNext;
+  final bool danmakuEnabled;
+  final VoidCallback? onToggleDanmaku;
   final String castDeviceName;
   final VoidCallback onTogglePlay;
   final VoidCallback onToggleFull;
@@ -154,6 +156,8 @@ class PlayerBottomBar extends StatefulWidget {
     this.bottomInset = 0,
     this.hasNext = false,
     this.onNext,
+    this.danmakuEnabled = true,
+    this.onToggleDanmaku,
     this.castDeviceName = '',
     required this.onTogglePlay,
     required this.onToggleFull,
@@ -329,6 +333,34 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                       ),
                     ),
                   ),
+                InkWell(
+                  onTap: widget.onToggleDanmaku,
+                  borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                  child: Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: widget.danmakuEnabled
+                          ? AppTheme.accent.withValues(alpha: 0.22)
+                          : Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                      border: Border.all(
+                        color: widget.danmakuEnabled
+                            ? AppTheme.accent.withValues(alpha: 0.6)
+                            : Colors.white.withValues(alpha: 0.2),
+                        width: 0.5,
+                      ),
+                    ),
+                    child: Text(
+                      '弹幕',
+                      style: TextStyle(
+                        color: widget.danmakuEnabled ? AppTheme.accent : Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
                 IconButton(
                   icon: Icon(widget.muted ? Icons.volume_off_rounded : Icons.volume_up_rounded, color: Colors.white, size: 20),
                   onPressed: widget.onToggleMute,
@@ -374,6 +406,34 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
           Text(
             timeStr,
             style: const TextStyle(color: Colors.white70, fontSize: 10),
+          ),
+          const SizedBox(width: 4),
+          InkWell(
+            onTap: widget.onToggleDanmaku,
+            borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: widget.danmakuEnabled
+                    ? AppTheme.accent.withValues(alpha: 0.20)
+                    : Colors.white.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(AppTheme.radiusPill),
+                border: Border.all(
+                  color: widget.danmakuEnabled
+                      ? AppTheme.accent.withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.15),
+                  width: 0.5,
+                ),
+              ),
+              child: Text(
+                '弹幕',
+                style: TextStyle(
+                  color: widget.danmakuEnabled ? AppTheme.accent : Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
           const SizedBox(width: 4),
           InkWell(

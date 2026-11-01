@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'player_danmaku_layer.dart';
 import 'player_gesture_handler.dart';
 import 'player_skin_view.dart';
 import 'player_speed_sheet.dart';
@@ -9,10 +10,13 @@ import 'player_playback_controller.dart';
 import '../cast/player_cast_controller.dart';
 import '../cast/player_cast_hud.dart';
 import '../../types/dlna_types.dart';
+import '../../utils/app_settings_manager.dart';
 
 /// 跨平台视频播放器，全量对齐 OHOS `VideoPlayer.ets`
 class VideoPlayerWidget extends StatefulWidget {
   final String videoUrl;
+  final String filmId;
+  final int episode;
   final String title;
   final String poster;
   final double initialTime;
@@ -37,6 +41,8 @@ class VideoPlayerWidget extends StatefulWidget {
   const VideoPlayerWidget({
     super.key,
     required this.videoUrl,
+    this.filmId = '',
+    this.episode = 1,
     this.title = '',
     this.poster = '',
     this.initialTime = 0,
@@ -69,7 +75,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   final PlayerPlaybackController _playback = PlayerPlaybackController();
   final PlayerCastController _castCtrl = PlayerCastController();
   late final PlayerPipCoordinator _pipCoord;
-
+  bool _danmakuEnabled = true;
   int _lastCastPersistMs = 0;
 
   @override
@@ -102,6 +108,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   @override
   void initState() {
     super.initState();
+    _danmakuEnabled = AppSettingsManager.instance.danmakuEnabled;
     WidgetsBinding.instance.addObserver(this);
     _castCtrl.attachHost(this);
     _playback.onEnded = widget.onEnded;
@@ -202,6 +209,20 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     widget.onFullscreenChange?.call(!widget.isFull, isPortrait: _isPortraitVideo());
   }
 
+  void _toggleDanmaku() {
+    setState(() {
+      _danmakuEnabled = !_danmakuEnabled;
+    });
+    AppSettingsManager.instance.setDanmakuEnabled(_danmakuEnabled);
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(_danmakuEnabled ? '已开启弹幕' : '已关闭弹幕'),
+        duration: const Duration(milliseconds: 1500),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
   void _handleManualStartPip() {
     _pipCoord.enterPip(
       videoSize: _playback.controller?.value.size,
@@ -337,6 +358,18 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                   isReady: _playback.isReady,
                 ),
               ),
+              if (!_castCtrl.isCasting && !_playback.isOpening)
+                Positioned.fill(
+                  child: PlayerDanmakuLayer(
+                    filmId: widget.filmId,
+                    episode: widget.episode,
+                    filmTitle: widget.title,
+                    currentTime: _playback.currentPositionSec,
+                    isPlaying: _playback.isPlaying,
+                    playbackSpeed: _playback.currentSpeed,
+                    enabled: _danmakuEnabled,
+                  ),
+                ),
               if (_castCtrl.deviceName.isNotEmpty && !widget.isFull)
                 Center(
                   child: PlayerCastHud(
@@ -357,6 +390,8 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                 showHud: _playback.showHud || pickerOpen,
                 showBack: widget.showBack,
                 title: widget.title,
+                danmakuEnabled: _danmakuEnabled,
+                onToggleDanmaku: _toggleDanmaku,
                 isPlaying: _castCtrl.isCasting
                     ? (_castCtrl.session.phase == CastPhase.playing)
                     : _playback.isPlaying,

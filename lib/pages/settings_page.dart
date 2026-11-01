@@ -226,35 +226,47 @@ class _SettingsPageState extends State<SettingsPage> {
                           valueListenable: AppSettingsManager.instance.pipAutoStartNotifier,
                           builder: (context, pipAutoStart, _) {
                             return ValueListenableBuilder<bool>(
-                              valueListenable: AppSettingsManager.instance.autoPlayNextNotifier,
-                              builder: (context, autoPlayNext, _) {
-                                return Container(
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.bgElevated,
-                                    borderRadius: BorderRadius.circular(AppTheme.radiusLg),
-                                    border: Border.all(
-                                      color: Colors.white.withValues(alpha: 0.08),
-                                      width: 0.5,
-                                    ),
-                                  ),
-                                  clipBehavior: Clip.antiAlias,
-                                  child: Column(
-                                    children: [
-                                      _buildSwitchRow(
-                                        title: '回到桌面开启画中画',
-                                        subtitle: '返回桌面时自动开启小窗悬浮',
-                                        value: pipAutoStart,
-                                        onChanged: (v) => AppSettingsManager.instance.setPipAutoStart(v),
+                              valueListenable: AppSettingsManager.instance.danmakuEnabledNotifier,
+                              builder: (context, danmakuEnabled, _) {
+                                return ValueListenableBuilder<bool>(
+                                  valueListenable: AppSettingsManager.instance.autoPlayNextNotifier,
+                                  builder: (context, autoPlayNext, _) {
+                                    return Container(
+                                      decoration: BoxDecoration(
+                                        color: AppTheme.bgElevated,
+                                        borderRadius: BorderRadius.circular(AppTheme.radiusLg),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(alpha: 0.08),
+                                          width: 0.5,
+                                        ),
                                       ),
-                                      _cardDivider(),
-                                      _buildSwitchRow(
-                                        title: '自动连播下一集',
-                                        subtitle: '当前视频播完后自动播放下一集',
-                                        value: autoPlayNext,
-                                        onChanged: (v) => AppSettingsManager.instance.setAutoPlayNext(v),
+                                      clipBehavior: Clip.antiAlias,
+                                      child: Column(
+                                        children: [
+                                          _buildSwitchRow(
+                                            title: '回到桌面开启画中画',
+                                            subtitle: '返回桌面时自动开启小窗悬浮',
+                                            value: pipAutoStart,
+                                            onChanged: (v) => AppSettingsManager.instance.setPipAutoStart(v),
+                                          ),
+                                          _cardDivider(),
+                                          _buildSwitchRow(
+                                            title: '自动连播下一集',
+                                            subtitle: '当前视频播完后自动播放下一集',
+                                            value: autoPlayNext,
+                                            onChanged: (v) => AppSettingsManager.instance.setAutoPlayNext(v),
+                                          ),
+                                          _cardDivider(),
+                                          _buildSwitchRow(
+                                            title: '默认开启弹幕',
+                                            subtitle: '播放视频时默认展示实时弹幕',
+                                            value: danmakuEnabled,
+                                            onChanged: (v) => AppSettingsManager.instance.setDanmakuEnabled(v),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
+                                    );
+                                  },
                                 );
                               },
                             );

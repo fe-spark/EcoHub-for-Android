@@ -396,6 +396,8 @@ class _LivePlayPageState extends State<LivePlayPage> with WidgetsBindingObserver
     return VideoPlayerWidget(
       key: _videoKey,
       videoUrl: _playUrl,
+      filmId: _sourceMid,
+      episode: _episodeIndex + 1,
       reloadToken: _playToken,
       title: _playTitle,
       poster: ServerConfigManager.instance.resolveMediaUrl(_picture),

@@ -176,4 +176,57 @@ class FilmApi {
     }
     return [];
   }
+  /// 获取指定影片分集弹幕列表，对齐 OHOS FilmApi.getDanmaku
+  static Future<List<DanmakuComment>> getDanmaku(
+    String mid,
+    int episode,
+    String title,
+  ) async {
+    if (mid.trim().isEmpty) return [];
+    final params = {
+      'mid': mid,
+      'episode': episode,
+      'title': title,
+    };
+    final res = await HttpClient.instance.get('/film/danmaku', params: params, timeoutMs: 10000);
+    if ((res.code != 0 && res.code != 1) || res.data == null) return [];
+    if (res.data is List) {
+      final list = <DanmakuComment>[];
+      for (final item in res.data as List) {
+        if (item is Map) {
+          final text = (item['text'] ?? '').toString().trim();
+          if (text.isEmpty) continue;
+          list.add(DanmakuComment(
+            text: text,
+            time: (item['time'] as num?)?.toDouble() ?? 0.0,
+            color: (item['color'] ?? '#FFFFFF').toString(),
+            mode: (item['mode'] as num?)?.toInt() ?? 0,
+          ));
+        }
+      }
+      return list;
+    }
+    return [];
+  }
+
+  /// 发送弹幕入库，对齐 OHOS / Web 端
+  static Future<bool> postDanmaku({
+    required dynamic mid,
+    required int episode,
+    required double time,
+    required String text,
+    String color = '#FFFFFF',
+    int mode = 0,
+  }) async {
+    final body = {
+      'mid': mid,
+      'episode': episode,
+      'time': time,
+      'text': text,
+      'color': color,
+      'mode': mode,
+    };
+    final res = await HttpClient.instance.post('/film/danmaku', data: body);
+    return res.code == 0;
+  }
 }

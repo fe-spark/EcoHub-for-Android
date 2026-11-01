@@ -375,6 +375,8 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     return VideoPlayerWidget(
       key: _videoKey,
       videoUrl: _playUrl,
+      filmId: _filmId,
+      episode: _episodeIndex + 1,
       reloadToken: _playToken,
       title: _playTitle,
       poster: ServerConfigManager.instance.resolveMediaUrl(_picture),

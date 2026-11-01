@@ -88,6 +88,62 @@ class HttpClient {
 
     return _send(url, timeoutMs);
   }
+  Future<ApiResponse> post(
+    String path, {
+    dynamic data,
+    int timeoutMs = 15000,
+  }) async {
+    final manager = ServerConfigManager.instance;
+    String url;
+    try {
+      url = manager.buildApiUrl(path);
+    } catch (e) {
+      SourceGuard.intercept();
+      rethrow;
+    }
+    final userAgent = await _resolveUserAgent();
+    String deviceId = '';
+    try {
+      deviceId = await manager.getDeviceId();
+    } catch (_) {}
+    final provideKey = manager.provideKey;
+
+    try {
+      final res = await http.post(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'User-Agent': userAgent,
+          if (deviceId.isNotEmpty) 'X-Device-Id': deviceId,
+          if (deviceId.isNotEmpty) 'Device-Id': deviceId,
+          if (provideKey.isNotEmpty) 'X-Provide-Key': provideKey,
+        },
+        body: data != null ? jsonEncode(data) : null,
+      ).timeout(Duration(milliseconds: timeoutMs));
+
+      if (res.statusCode != 200) {
+        String errMsg = 'HTTP ${res.statusCode}';
+        try {
+          final body = jsonDecode(utf8.decode(res.bodyBytes));
+          if (body is Map && body['msg'] != null && body['msg'].toString().isNotEmpty) {
+            errMsg = body['msg'].toString();
+          }
+        } catch (_) {}
+        throw Exception(errMsg);
+      }
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is Map<String, dynamic>) {
+        return ApiResponse.fromJson(body);
+      } else if (body is Map) {
+        return ApiResponse.fromJson(body.map((k, v) => MapEntry('$k', v)));
+      }
+      throw Exception('响应格式错误');
+    } catch (e) {
+      if (e is Exception) rethrow;
+      throw Exception('网络请求失败');
+    }
+  }
 
   void trackView(
     String action, [

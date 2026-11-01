@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AppSettingsManager {
   static const String keyAutoPlayNext = 'setting_auto_play_next';
   static const String keyPipAutoStart = 'setting_pip_auto_start';
+  static const String keyDanmakuEnabled = 'setting_danmaku_enabled';
   static const MethodChannel _settingsChannel = MethodChannel('com.ecohub.ecohub/settings');
 
   static final AppSettingsManager instance = AppSettingsManager._();
@@ -14,14 +15,17 @@ class AppSettingsManager {
 
   final ValueNotifier<bool> autoPlayNextNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<bool> pipAutoStartNotifier = ValueNotifier<bool>(true);
+  final ValueNotifier<bool> danmakuEnabledNotifier = ValueNotifier<bool>(true);
 
   bool get autoPlayNext => autoPlayNextNotifier.value;
   bool get pipAutoStart => pipAutoStartNotifier.value;
+  bool get danmakuEnabled => danmakuEnabledNotifier.value;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     autoPlayNextNotifier.value = prefs.getBool(keyAutoPlayNext) ?? true;
     pipAutoStartNotifier.value = prefs.getBool(keyPipAutoStart) ?? true;
+    danmakuEnabledNotifier.value = prefs.getBool(keyDanmakuEnabled) ?? true;
   }
 
   Future<void> setAutoPlayNext(bool value) async {
@@ -34,6 +38,11 @@ class AppSettingsManager {
     pipAutoStartNotifier.value = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(keyPipAutoStart, value);
+  }
+  Future<void> setDanmakuEnabled(bool value) async {
+    danmakuEnabledNotifier.value = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(keyDanmakuEnabled, value);
   }
 
   Future<String> getCacheSize() async {

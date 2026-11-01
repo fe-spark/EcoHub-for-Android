@@ -27,6 +27,7 @@ class PlayerSkinView extends StatelessWidget {
   final String scaleLabel;
   final bool hasPrev;
   final bool hasNext;
+  final bool danmakuEnabled;
   final PlayerPanState panState;
   final double topInset;
   final double leftInset;
@@ -53,7 +54,7 @@ class PlayerSkinView extends StatelessWidget {
   final VoidCallback? onCast;
   final VoidCallback? onStopCast;
   final VoidCallback? onPip;
-
+  final VoidCallback? onToggleDanmaku;
   const PlayerSkinView({
     super.key,
     required this.isFull,
@@ -76,6 +77,7 @@ class PlayerSkinView extends StatelessWidget {
     this.scaleLabel = '适应',
     this.hasPrev = false,
     this.hasNext = false,
+    this.danmakuEnabled = true,
     this.panState = const PlayerPanState(),
     this.topInset = 0,
     this.leftInset = 0,
@@ -102,6 +104,7 @@ class PlayerSkinView extends StatelessWidget {
     this.onCast,
     this.onStopCast,
     this.onPip,
+    this.onToggleDanmaku,
   });
 
   bool get _isLoading {
@@ -284,6 +287,8 @@ class PlayerSkinView extends StatelessWidget {
             bottomInset: bottomInset,
             hasNext: hasNext,
             onNext: onNext,
+            danmakuEnabled: danmakuEnabled,
+            onToggleDanmaku: onToggleDanmaku,
             castDeviceName: castDeviceName,
             onTogglePlay: onTogglePlay,
             onToggleFull: onToggleFull,
