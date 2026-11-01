@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../../api/film_api.dart';
 import '../../models/film_models.dart';
+import '../../services/server_compat.dart';
 
 /// 弹幕渲染层组件，对齐鸿蒙端 `PlayerDanmakuLayer.ets` 与 Web 端 `artplayer-plugin-danmuku`
 class PlayerDanmakuLayer extends StatefulWidget {
@@ -158,7 +159,7 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
     _nextIndex = 0;
     _allComments = [];
 
-    if (widget.filmId.trim().isEmpty && title.isEmpty) return;
+    if (!ServerCompat.instance.canDanmaku || (widget.filmId.trim().isEmpty && title.isEmpty)) return;
 
     try {
       final list = await FilmApi.getDanmaku(

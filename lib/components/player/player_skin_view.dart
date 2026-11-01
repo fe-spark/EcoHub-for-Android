@@ -28,6 +28,7 @@ class PlayerSkinView extends StatelessWidget {
   final bool hasPrev;
   final bool hasNext;
   final bool danmakuEnabled;
+  final bool canDanmaku;
   final PlayerPanState panState;
   final double topInset;
   final double leftInset;
@@ -78,6 +79,7 @@ class PlayerSkinView extends StatelessWidget {
     this.hasPrev = false,
     this.hasNext = false,
     this.danmakuEnabled = true,
+    this.canDanmaku = false,
     this.panState = const PlayerPanState(),
     this.topInset = 0,
     this.leftInset = 0,
@@ -272,6 +274,7 @@ class PlayerSkinView extends StatelessWidget {
             hasNext: hasNext,
             onNext: onNext,
             danmakuEnabled: danmakuEnabled,
+            canDanmaku: canDanmaku,
             onToggleDanmaku: onToggleDanmaku,
             castDeviceName: castDeviceName,
             onTogglePlay: onTogglePlay,

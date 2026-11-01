@@ -181,7 +181,7 @@ class FilmApi {
     int episode,
     String title,
   ) async {
-    if (mid.trim().isEmpty) return [];
+    if (!ServerCompat.instance.canDanmaku || mid.trim().isEmpty) return [];
     final params = {
       'mid': mid,
       'episode': episode,
@@ -217,6 +217,7 @@ class FilmApi {
     String color = '#FFFFFF',
     int mode = 0,
   }) async {
+    if (!ServerCompat.instance.canDanmaku || '$mid'.trim().isEmpty) return false;
     final body = {
       'mid': mid,
       'episode': episode,

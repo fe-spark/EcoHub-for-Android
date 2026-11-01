@@ -246,6 +246,7 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
       leftInset: isFull ? padding.left : 0,
       rightInset: isFull ? padding.right : 0,
       reloadToken: _reloadToken,
+      allowDanmaku: false,
       onBack: () => _setFullscreen(false),
       onFullscreenChange: _setFullscreen,
     );
@@ -273,6 +274,7 @@ class _CustomPlayerPageState extends State<CustomPlayerPage> {
               leftInset: 0,
               rightInset: 0,
               reloadToken: _reloadToken,
+              allowDanmaku: false,
               onFullscreenChange: _setFullscreen,
             ),
           ),
