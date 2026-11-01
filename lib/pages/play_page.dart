@@ -60,6 +60,7 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
   bool _relateLoading = false;
   int _activeTab = 0;
   bool _playerFull = false;
+  bool _wasPortraitBeforeFull = true;
   final GlobalKey _videoKey = GlobalKey();
   String _sourceName = '默认源';
   double _lastCurrentTime = 0;
@@ -338,6 +339,10 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
 
   void _setFullscreen(bool full, {bool isPortrait = false}) {
     if (_playerFull == full) return;
+    if (full) {
+      final size = MediaQuery.sizeOf(context);
+      _wasPortraitBeforeFull = size.width <= size.height;
+    }
     setState(() => _playerFull = full);
     try {
       if (full) {
@@ -348,7 +353,14 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
             : [DeviceOrientation.landscapeLeft, DeviceOrientation.landscapeRight]);
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
       } else {
-        SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
+        final size = MediaQuery.sizeOf(context);
+        final isPhone = math.min(size.width, size.height) < 560;
+        if (_wasPortraitBeforeFull || isPhone) {
+          // 手机端退出全屏必须强制回正到竖屏并锁定，绝不在延时后因手机横持再次自动弹回横屏全屏
+          SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
+        } else {
+          SystemChrome.setPreferredOrientations(kAutoRotationOrientations);
+        }
         SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
       }
     } catch (_) {}
@@ -402,7 +414,9 @@ class _PlayPageState extends State<PlayPage> with WidgetsBindingObserver {
     final size = MediaQuery.sizeOf(context);
     // 对齐 OHOS isLandscape()：横屏时进入双栏分栏（非全屏状态下），确保手机横屏与平板/iPad均享有满高影院画幅与右侧专属选集
     final isLandscape = size.width > size.height && size.height > 0;
-    final split = !_playerFull && isLandscape;
+    final isTablet = math.min(size.width, size.height) >= 560;
+    // 只有在平板/iPad（最小边>=560）且处于横屏时才进入双栏分屏；手机横屏专注全屏沉浸，竖屏专注单栏详情
+    final split = !_playerFull && isTablet && isLandscape;
     final isFullMode = _playerFull;
 
     return PopScope(

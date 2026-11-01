@@ -391,7 +391,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                 canCast: widget.videoUrl.trim().isNotEmpty,
                 onBack: () {
                   if (widget.isFull) {
-                    _toggleFullscreen();
+                    widget.onFullscreenChange?.call(false, isPortrait: _isPortraitVideo());
                   } else {
                     widget.onBack?.call();
                   }

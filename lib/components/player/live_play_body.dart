@@ -91,8 +91,12 @@ class LivePlayBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (isSplit) {
-      final media = MediaQuery.of(context);
+    final media = MediaQuery.of(context);
+    final isLandscape = media.size.width > media.size.height && media.size.height > 0;
+
+    // 只要处于横屏状态（无论是分屏还是过渡帧），一律采用水平 Row 双栏排版；
+    // 绝不能在横屏仅 300~400dp 高度下使用 AspectRatio(16/9) 竖向 Column，否则必产生 RenderFlex overflow 溢出！
+    if (isSplit || isLandscape) {
       final cutout = SplitCutoutInsets.resolve(
         media.viewPadding,
         padding: media.padding,
