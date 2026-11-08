@@ -118,15 +118,13 @@ class _HomeBannerState extends State<HomeBanner> {
     Navigator.pushNamed(context, '/play', arguments: {'id': id});
   }
 
-  Widget _backdrop(BannerItem item, {required bool round}) {
-    final url = ServerConfigManager.instance.resolveMediaUrl(FormatUtil.bannerBackdrop(item));
+  Widget _backdrop(BannerItem item, {required bool round, bool isWide = false}) {
+    final raw = isWide ? FormatUtil.bannerBackdrop(item) : FormatUtil.bannerPoster(item);
+    final url = ServerConfigManager.instance.resolveMediaUrl(raw);
     final radius = round ? AppTheme.radiusLg : 0.0;
     if (url.isEmpty) {
       return DecoratedBox(
-        decoration: BoxDecoration(
-          color: AppTheme.bgCard,
-          borderRadius: BorderRadius.circular(radius),
-        ),
+        decoration: BoxDecoration(color: AppTheme.bgCard, borderRadius: BorderRadius.circular(radius)),
       );
     }
     return ClipRRect(
@@ -158,7 +156,7 @@ class _HomeBannerState extends State<HomeBanner> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _backdrop(item, round: _multi),
+              _backdrop(item, round: _multi, isWide: false),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -197,14 +195,7 @@ class _HomeBannerState extends State<HomeBanner> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         if (item.remark.isNotEmpty) ...[
-                          Text(
-                            item.remark,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: AppTheme.accent,
-                            ),
-                          ),
+                          Text(item.remark, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppTheme.accent)),
                           const SizedBox(width: 6),
                         ],
                         Flexible(
@@ -246,7 +237,7 @@ class _HomeBannerState extends State<HomeBanner> {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              _backdrop(item, round: _multi),
+              _backdrop(item, round: _multi, isWide: true),
               const DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -495,10 +486,7 @@ class _HomeBannerState extends State<HomeBanner> {
                   margin: const EdgeInsets.symmetric(horizontal: 2),
                   width: active ? 18 : 5,
                   height: 3.5,
-                  decoration: BoxDecoration(
-                    color: active ? AppTheme.accent : const Color(0x40FFFFFF),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
+                  decoration: BoxDecoration(color: active ? AppTheme.accent : const Color(0x40FFFFFF), borderRadius: BorderRadius.circular(2)),
                 );
               }),
             ),
