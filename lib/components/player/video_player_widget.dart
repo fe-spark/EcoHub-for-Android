@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'player_danmaku_layer.dart';
 import 'player_gesture_handler.dart';
 import 'player_skin_view.dart';
-import 'player_speed_sheet.dart';
+import 'player_settings_sheet.dart';
 import 'player_scale.dart';
 import 'player_pip_coordinator.dart';
 import 'player_video_surface.dart';
@@ -458,7 +458,20 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                     _castCtrl.pushCastVolume(_playback.muted ? 0.0 : _playback.volume);
                   }
                 },
-                onSpeed: () => PlayerSpeedSheet.show(context, _playback.currentSpeed, _playback.setSpeed),
+                onSpeed: () => PlayerSettingsSheet.show(
+                  context,
+                  currentSpeed: _playback.currentSpeed,
+                  scaleMode: _playback.scaleMode,
+                  muted: _playback.muted,
+                  onSelectSpeed: _playback.setSpeed,
+                  onSelectScale: _playback.setScale,
+                  onToggleMute: () {
+                    _playback.toggleMute();
+                    if (_castCtrl.isCasting) {
+                      _castCtrl.pushCastVolume(_playback.muted ? 0.0 : _playback.volume);
+                    }
+                  },
+                ),
                 onScale: _playback.cycleScale,
                 onRetry: () {
                   if (!_castCtrl.isCasting) {

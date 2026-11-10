@@ -356,118 +356,72 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
           colors: [Colors.transparent, Color(0x5C000000), Color(0xC7000000)],
         ),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final availableWidth = constraints.maxWidth;
-          final isCompact = availableWidth < 460;
-          final isVeryCompact = availableWidth < 380;
-          final showNext = widget.hasNext && widget.onNext != null && !isVeryCompact;
-          final showScale = widget.onScale != null && !isCompact && !isPortrait;
-
-          return Column(
-            mainAxisSize: MainAxisSize.min,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildSlider(context),
+          const SizedBox(height: 2),
+          Row(
             children: [
-              // 1. 顶层通栏进度条（100% 满宽自由拖拽，彻底解决挤压与误触）
-              _buildSlider(context),
-              const SizedBox(height: 2),
-
-              // 2. 底部控制栏（左侧播控与时间，中间弹性留白，右侧功能群组）
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // 左侧控制群组：播放/暂停、下一集、时间刻度
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: Icon(
-                          widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                        visualDensity: VisualDensity.compact,
-                        onPressed: widget.onTogglePlay,
-                      ),
-                      if (showNext)
-                        IconButton(
-                          icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 18),
-                          tooltip: '下一集',
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: widget.onNext,
-                        ),
-                      const SizedBox(width: 4),
-                      Text(
-                        timeStr,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+                  IconButton(
+                    icon: Icon(
+                      widget.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 22,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                    visualDensity: VisualDensity.compact,
+                    onPressed: widget.onTogglePlay,
                   ),
-
-                  const Spacer(),
-
-                  // 右侧功能调节群组：倍速胶囊、比例胶囊、弹幕开关、静音开关、全屏切换
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      PlayerChip(
-                        label: '${widget.currentSpeed}x',
-                        highlight: widget.currentSpeed != 1.0,
-                        onTap: widget.onSpeed,
-                      ),
-                      if (showScale) ...[
-                        const SizedBox(width: 8),
-                        PlayerChip(
-                          label: widget.scaleLabel,
-                          highlight: widget.scaleLabel != '适应',
-                          onTap: widget.onScale,
-                        ),
-                      ],
-                      if (widget.canDanmaku) ...[
-                        const SizedBox(width: 8),
-                        PlayerChip(
-                          label: '弹幕',
-                          highlight: widget.danmakuEnabled,
-                          onTap: widget.onToggleDanmaku,
-                        ),
-                      ],
-                      const SizedBox(width: 2),
-                      IconButton(
-                        icon: Icon(
-                          widget.muted ? Icons.volume_off_rounded : Icons.volume_up_rounded,
-                          color: Colors.white,
-                          size: 20,
-                        ),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                        visualDensity: VisualDensity.compact,
-                        onPressed: widget.onToggleMute,
-                      ),
-                      if (widget.castDeviceName.isEmpty)
-                        IconButton(
-                          icon: Icon(
-                            widget.isFull ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                          visualDensity: VisualDensity.compact,
-                          onPressed: widget.onToggleFull,
-                        ),
-                    ],
+                  const SizedBox(width: 4),
+                  Text(
+                    timeStr,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
+              const Spacer(),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.canDanmaku) ...[
+                    PlayerChip(
+                      label: '弹幕',
+                      highlight: widget.danmakuEnabled,
+                      onTap: widget.onToggleDanmaku,
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  PlayerChip(
+                    label: '设置',
+                    highlight: widget.currentSpeed != 1.0 || widget.scaleLabel != '适应' || widget.muted,
+                    onTap: widget.onSpeed,
+                  ),
+                  if (widget.castDeviceName.isEmpty)
+                    IconButton(
+                      icon: Icon(
+                        widget.isFull ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                        color: Colors.white,
+                        size: 20,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                      visualDensity: VisualDensity.compact,
+                      onPressed: widget.onToggleFull,
+                    ),
+                ],
+              ),
             ],
-          );
-        },
+          ),
+        ],
       ),
     );
   }
