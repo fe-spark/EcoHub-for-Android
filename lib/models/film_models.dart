@@ -542,3 +542,29 @@ class SearchResult {
     this.error = '',
   });
 }
+
+/// GET /film/danmaku 响应顶层的 meta：本站和全网弹幕各多少条，全网弹幕拉取结果。
+/// networkStatus 取值：disabled / ok / empty / error，与网页端一致。
+class DanmakuMeta {
+  final int local;
+  final int network;
+  final String networkStatus;
+  final String networkReason;
+
+  const DanmakuMeta({
+    this.local = 0,
+    this.network = 0,
+    this.networkStatus = '',
+    this.networkReason = '',
+  });
+
+  static DanmakuMeta? fromJson(dynamic json) {
+    if (json is! Map) return null;
+    return DanmakuMeta(
+      local: (json['local'] as num?)?.toInt() ?? 0,
+      network: (json['network'] as num?)?.toInt() ?? 0,
+      networkStatus: '${json['networkStatus'] ?? ''}',
+      networkReason: '${json['networkReason'] ?? ''}',
+    );
+  }
+}

@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import '../../api/film_api.dart';
 import '../../models/film_models.dart';
 import '../../services/server_compat.dart';
+import 'danmaku_status.dart';
 
 /// 弹幕渲染层组件，对齐鸿蒙端 `PlayerDanmakuLayer.ets` 与 Web 端 `artplayer-plugin-danmuku`
 class PlayerDanmakuLayer extends StatefulWidget {
@@ -16,6 +18,9 @@ class PlayerDanmakuLayer extends StatefulWidget {
   final double playbackSpeed;
   final bool enabled;
 
+  /// 弹幕加载状态变化（加载中 / 装载完成 / 失败），由控制条显示，不画在视频上
+  final ValueChanged<DanmakuStatus>? onStatus;
+
   const PlayerDanmakuLayer({
     super.key,
     required this.filmId,
@@ -26,6 +31,7 @@ class PlayerDanmakuLayer extends StatefulWidget {
     this.isBuffering = false,
     this.playbackSpeed = 1.0,
     this.enabled = true,
+    this.onStatus,
   });
 
   @override
@@ -161,21 +167,31 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
 
     if (!ServerCompat.instance.canDanmaku || (widget.filmId.trim().isEmpty && title.isEmpty)) return;
 
+    widget.onStatus?.call(DanmakuStatus.loading);
+    List<DanmakuComment> list = [];
+    DanmakuStatus status;
     try {
-      final list = await FilmApi.getDanmaku(
+      final res = await FilmApi.getDanmaku(
         widget.filmId,
         widget.episode,
         title,
       );
-      if (!mounted || _loadKey != curKey) return;
+      list = res.list;
+      status = DanmakuStatus.loaded(list.length, res.meta);
+    } on TimeoutException {
+      status = DanmakuStatus.requestFailed('请求超时');
+    } catch (e) {
+      status = DanmakuStatus.requestFailed('$e'.replaceFirst('Exception: ', '').trim());
+    }
+    if (!mounted || _loadKey != curKey) return;
+    widget.onStatus?.call(status);
 
-      list.sort((a, b) => a.time.compareTo(b.time));
-      setState(() {
-        _allComments = list;
-        _handleSeek(_currentVideoTime);
-      });
-      _syncTickerState();
-    } catch (_) {}
+    list.sort((a, b) => a.time.compareTo(b.time));
+    setState(() {
+      _allComments = list;
+      _handleSeek(_currentVideoTime);
+    });
+    _syncTickerState();
   }
 
   double _getScrollSpeed() {
