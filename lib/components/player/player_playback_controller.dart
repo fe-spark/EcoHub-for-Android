@@ -445,8 +445,11 @@ class PlayerPlaybackController extends ChangeNotifier with PlayerDeviceControlMi
   }
 
   void cycleScale() {
-    _scaleMode = PlayerScale.next(_scaleMode);
-    showTransient(PlayerPanState(kind: PlayerTipKind.scale, text: '画面：${PlayerScale.label(_scaleMode)}'));
+    setScale(PlayerScale.next(_scaleMode));
+  }
+
+  void setScale(PlayerScaleMode mode) {
+    _scaleMode = mode;
     notifyListeners();
   }
 

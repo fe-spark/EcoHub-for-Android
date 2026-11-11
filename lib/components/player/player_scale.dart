@@ -17,6 +17,23 @@ class PlayerScale {
     }
   }
 
+  static String desc(PlayerScaleMode mode) {
+    switch (mode) {
+      case PlayerScaleMode.cover:
+        return '裁剪铺满';
+      case PlayerScaleMode.stretch:
+        return '全屏拉伸';
+      case PlayerScaleMode.fit:
+        return '保持比例';
+    }
+  }
+
+  static const List<PlayerScaleMode> modes = [
+    PlayerScaleMode.fit,
+    PlayerScaleMode.cover,
+    PlayerScaleMode.stretch,
+  ];
+
   static PlayerScaleMode next(PlayerScaleMode mode) {
     switch (mode) {
       case PlayerScaleMode.fit:
