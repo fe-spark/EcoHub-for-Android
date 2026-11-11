@@ -629,11 +629,17 @@ class DanmakuMeta {
     this.networkReason = '',
   });
 
+  static int _toInt(dynamic v) {
+    final d = DanmakuComment._toDouble(v);
+    return (d != null && d.isFinite) ? d.toInt() : 0;
+  }
+
   static DanmakuMeta? fromJson(dynamic json) {
     if (json is! Map) return null;
     return DanmakuMeta(
-      local: (json['local'] as num?)?.toInt() ?? 0,
-      network: (json['network'] as num?)?.toInt() ?? 0,
+      // 与弹幕条目一样宽松解析：数字和数字字符串都接受，非法值按 0 处理
+      local: _toInt(json['local']),
+      network: _toInt(json['network']),
       networkStatus: '${json['networkStatus'] ?? ''}',
       networkReason: '${json['networkReason'] ?? ''}',
     );

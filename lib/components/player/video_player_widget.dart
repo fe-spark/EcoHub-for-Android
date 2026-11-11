@@ -484,13 +484,13 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                   onSelectSpeed: _playback.setSpeed,
                   onSelectScale: _playback.setScale,
                   onToggleMute: () {
-                    _playback.toggleMute();
+                    // 设置面板里按钮本身就显示静音状态，不再额外弹音量提示（与鸿蒙一致）
+                    _playback.toggleMute(showTip: false);
                     if (_castCtrl.isCasting) {
                       _castCtrl.pushCastVolume(_playback.muted ? 0.0 : _playback.volume);
                     }
                   },
                 ),
-                onScale: _playback.cycleScale,
                 onRetry: () {
                   if (!_castCtrl.isCasting) {
                     _playback.initPlayer(widget.videoUrl);

@@ -34,17 +34,6 @@ class PlayerScale {
     PlayerScaleMode.stretch,
   ];
 
-  static PlayerScaleMode next(PlayerScaleMode mode) {
-    switch (mode) {
-      case PlayerScaleMode.fit:
-        return PlayerScaleMode.cover;
-      case PlayerScaleMode.cover:
-        return PlayerScaleMode.stretch;
-      case PlayerScaleMode.stretch:
-        return PlayerScaleMode.fit;
-    }
-  }
-
   static BoxFit boxFit(PlayerScaleMode mode) {
     switch (mode) {
       case PlayerScaleMode.cover:

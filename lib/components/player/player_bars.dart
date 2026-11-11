@@ -235,7 +235,6 @@ class PlayerBottomBar extends StatefulWidget {
   final VoidCallback onToggleFull;
   final VoidCallback onToggleMute;
   final VoidCallback onSpeed;
-  final VoidCallback? onScale;
   final ValueChanged<Duration>? onSeekStart;
   final ValueChanged<Duration>? onSeekProgress;
   final ValueChanged<Duration>? onSeekEnd;
@@ -269,7 +268,6 @@ class PlayerBottomBar extends StatefulWidget {
     required this.onToggleFull,
     required this.onToggleMute,
     required this.onSpeed,
-    this.onScale,
     this.onSeekStart,
     this.onSeekProgress,
     this.onSeekEnd,

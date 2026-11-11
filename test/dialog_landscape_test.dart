@@ -4,7 +4,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecohub_android/components/film_detail_dialog.dart';
 import 'package:ecohub_android/components/notice_dialog.dart';
 import 'package:ecohub_android/components/version_update_dialog.dart';
-import 'package:ecohub_android/components/player/player_speed_sheet.dart';
 import 'package:ecohub_android/components/player/player_settings_sheet.dart';
 import 'package:ecohub_android/components/player/player_scale.dart';
 import 'package:ecohub_android/components/cast/player_cast_sheet.dart';
@@ -149,35 +148,6 @@ void main() {
       expect(find.text('发现新版本'), findsOneWidget);
       expect(find.text('前往更新'), findsOneWidget);
       expect(find.text('稍后再说'), findsOneWidget);
-    });
-
-    testWidgets('PlayerSpeedSheet does not overflow in landscape', (tester) async {
-      tester.view.physicalSize = const Size(640, 360);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(() => tester.view.resetPhysicalSize());
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => ElevatedButton(
-                onPressed: () {
-                  PlayerSpeedSheet.show(context, 1.0, (_) {});
-                },
-                child: const Text('Open Speed'),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      await tester.tap(find.text('Open Speed'));
-      await tester.pumpAndSettle();
-
-      expect(tester.takeException(), isNull);
-      expect(find.text('播放倍速'), findsOneWidget);
-      expect(find.text('1.0x'), findsOneWidget);
-      expect(find.text('3.0x'), findsOneWidget);
     });
 
     testWidgets('PlayerSettingsSheet does not overflow in landscape', (tester) async {

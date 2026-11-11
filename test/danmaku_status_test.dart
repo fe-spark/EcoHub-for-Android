@@ -85,6 +85,10 @@ void main() {
       final m = DanmakuMeta.fromJson({'local': 2, 'network': 5, 'networkStatus': 'ok'})!;
       expect([m.local, m.network, m.networkStatus], [2, 5, 'ok']);
       expect(DanmakuMeta.fromJson(null), isNull);
+      final s = DanmakuMeta.fromJson({'local': '3', 'network': '12', 'networkStatus': 'ok'})!;
+      expect([s.local, s.network], [3, 12]);
+      final bad = DanmakuMeta.fromJson({'local': 'abc', 'network': null})!;
+      expect([bad.local, bad.network], [0, 0]);
     });
   });
 

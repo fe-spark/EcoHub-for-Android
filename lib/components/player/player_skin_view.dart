@@ -43,7 +43,6 @@ class PlayerSkinView extends StatelessWidget {
   final VoidCallback onToggleFull;
   final VoidCallback onToggleMute;
   final VoidCallback onSpeed;
-  final VoidCallback? onScale;
   final VoidCallback onRetry;
   final VoidCallback? onErrorDetail;
   final VoidCallback? onPrev;
@@ -95,7 +94,6 @@ class PlayerSkinView extends StatelessWidget {
     required this.onToggleFull,
     required this.onToggleMute,
     required this.onSpeed,
-    this.onScale,
     required this.onRetry,
     this.onErrorDetail,
     this.onPrev,
@@ -285,7 +283,6 @@ class PlayerSkinView extends StatelessWidget {
             onToggleFull: onToggleFull,
             onToggleMute: onToggleMute,
             onSpeed: onSpeed,
-            onScale: onScale,
             onSeekStart: onSeekStart,
             onSeekProgress: onSeekProgress,
             onSeekEnd: onSeekEnd,

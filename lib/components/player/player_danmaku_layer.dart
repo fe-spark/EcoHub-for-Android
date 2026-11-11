@@ -401,19 +401,28 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
 
     final maxActive = _maxActive;
     var spawnedThisTick = 0;
+    // 本帧某类弹幕（滚动 / 顶部 / 底部）已经排不下时，同类后续弹幕直接留在队列，不再逐条重试
+    final full = <int>{};
+
+    bool trySpawn(DanmakuComment c, double elapsed) {
+      final mode = _modeOf(c);
+      if (full.contains(mode) || spawnedThisTick >= _maxSpawnPerTick || _activeList.length >= maxActive) {
+        return false;
+      }
+      if (_spawnSingleComment(c, elapsed: elapsed)) {
+        spawnedThisTick++;
+        return true;
+      }
+      full.add(mode);
+      return false;
+    }
 
     // 1. 先处理排队中的弹幕（先来先上），超过等待上限的丢弃
     if (_pending.isNotEmpty) {
       final keep = <DanmakuComment>[];
       for (final c in _pending) {
         if (toTime - c.time > _maxWaitSec) continue;
-        if (spawnedThisTick < _maxSpawnPerTick &&
-            _activeList.length < maxActive &&
-            _spawnSingleComment(c, elapsed: 0.0)) {
-          spawnedThisTick++;
-        } else {
-          keep.add(c);
-        }
+        if (!trySpawn(c, 0.0)) keep.add(c);
       }
       _pending
         ..clear()
@@ -429,14 +438,11 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
       // 时钟对齐跳跃造成的滞后在 2 秒内仍补发（按已飞行时长摆位），更早的视为过期
       if (toTime - c.time > _catchUpWindow) continue;
 
-      final canSpawnNow = spawnedThisTick < _maxSpawnPerTick && _activeList.length < maxActive;
-      if (canSpawnNow && _spawnSingleComment(c, elapsed: math.max(0.0, toTime - c.time))) {
-        spawnedThisTick++;
-        continue;
-      }
-      _enqueue(c);
+      if (!trySpawn(c, math.max(0.0, toTime - c.time))) _enqueue(c);
     }
   }
+
+  static int _modeOf(DanmakuComment c) => c.mode == 1 ? 1 : (c.mode == 2 ? 2 : 0);
 
   void _enqueue(DanmakuComment c) {
     if (_pending.length >= _maxPending) {
@@ -466,14 +472,61 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
     )..layout();
   }
 
+  /// 为滚动弹幕挑一条可用的行：第 0 层整行；大播放器上第 0 层全满时启用错开半行、跨两行的第 1 层。
+  /// 宽度越大越难放下，所以 w 传 0 可作为测量文字前的预检：预检都放不下就一定放不下。
+  ({int lane, int row, int span, double y})? _pickScrollLane(double startX, double w) {
+    final occupied = _fixedOccupiedRows();
+    final scrollRows = _scrollRows;
+    final rowH = _rowHeight;
+    final layers = _allowOffsetLayer ? 2 : 1;
+    for (var layer = 0; layer < layers; layer++) {
+      final span = layer == 0 ? 1 : 2;
+      final rowsInLayer = scrollRows - (span - 1);
+      for (var r = 0; r < rowsInLayer; r++) {
+        var blocked = false;
+        for (var k = 0; k < span; k++) {
+          if (occupied.contains(r + k)) blocked = true;
+        }
+        if (blocked || _scrollBlocked(r, span, startX, w)) continue;
+        return (lane: layer * 100 + r, row: r, span: span, y: _rowY(r) + layer * rowH / 2);
+      }
+    }
+    return null;
+  }
+
+  /// 为固定弹幕挑一条空闲的固定行（顶部从上往下、底部从下往上），没有时返回 -1
+  int _pickFixedLane(int mode) {
+    final maxFixed = _fixedRows;
+    for (var t = 0; t < maxFixed; t++) {
+      var busy = false;
+      for (final act in _activeList) {
+        if (act.mode == mode && act.lane == t) {
+          busy = true;
+          break;
+        }
+      }
+      if (!busy) return t;
+    }
+    return -1;
+  }
+
   bool _spawnSingleComment(DanmakuComment c, {double elapsed = 0.0}) {
-    final mode = c.mode == 1 ? 1 : (c.mode == 2 ? 2 : 0);
+    final mode = _modeOf(c);
     if (mode != 0 && elapsed >= _fixedDuration) return false;
 
     final speed = _getScrollSpeed();
     final startX = _layoutSize.width - (speed * elapsed);
     final totalRows = _totalRows;
     final rowH = _rowHeight;
+
+    // 先用不依赖文字宽度的条件判断有没有空位，行满时不再排版测量文字
+    var fixedLane = -1;
+    if (mode == 0) {
+      if (_pickScrollLane(startX, 0) == null) return false;
+    } else {
+      fixedLane = _pickFixedLane(mode);
+      if (fixedLane < 0) return false;
+    }
 
     final color = _parseColor(c.color);
     final tp = _buildPainter(c, color);
@@ -486,56 +539,25 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
       return false;
     }
 
-    int lane = -1;
-    int row = 0;
+    int lane;
+    int row;
     int rowSpan = 1;
-    double y = 0;
+    double y;
 
     if (mode == 0) {
-      final occupied = _fixedOccupiedRows();
-      final scrollRows = _scrollRows;
-      final layers = _allowOffsetLayer ? 2 : 1;
-      // 第 0 层：整行；第 1 层：错开半行，跨两行（仅大播放器、且第 0 层全满时才用）
-      for (var layer = 0; layer < layers && lane < 0; layer++) {
-        final span = layer == 0 ? 1 : 2;
-        final rowsInLayer = scrollRows - (span - 1);
-        for (var r = 0; r < rowsInLayer; r++) {
-          var blocked = false;
-          for (var k = 0; k < span; k++) {
-            if (occupied.contains(r + k)) blocked = true;
-          }
-          if (blocked || _scrollBlocked(r, span, startX, itemWidth)) continue;
-          lane = layer * 100 + r;
-          row = r;
-          rowSpan = span;
-          y = _rowY(r) + layer * rowH / 2;
-          break;
-        }
+      final pick = _pickScrollLane(startX, itemWidth);
+      if (pick == null) {
+        tp.dispose();
+        return false; // 行满：由调用方决定排队还是放弃
       }
+      lane = pick.lane;
+      row = pick.row;
+      rowSpan = pick.span;
+      y = pick.y;
     } else {
-      final maxFixed = _fixedRows;
-      for (var t = 0; t < maxFixed; t++) {
-        var busy = false;
-        for (final act in _activeList) {
-          if (act.mode == mode && act.lane == t) {
-            busy = true;
-            break;
-          }
-        }
-        if (!busy) {
-          lane = t;
-          break;
-        }
-      }
-      if (lane >= 0) {
-        row = mode == 1 ? lane : math.max(0, totalRows - 1 - lane);
-        y = _rowY(row);
-      }
-    }
-
-    if (lane < 0) {
-      tp.dispose();
-      return false; // 行满：由调用方决定排队还是放弃
+      lane = fixedLane;
+      row = mode == 1 ? lane : math.max(0, totalRows - 1 - lane);
+      y = _rowY(row);
     }
 
     final x = mode == 0 ? startX : math.max(0.0, (_layoutSize.width - itemWidth) / 2);
