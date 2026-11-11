@@ -17,16 +17,22 @@ class PlayerScale {
     }
   }
 
-  static PlayerScaleMode next(PlayerScaleMode mode) {
+  static String desc(PlayerScaleMode mode) {
     switch (mode) {
-      case PlayerScaleMode.fit:
-        return PlayerScaleMode.cover;
       case PlayerScaleMode.cover:
-        return PlayerScaleMode.stretch;
+        return '裁剪铺满';
       case PlayerScaleMode.stretch:
-        return PlayerScaleMode.fit;
+        return '全屏拉伸';
+      case PlayerScaleMode.fit:
+        return '保持比例';
     }
   }
+
+  static const List<PlayerScaleMode> modes = [
+    PlayerScaleMode.fit,
+    PlayerScaleMode.cover,
+    PlayerScaleMode.stretch,
+  ];
 
   static BoxFit boxFit(PlayerScaleMode mode) {
     switch (mode) {

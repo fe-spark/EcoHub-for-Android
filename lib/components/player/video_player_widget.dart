@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
+import 'danmaku_status.dart';
 import 'player_danmaku_layer.dart';
 import 'player_gesture_handler.dart';
 import 'player_skin_view.dart';
-import 'player_speed_sheet.dart';
+import 'player_settings_sheet.dart';
 import 'player_scale.dart';
 import 'player_pip_coordinator.dart';
 import 'player_video_surface.dart';
@@ -81,6 +83,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
   final PlayerCastController _castCtrl = PlayerCastController();
   late final PlayerPipCoordinator _pipCoord;
   bool _danmakuEnabled = true;
+  DanmakuStatus? _danmakuStatus;
   int _lastCastPersistMs = 0;
 
   bool get _canDanmaku => widget.allowDanmaku && ServerCompat.instance.canDanmaku && widget.filmId.trim().isNotEmpty;
@@ -214,6 +217,19 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
       return;
     }
     widget.onFullscreenChange?.call(!widget.isFull, isPortrait: _isPortraitVideo());
+  }
+
+  /// 弹幕层在 initState 里就会报「加载中」，构建阶段推迟到帧末再刷新控制条
+  void _onDanmakuStatus(DanmakuStatus status) {
+    if (status == _danmakuStatus) return;
+    void apply() {
+      if (mounted) setState(() => _danmakuStatus = status);
+    }
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) => apply());
+    } else {
+      apply();
+    }
   }
 
   void _toggleDanmaku() {
@@ -378,6 +394,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                     isBuffering: _playback.isBuffering || _playback.isOpening,
                     playbackSpeed: _playback.currentSpeed,
                     enabled: _danmakuEnabled,
+                    onStatus: _onDanmakuStatus,
                   ),
                 ),
               if (_castCtrl.deviceName.isNotEmpty && !widget.isFull)
@@ -402,6 +419,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                 title: widget.title,
                 danmakuEnabled: _danmakuEnabled,
                 canDanmaku: _canDanmaku,
+                danmakuStatus: _danmakuStatus,
                 onToggleDanmaku: _canDanmaku ? _toggleDanmaku : null,
                 isPlaying: _castCtrl.isCasting
                     ? (_castCtrl.session.phase == CastPhase.playing)
@@ -458,8 +476,21 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
                     _castCtrl.pushCastVolume(_playback.muted ? 0.0 : _playback.volume);
                   }
                 },
-                onSpeed: () => PlayerSpeedSheet.show(context, _playback.currentSpeed, _playback.setSpeed),
-                onScale: _playback.cycleScale,
+                onSpeed: () => PlayerSettingsSheet.show(
+                  context,
+                  currentSpeed: _playback.currentSpeed,
+                  scaleMode: _playback.scaleMode,
+                  muted: _playback.muted,
+                  onSelectSpeed: _playback.setSpeed,
+                  onSelectScale: _playback.setScale,
+                  onToggleMute: () {
+                    // 设置面板里按钮本身就显示静音状态，不再额外弹音量提示（与鸿蒙一致）
+                    _playback.toggleMute(showTip: false);
+                    if (_castCtrl.isCasting) {
+                      _castCtrl.pushCastVolume(_playback.muted ? 0.0 : _playback.volume);
+                    }
+                  },
+                ),
                 onRetry: () {
                   if (!_castCtrl.isCasting) {
                     _playback.initPlayer(widget.videoUrl);

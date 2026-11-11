@@ -4,7 +4,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ecohub_android/components/film_detail_dialog.dart';
 import 'package:ecohub_android/components/notice_dialog.dart';
 import 'package:ecohub_android/components/version_update_dialog.dart';
-import 'package:ecohub_android/components/player/player_speed_sheet.dart';
+import 'package:ecohub_android/components/player/player_settings_sheet.dart';
+import 'package:ecohub_android/components/player/player_scale.dart';
 import 'package:ecohub_android/components/cast/player_cast_sheet.dart';
 import 'package:ecohub_android/components/server_history_dialog.dart';
 import 'package:ecohub_android/utils/app_version_util.dart';
@@ -149,7 +150,7 @@ void main() {
       expect(find.text('稍后再说'), findsOneWidget);
     });
 
-    testWidgets('PlayerSpeedSheet does not overflow in landscape', (tester) async {
+    testWidgets('PlayerSettingsSheet does not overflow in landscape', (tester) async {
       tester.view.physicalSize = const Size(640, 360);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() => tester.view.resetPhysicalSize());
@@ -160,22 +161,31 @@ void main() {
             body: Builder(
               builder: (context) => ElevatedButton(
                 onPressed: () {
-                  PlayerSpeedSheet.show(context, 1.0, (_) {});
+                  PlayerSettingsSheet.show(
+                    context,
+                    currentSpeed: 1.0,
+                    scaleMode: PlayerScaleMode.fit,
+                    muted: false,
+                    onSelectSpeed: (_) {},
+                    onSelectScale: (_) {},
+                    onToggleMute: () {},
+                  );
                 },
-                child: const Text('Open Speed'),
+                child: const Text('Open Settings'),
               ),
             ),
           ),
         ),
       );
 
-      await tester.tap(find.text('Open Speed'));
+      await tester.tap(find.text('Open Settings'));
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(find.text('播放倍速'), findsOneWidget);
-      expect(find.text('1.0x'), findsOneWidget);
-      expect(find.text('3.0x'), findsOneWidget);
+      expect(find.text('播放设置'), findsOneWidget);
+      expect(find.text('1.0x 标准'), findsOneWidget);
+      expect(find.text('适应'), findsOneWidget);
+      expect(find.text('声音'), findsOneWidget);
     });
 
     testWidgets('PlayerCastSheet does not overflow in landscape with multiple devices', (tester) async {

@@ -444,17 +444,18 @@ class PlayerPlaybackController extends ChangeNotifier with PlayerDeviceControlMi
     notifyListeners();
   }
 
-  void cycleScale() {
-    _scaleMode = PlayerScale.next(_scaleMode);
-    showTransient(PlayerPanState(kind: PlayerTipKind.scale, text: '画面：${PlayerScale.label(_scaleMode)}'));
+  void setScale(PlayerScaleMode mode) {
+    _scaleMode = mode;
     notifyListeners();
   }
 
-  void toggleMute() {
+  void toggleMute({bool showTip = true}) {
     final next = !muted;
     setMutedInternal(next);
     _controller?.setVolume(next ? 0.0 : 1.0);
-    showTransient(PlayerPanState(kind: PlayerTipKind.volume, text: next ? '静音' : '音量 100%'));
+    if (showTip) {
+      showTransient(PlayerPanState(kind: PlayerTipKind.volume, text: next ? '静音' : '音量 100%'));
+    }
   }
 
   void setDragPreview(Duration? preview) {
