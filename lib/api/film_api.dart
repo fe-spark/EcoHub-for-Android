@@ -193,14 +193,9 @@ class FilmApi {
       final list = <DanmakuComment>[];
       for (final item in res.data as List) {
         if (item is Map) {
-          final text = (item['text'] ?? '').toString().trim();
-          if (text.isEmpty) continue;
-          list.add(DanmakuComment(
-            text: text,
-            time: (item['time'] as num?)?.toDouble() ?? 0.0,
-            color: (item['color'] ?? '#FFFFFF').toString(),
-            mode: (item['mode'] as num?)?.toInt() ?? 0,
-          ));
+          // 单条脏数据（字段类型不符）只跳过该条，不能让整批弹幕解析失败
+          final c = DanmakuComment.tryParse(item);
+          if (c != null) list.add(c);
         }
       }
       return list;

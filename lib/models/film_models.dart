@@ -384,26 +384,96 @@ class PlayInfo {
   });
 }
 /// 弹幕评论条目，对齐 OHOS `DanmakuComment`
+///
+/// 服务端 `GET /film/danmaku` 返回归一化 JSON：
+/// `{text, time, color: "#rrggbb", mode: 0|1|2, border: bool}`。
+/// 解析时兼容数字/字符串混用、B 站原始 mode（4=底部、5=顶部）与十进制整数颜色。
 class DanmakuComment {
   final String text;
   final double time; // 触发时间（秒）
-  final String color;
+  final String color; // #RRGGBB
   final int mode; // 0: 滚动弹幕(R2L), 1: 顶部固定, 2: 底部固定
+  final bool border; // 高亮（带边框），对应服务端 DanmakuItem.border
 
   const DanmakuComment({
     required this.text,
     required this.time,
     this.color = '#FFFFFF',
     this.mode = 0,
+    this.border = false,
   });
 
-  factory DanmakuComment.fromJson(Map<String, dynamic> json) {
+  /// 宽松解析单条弹幕；text 为空或 time 非法时返回 null
+  static DanmakuComment? tryParse(Map<dynamic, dynamic> json) {
+    final text = (json['text'] ?? '').toString().trim();
+    if (text.isEmpty) return null;
+    final time = _toDouble(json['time']);
+    if (time == null || !time.isFinite || time < 0) return null;
     return DanmakuComment(
-      text: (json['text'] ?? '').toString(),
-      time: (json['time'] as num?)?.toDouble() ?? 0.0,
-      color: (json['color'] ?? '#FFFFFF').toString(),
-      mode: (json['mode'] as num?)?.toInt() ?? 0,
+      text: text,
+      time: time,
+      color: normalizeColor(json['color']),
+      mode: normalizeMode(json['mode']),
+      border: _toBool(json['border']) || _toBool(json['highlight']),
     );
+  }
+
+  factory DanmakuComment.fromJson(Map<String, dynamic> json) {
+    return tryParse(json) ??
+        DanmakuComment(text: (json['text'] ?? '').toString(), time: _toDouble(json['time']) ?? 0.0);
+  }
+
+  /// 0/1/2 为服务端归一化取值；4/5 为 B 站 / 弹弹play 原始取值（4 底部、5 顶部）
+  static int normalizeMode(dynamic raw) {
+    final v = raw is num ? raw.toInt() : (int.tryParse('${raw ?? ''}'.trim()) ?? 0);
+    switch (v) {
+      case 1:
+      case 5:
+        return 1;
+      case 2:
+      case 4:
+        return 2;
+      default:
+        return 0;
+    }
+  }
+
+  /// 统一成 `#RRGGBB`：支持 `#rgb`、`#rrggbb`、`#aarrggbb`、`0xrrggbb` 与十进制整数（如 16777215）
+  static String normalizeColor(dynamic raw) {
+    if (raw is num) return _fromInt(raw.toInt());
+    var s = '${raw ?? ''}'.trim();
+    if (s.isEmpty) return '#FFFFFF';
+    if (s.startsWith('#')) {
+      s = s.substring(1);
+    } else if (s.toLowerCase().startsWith('0x')) {
+      s = s.substring(2);
+    } else if (RegExp(r'^\d+$').hasMatch(s) && s.length != 6) {
+      // 无前缀的纯数字且不是 6 位：按 B 站 / 弹弹play 十进制颜色处理
+      return _fromInt(int.tryParse(s) ?? 0xFFFFFF);
+    }
+    if (!RegExp(r'^[0-9a-fA-F]+$').hasMatch(s)) return '#FFFFFF';
+    if (s.length == 3) s = s.split('').map((c) => '$c$c').join();
+    if (s.length == 8) s = s.substring(2); // AARRGGBB
+    if (s.length != 6) return '#FFFFFF';
+    return '#${s.toUpperCase()}';
+  }
+
+  static String _fromInt(int v) {
+    if (v < 0 || v > 0xFFFFFF) return '#FFFFFF';
+    return '#${v.toRadixString(16).padLeft(6, '0').toUpperCase()}';
+  }
+
+  static double? _toDouble(dynamic v) {
+    if (v is num) return v.toDouble();
+    if (v == null) return null;
+    return double.tryParse(v.toString().trim());
+  }
+
+  static bool _toBool(dynamic v) {
+    if (v is bool) return v;
+    if (v is num) return v != 0;
+    final s = '${v ?? ''}'.trim().toLowerCase();
+    return s == 'true' || s == '1';
   }
 
   Map<String, dynamic> toJson() => {
@@ -411,6 +481,7 @@ class DanmakuComment {
     'time': time,
     'color': color,
     'mode': mode,
+    'border': border,
   };
 }
 
