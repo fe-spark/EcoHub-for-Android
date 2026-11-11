@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'danmaku_status.dart';
 import '../../common/app_theme.dart';
 import 'player_gesture_handler.dart';
 import 'player_error_pad.dart';
@@ -29,6 +30,7 @@ class PlayerSkinView extends StatelessWidget {
   final bool hasNext;
   final bool danmakuEnabled;
   final bool canDanmaku;
+  final DanmakuStatus? danmakuStatus;
   final PlayerPanState panState;
   final double topInset;
   final double leftInset;
@@ -80,6 +82,7 @@ class PlayerSkinView extends StatelessWidget {
     this.hasNext = false,
     this.danmakuEnabled = true,
     this.canDanmaku = false,
+    this.danmakuStatus,
     this.panState = const PlayerPanState(),
     this.topInset = 0,
     this.leftInset = 0,
@@ -275,6 +278,7 @@ class PlayerSkinView extends StatelessWidget {
             onNext: onNext,
             danmakuEnabled: danmakuEnabled,
             canDanmaku: canDanmaku,
+            danmakuStatus: danmakuStatus,
             onToggleDanmaku: onToggleDanmaku,
             castDeviceName: castDeviceName,
             onTogglePlay: onTogglePlay,

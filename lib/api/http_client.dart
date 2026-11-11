@@ -13,7 +13,10 @@ class ApiResponse {
   final String msg;
   final dynamic data;
 
-  ApiResponse({required this.code, required this.msg, this.data});
+  /// 响应顶层的 meta（如弹幕接口的本站 / 全网条数与全网拉取结果），没有时为 null
+  final dynamic meta;
+
+  ApiResponse({required this.code, required this.msg, this.data, this.meta});
 
   factory ApiResponse.fromJson(Map<String, dynamic> json) {
     return ApiResponse(
@@ -22,6 +25,7 @@ class ApiResponse {
           : (int.tryParse('${json['code']}') ?? -1),
       msg: '${json['msg'] ?? ''}',
       data: json['data'],
+      meta: json['meta'],
     );
   }
 }

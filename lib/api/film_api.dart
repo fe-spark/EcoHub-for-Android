@@ -175,22 +175,23 @@ class FilmApi {
     }
     return [];
   }
-  /// 获取指定影片分集弹幕列表，对齐 OHOS FilmApi.getDanmaku
-  static Future<List<DanmakuComment>> getDanmaku(
+  /// 获取指定影片分集弹幕列表及响应顶层的 meta，对齐 OHOS FilmApi.getDanmaku。
+  /// 接口返回失败码时抛出异常（消息为服务端 msg），由调用方转成弹幕加载状态。
+  static Future<({List<DanmakuComment> list, DanmakuMeta? meta})> getDanmaku(
     String mid,
     int episode,
     String title,
   ) async {
-    if (!ServerCompat.instance.canDanmaku || mid.trim().isEmpty) return [];
+    if (!ServerCompat.instance.canDanmaku || mid.trim().isEmpty) return (list: <DanmakuComment>[], meta: null);
     final params = {
       'mid': mid,
       'episode': episode,
       'title': title,
     };
     final res = await HttpClient.instance.get(ServerCompat.instance.endpoint(ApiEndpoint.danmaku), params: params, timeoutMs: 10000);
-    if ((res.code != 0 && res.code != 1) || res.data == null) return [];
+    if (res.code != 0 && res.code != 1) throw Exception(res.msg);
+    final list = <DanmakuComment>[];
     if (res.data is List) {
-      final list = <DanmakuComment>[];
       for (final item in res.data as List) {
         if (item is Map) {
           // 单条脏数据（字段类型不符）只跳过该条，不能让整批弹幕解析失败
@@ -198,9 +199,8 @@ class FilmApi {
           if (c != null) list.add(c);
         }
       }
-      return list;
     }
-    return [];
+    return (list: list, meta: DanmakuMeta.fromJson(res.meta));
   }
 
   /// 发送弹幕入库，对齐 OHOS / Web 端

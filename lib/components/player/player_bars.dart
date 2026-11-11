@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'danmaku_status.dart';
 import '../../common/app_theme.dart';
 import '../../utils/format_util.dart';
 
@@ -225,6 +226,9 @@ class PlayerBottomBar extends StatefulWidget {
   final VoidCallback? onNext;
   final bool danmakuEnabled;
   final bool canDanmaku;
+
+  /// 弹幕加载状态：宽控制条在中间显示文字和状态点，窄控制条只在弹幕开关上显示状态点
+  final DanmakuStatus? danmakuStatus;
   final VoidCallback? onToggleDanmaku;
   final String castDeviceName;
   final VoidCallback onTogglePlay;
@@ -258,6 +262,7 @@ class PlayerBottomBar extends StatefulWidget {
     this.onNext,
     this.danmakuEnabled = true,
     this.canDanmaku = false,
+    this.danmakuStatus,
     this.onToggleDanmaku,
     this.castDeviceName = '',
     required this.onTogglePlay,
@@ -363,6 +368,10 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
           final isVeryCompact = availableWidth < 380;
           final showNext = widget.hasNext && widget.onNext != null && !isVeryCompact;
           final showScale = widget.onScale != null && !isCompact && !isPortrait;
+          // 与网页端一致：宽度不足 560 时收起状态文字，改在弹幕开关上显示状态点
+          final status = widget.canDanmaku ? widget.danmakuStatus : null;
+          final showStatusText = status != null && availableWidth >= 560;
+          final showChipDot = status != null && !showStatusText && status.tone != DanmakuStatusTone.none;
 
           return Column(
             mainAxisSize: MainAxisSize.min,
@@ -410,7 +419,29 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                     ],
                   ),
 
-                  const Spacer(),
+                  if (showStatusText)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Row(
+                          key: const ValueKey('danmaku-status'),
+                          children: [
+                            DanmakuStatusDot(tone: status.tone),
+                            if (status.tone != DanmakuStatusTone.none) const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                status.placeholder,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    const Spacer(),
 
                   // 右侧功能调节群组：倍速胶囊、比例胶囊、弹幕开关、静音开关、全屏切换
                   Row(
@@ -431,10 +462,22 @@ class _PlayerBottomBarState extends State<PlayerBottomBar> {
                       ],
                       if (widget.canDanmaku) ...[
                         const SizedBox(width: 8),
-                        PlayerChip(
-                          label: '弹幕',
-                          highlight: widget.danmakuEnabled,
-                          onTap: widget.onToggleDanmaku,
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            PlayerChip(
+                              label: '弹幕',
+                              highlight: widget.danmakuEnabled,
+                              onTap: widget.onToggleDanmaku,
+                            ),
+                            if (showChipDot)
+                              Positioned(
+                                key: const ValueKey('danmaku-status-dot'),
+                                top: 0,
+                                right: 0,
+                                child: IgnorePointer(child: DanmakuStatusDot(tone: status.tone)),
+                              ),
+                          ],
                         ),
                       ],
                       const SizedBox(width: 2),
