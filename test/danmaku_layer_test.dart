@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ecohub_android/components/player/player_danmaku_layer.dart';
@@ -108,5 +109,53 @@ void main() {
     )));
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.byType(CustomPaint).evaluate().where((e) => e.widget is CustomPaint && (e.widget as CustomPaint).painter != null), isEmpty);
+  });
+
+  testWidgets('滚动弹幕从播放器容器右沿进入、左沿离开，容器尺寸变化后按新宽度进场', (tester) async {
+    final comments = <DanmakuComment>[
+      const DanmakuComment(text: '进场', time: 0.5),
+      for (var i = 0; i < 6; i++) DanmakuComment(text: '换尺寸后$i', time: 9.4 + i * 0.05),
+    ];
+    final frames = <DanmakuLayerStats>[];
+    Widget layer(double t) => PlayerDanmakuLayer(
+          filmId: '1',
+          episode: 1,
+          filmTitle: 't',
+          currentTime: t,
+          isPlaying: true,
+          debugComments: comments,
+          debugOnFrame: frames.add,
+        );
+
+    await tester.pumpWidget(_host(layer(0.4), size: const Size(600, 300)));
+    await tester.pump();
+    for (var i = 0; i < 40; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final firstSeen = frames.firstWhere((s) => s.scroll > 0);
+    // 刚进场时贴着容器右沿（一帧只走几像素）
+    expect(firstSeen.maxScrollX!, greaterThan(600 - 20));
+    expect(firstSeen.maxScrollX!, lessThanOrEqualTo(600));
+
+    // 一直走到容器左沿之外才移除，不会在容器内部提前消失
+    for (var i = 0; i < 500; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final xs = frames.where((s) => s.minScrollX != null).map((s) => s.minScrollX!);
+    expect(xs.reduce(math.min), lessThan(0));
+
+    // 换成更宽的容器（如进入全屏 / 横屏分栏切换），之后到点的弹幕从新的右沿进场
+    await tester.pumpWidget(_host(layer(9.0), size: const Size(600, 300)));
+    await tester.pump(const Duration(milliseconds: 16));
+    await tester.pumpWidget(_host(layer(9.05), size: const Size(780, 300)));
+    frames.clear();
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    final seen = frames.where((s) => s.maxScrollX != null).map((s) => s.maxScrollX!);
+    expect(seen, isNotEmpty);
+    final wide = seen.reduce(math.max);
+    expect(wide, greaterThan(780 - 20));
+    expect(wide, lessThanOrEqualTo(780));
   });
 }

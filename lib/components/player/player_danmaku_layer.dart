@@ -69,6 +69,9 @@ class DanmakuLayerStats {
   final int colored;
   /// 同类弹幕之间是否有两条文字矩形相互重叠（上下或左右）
   final bool hasOverlap;
+  /// 在屏滚动弹幕的最小 / 最大左边 x（相对弹幕层，即播放器容器），没有滚动弹幕时为 null
+  final double? minScrollX;
+  final double? maxScrollX;
 
   const DanmakuLayerStats({
     required this.scroll,
@@ -78,6 +81,8 @@ class DanmakuLayerStats {
     required this.pending,
     required this.colored,
     required this.hasOverlap,
+    this.minScrollX,
+    this.maxScrollX,
   });
 }
 
@@ -629,10 +634,14 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
   DanmakuLayerStats _stats() {
     var scroll = 0, top = 0, bottom = 0, highlighted = 0, colored = 0;
     var overlap = false;
+    double? minX;
+    double? maxX;
     for (var i = 0; i < _activeList.length; i++) {
       final a = _activeList[i];
       if (a.mode == 0) {
         scroll++;
+        minX = minX == null ? a.x : math.min(minX, a.x);
+        maxX = maxX == null ? a.x : math.max(maxX, a.x);
       } else if (a.mode == 1) {
         top++;
       } else {
@@ -657,6 +666,8 @@ class _PlayerDanmakuLayerState extends State<PlayerDanmakuLayer>
       pending: _pending.length,
       colored: colored,
       hasOverlap: overlap,
+      minScrollX: minX,
+      maxScrollX: maxX,
     );
   }
 
