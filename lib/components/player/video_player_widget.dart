@@ -385,33 +385,16 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
               ),
               if (!_castCtrl.isCasting && !_playback.isOpening && _canDanmaku)
                 Positioned.fill(
-                  // 弹幕层只覆盖视频实际画面（适应模式不含左右 / 上下黑边），从画面右沿进入、左沿离开
-                  child: LayoutBuilder(
-                    builder: (context, box) {
-                      final rect = PlayerVideoSurface.displayRect(
-                        box.biggest,
-                        PlayerVideoSurface.videoAspect(_playback.controller),
-                        _playback.scaleMode,
-                      );
-                      return Stack(
-                        children: [
-                          Positioned.fromRect(
-                            rect: rect,
-                            child: PlayerDanmakuLayer(
-                              filmId: widget.filmId,
-                              episode: widget.episode,
-                              filmTitle: widget.filmTitle.isNotEmpty ? widget.filmTitle : widget.title,
-                              currentTime: _playback.currentPositionSec,
-                              isPlaying: _playback.isPlaying,
-                              isBuffering: _playback.isBuffering || _playback.isOpening,
-                              playbackSpeed: _playback.currentSpeed,
-                              enabled: _danmakuEnabled,
-                              onStatus: _onDanmakuStatus,
-                            ),
-                          ),
-                        ],
-                      );
-                    },
+                  child: PlayerDanmakuLayer(
+                    filmId: widget.filmId,
+                    episode: widget.episode,
+                    filmTitle: widget.filmTitle.isNotEmpty ? widget.filmTitle : widget.title,
+                    currentTime: _playback.currentPositionSec,
+                    isPlaying: _playback.isPlaying,
+                    isBuffering: _playback.isBuffering || _playback.isOpening,
+                    playbackSpeed: _playback.currentSpeed,
+                    enabled: _danmakuEnabled,
+                    onStatus: _onDanmakuStatus,
                   ),
                 ),
               if (_castCtrl.deviceName.isNotEmpty && !widget.isFull)

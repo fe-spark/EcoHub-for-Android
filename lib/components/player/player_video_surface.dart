@@ -20,35 +20,6 @@ class PlayerVideoSurface extends StatelessWidget {
     this.isReady = false,
   });
 
-  /// 视频实际宽高比（已按旋转校正）；未初始化或尺寸未知时返回 null
-  static double? videoAspect(VideoPlayerController? c) {
-    if (c == null || !c.value.isInitialized) return null;
-    final size = c.value.size;
-    final rot = c.value.rotationCorrection;
-    final isRotated = rot == 90 || rot == 270;
-    final w = isRotated ? size.height : size.width;
-    final h = isRotated ? size.width : size.height;
-    if (w > 0 && h > 0) return w / h;
-    final a = c.value.aspectRatio;
-    return a > 0 && a.isFinite ? a : null;
-  }
-
-  /// 视频画面在播放器 [box] 内实际显示的矩形（弹幕层按它定位和裁剪）：
-  /// 适应模式按宽高比居中、留黑边部分不算画面；填充 / 拉伸铺满整个播放器；宽高比未知时按整个播放器。
-  static Rect displayRect(Size box, double? aspect, PlayerScaleMode mode) {
-    final full = Offset.zero & box;
-    if (mode != PlayerScaleMode.fit || aspect == null || aspect <= 0 || box.width <= 0 || box.height <= 0) {
-      return full;
-    }
-    double w = box.width;
-    double h = w / aspect;
-    if (h > box.height) {
-      h = box.height;
-      w = h * aspect;
-    }
-    return Rect.fromLTWH((box.width - w) / 2, (box.height - h) / 2, w, h);
-  }
-
   Widget _buildVideo(VideoPlayerController c) {
     final size = c.value.size;
     final rot = c.value.rotationCorrection;
