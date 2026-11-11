@@ -241,9 +241,7 @@ class _VideoPlayerWidgetState extends State<VideoPlayerWidget>
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(!_danmakuEnabled
-            ? '已关闭弹幕'
-            : ((_danmakuStatus?.title ?? '').isEmpty ? '已开启弹幕' : '已开启弹幕，${_danmakuStatus!.title}')),
+        content: Text(_danmakuEnabled ? '已开启弹幕' : '已关闭弹幕'),
         duration: const Duration(milliseconds: 1500),
         behavior: SnackBarBehavior.floating,
       ),
